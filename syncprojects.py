@@ -159,7 +159,7 @@ def log(*args, **kwargs):
                 f.write("[{}]({}) {}{}".format(format_time(), level, kwargs.get('sep', ' ').join(args),
                                                kwargs.get('endl', '\n')))
         except Exception:
-            with open(expanduser("~/Documents/syncprojects_debug.txt"), "a") as f:
+            with open(join(DEFAULT_DEST, f"{current_user()}_syncprojects_debug.txt"), "a") as f:
                 f.write("[{}] ERROR IN LOGGING:\n{}".format(format_time(), traceback.format_exc()))
 
 
