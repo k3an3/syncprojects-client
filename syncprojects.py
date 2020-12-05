@@ -9,7 +9,7 @@ import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
 from hashlib import md5
-from os import listdir, readlink, symlink
+from os import listdir, readlink, symlink, scandir
 from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
 from pathlib import Path
 from shutil import which, copyfile
@@ -20,8 +20,8 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.2a'
-CODENAME = "FACTBEARER"
+__version__ = '1.3'
+CODENAME = "IT GOES TO 11"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝
@@ -76,6 +76,8 @@ MOUNT_COMMAND = ""
 LEGACY_MODE = False
 # File to keep track of last sync
 LAST_FiLE = ".last_sync"
+NEURAL_DSP_PATH = "C:\\ProgramData\\Neural DSP"
+AMP_PRESET_DIR = "X:\\SomeDir\\Amp Settings"
 
 try:
     from config import *
@@ -83,16 +85,52 @@ except ImportError:
     pass
 
 
+def resolve_username(user):
+    if user == "Admin":
+        return "Keane"
+    return user
+
+
+def get_local_neural_dsp_amps():
+    with scandir(NEURAL_DSP_PATH) as entries:
+        for entry in entries:
+            if entry.is_dir() and entry.name != "Impulse Responses":
+                yield entry.name
+
+
+def push_amp_settings(amp):
+    copy_tree(join(NEURAL_DSP_PATH, amp, "User"), 
+            join(AMP_PRESET_DIR, amp, current_user()),
+            single_depth=True,
+            update=True)
+
+
+def pull_amp_settings(amp):
+    with scandir(join(AMP_PRESET_DIR, amp)) as entries:
+        for entry in entries:
+            if entry.name != current_user():
+                copy_tree(entry.path, 
+                    join(NEURAL_DSP_PATH, amp, "User", entry.name), 
+                    single_depth=True,
+                    update=True)
+
+
+def sync_amps():
+    for amp in get_local_neural_dsp_amps():
+        push_amp_settings(amp)
+        pull_amp_settings(amp)
+
+
+# TODO
 def save_last_file(directory):
     with open(join(directory, LAST_FiLE), 'w') as f:
         f.write(f"{current_user()},{datetime.datetime.now().timestamp()}")
     
 
+# TODO
 def read_last_file(directory):
     with open(join(directory, LAST_FiLE), 'r') as f:
         user, timestamp = f.read().split(',')
-    if user == 'Admin':
-        user = 'Keane'
     return user, datetime.datetime.fromtimestamp(float(timestamp))
 
 
@@ -277,8 +315,6 @@ def lock():
             elif choice == "override":
                 break
         else:
-            if checked_out_by == "Admin":
-                checked_out_by = "Keane"
             checked_out_until = datetime.datetime.fromtimestamp(float(checked_out_until))
             hours = (checked_out_until - datetime.datetime.now()).total_seconds() / 3600
             if hours <= 0:
@@ -317,7 +353,7 @@ def print_latest_change(directory_path):
 
 
 def current_user():
-    return getpass.getuser()
+    return resolve_username(getpass.getuser())
 
 
 def validate_changelog(changelog_file):
@@ -370,8 +406,6 @@ def changelog(directory):
             f.write(changelog_header)
     print("Add a summary of the changes you made to {}, then save and close Notepad.".format(directory))
     user = current_user()
-    if user == "Admin":
-        user = "Keane"
     header = "\n\n-- {}: {} --\n".format(user, format_time())
     header += "=" * (len(header) - 3) + "\n\n"
     with open(changelog_file, "r+") as f:
@@ -482,7 +516,7 @@ def handle_link(src_name, dst_name, verbose, dry_run):
 
 def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
               preserve_symlinks=0, update=0, verbose=1, dry_run=0,
-              progress=True, executor=None):
+              progress=True, executor=None, single_depth=False):
     from distutils.file_util import copy_file
     from distutils.dir_util import mkpath
 
@@ -510,7 +544,7 @@ def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
         if preserve_symlinks and islink(src_name):
             outputs.append(executor.submit(handle_link, src_name, dst_name, verbose, dry_run))
 
-        elif isdir(src_name):
+        elif isdir(src_name) and not single_depth:
             outputs.append(
                 executor.submit(
                     copy_tree, src_name, dst_name, preserve_mode,
@@ -659,6 +693,8 @@ def sync():
             sleep(2)
         else:
             log("Successfully synced", project)
+    log("Syncing Neural DSP presets...")
+    sync_amps()
     print(print_hr('='))
     log("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
