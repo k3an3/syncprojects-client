@@ -113,7 +113,6 @@ def pull_amp_settings(amp):
             if entry.name != current_user():
                 copy_tree(entry.path, 
                     join(NEURAL_DSP_PATH, amp, "User", entry.name), 
-                    single_depth=True,
                     update=True,
                     progress=False)
 
