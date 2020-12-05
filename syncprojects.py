@@ -20,6 +20,7 @@ import sys
 import win32file
 from time import sleep
 
+
 __version__ = '1.3'
 CODENAME = "IT GOES TO 11"
 BANNER = """
@@ -75,7 +76,7 @@ MOUNT_COMMAND = ""
 # Use hashing over SMB instead of quicker, manifest hashfile
 LEGACY_MODE = False
 # File to keep track of last sync
-LAST_FiLE = ".last_sync"
+LAST_FILE = ".last_sync"
 NEURAL_DSP_PATH = "C:\\ProgramData\\Neural DSP"
 AMP_PRESET_DIR = "X:\\SomeDir\\Amp Settings"
 
@@ -102,7 +103,8 @@ def push_amp_settings(amp):
     copy_tree(join(NEURAL_DSP_PATH, amp, "User"), 
             join(AMP_PRESET_DIR, amp, current_user()),
             single_depth=True,
-            update=True)
+            update=True,
+            progress=False)
 
 
 def pull_amp_settings(amp):
@@ -112,24 +114,29 @@ def pull_amp_settings(amp):
                 copy_tree(entry.path, 
                     join(NEURAL_DSP_PATH, amp, "User", entry.name), 
                     single_depth=True,
-                    update=True)
+                    update=True,
+                    progress=False)
 
 
 def sync_amps():
+    spinner = Spinner("Syncing Neural DSP presets ")
     for amp in get_local_neural_dsp_amps():
         push_amp_settings(amp)
+        spinner.next()
         pull_amp_settings(amp)
+        spinner.next()
+    print()
 
 
 # TODO
 def save_last_file(directory):
-    with open(join(directory, LAST_FiLE), 'w') as f:
+    with open(join(directory, LAST_FILE), 'w') as f:
         f.write(f"{current_user()},{datetime.datetime.now().timestamp()}")
     
 
 # TODO
 def read_last_file(directory):
-    with open(join(directory, LAST_FiLE), 'r') as f:
+    with open(join(directory, LAST_FILE), 'r') as f:
         user, timestamp = f.read().split(',')
     return user, datetime.datetime.fromtimestamp(float(timestamp))
 
@@ -501,10 +508,6 @@ def get_patched_progress():
     return progress
 
 
-progress = get_patched_progress()
-from progress.bar import IncrementalBar
-
-
 def handle_link(src_name, dst_name, verbose, dry_run):
     link_dest = readlink(src_name)
     if verbose >= 1:
@@ -513,6 +516,9 @@ def handle_link(src_name, dst_name, verbose, dry_run):
         symlink(link_dest, dst_name)
     return dst_name
 
+progress = get_patched_progress()
+from progress.bar import IncrementalBar
+from progress.spinner import Spinner
 
 def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
               preserve_symlinks=0, update=0, verbose=1, dry_run=0,
@@ -693,7 +699,7 @@ def sync():
             sleep(2)
         else:
             log("Successfully synced", project)
-    log("Syncing Neural DSP presets...")
+    print(print_hr())
     sync_amps()
     print(print_hr('='))
     log("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
