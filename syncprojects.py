@@ -20,7 +20,7 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.3a'
+__version__ = '1.3b'
 CODENAME = "IT GOES TO 11"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
