@@ -20,8 +20,7 @@ import sys
 import win32file
 from time import sleep
 
-
-__version__ = '1.3'
+__version__ = '1.3a'
 CODENAME = "IT GOES TO 11"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
@@ -100,21 +99,25 @@ def get_local_neural_dsp_amps():
 
 
 def push_amp_settings(amp):
-    copy_tree(join(NEURAL_DSP_PATH, amp, "User"), 
-            join(AMP_PRESET_DIR, amp, current_user()),
-            single_depth=True,
-            update=True,
-            progress=False)
+    try:
+        copy_tree(join(NEURAL_DSP_PATH, amp, "User"),
+                  join(AMP_PRESET_DIR, amp, current_user()),
+                  single_depth=True,
+                  update=True,
+                  progress=False)
+    except FileNotFoundError:
+        log(traceback.format_exc(), level=2)
+        pass
 
 
 def pull_amp_settings(amp):
     with scandir(join(AMP_PRESET_DIR, amp)) as entries:
         for entry in entries:
             if entry.name != current_user():
-                copy_tree(entry.path, 
-                    join(NEURAL_DSP_PATH, amp, "User", entry.name), 
-                    update=True,
-                    progress=False)
+                copy_tree(entry.path,
+                          join(NEURAL_DSP_PATH, amp, "User", entry.name),
+                          update=True,
+                          progress=False)
 
 
 def sync_amps():
@@ -131,7 +134,7 @@ def sync_amps():
 def save_last_file(directory):
     with open(join(directory, LAST_FILE), 'w') as f:
         f.write(f"{current_user()},{datetime.datetime.now().timestamp()}")
-    
+
 
 # TODO
 def read_last_file(directory):
@@ -231,7 +234,7 @@ def hash_directory(dir_name):
         for file_name in glob(join(dir_name, PROJECT_GLOB)):
             if isfile(file_name):
                 log("Hashing", file_name, quiet=True, level=3)
-                hash_file(file_name, hash)   
+                hash_file(file_name, hash)
         hash_digest = hash.hexdigest()
         remote_hash_cache[dir_name] = hash_digest
         return hash_digest
@@ -325,7 +328,8 @@ def lock():
             hours = (checked_out_until - datetime.datetime.now()).total_seconds() / 3600
             if hours <= 0:
                 break
-            log(f"The studio is currently checked out by {checked_out_by} for {round(hours, 2)} hours or until it's checked in.")
+            log(
+                f"The studio is currently checked out by {checked_out_by} for {round(hours, 2)} hours or until it's checked in.")
             log("Bailing!")
             raise SystemExit
     check_out(user, temp=True)
@@ -515,9 +519,11 @@ def handle_link(src_name, dst_name, verbose, dry_run):
         symlink(link_dest, dst_name)
     return dst_name
 
+
 progress = get_patched_progress()
 from progress.bar import IncrementalBar
 from progress.spinner import Spinner
+
 
 def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
               preserve_symlinks=0, update=0, verbose=1, dry_run=0,
