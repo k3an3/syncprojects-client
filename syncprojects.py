@@ -20,7 +20,7 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.3a'
+__version__ = '1.3c'
 CODENAME = "IT GOES TO 11"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
@@ -281,10 +281,11 @@ def get_input_choice(options):
                 log("Did you know? You don't need to type the entire word. Save some time and just type the "
                     "first character, indicated by \"[{}].\"".format(s[0]))
                 sleep(2)
-            if s and sel.startswith(s):
+            if s and sel.lower().startswith(s.lower()):
                 log(f"User selected '{sel}' by typing '{s}':", quiet=True, level=1)
-                return sel
-
+                return sel.lower()
+            elif not s and sel[0].upper():
+                return sel.lower()
 
 def check_out(user, temp=False, hours=8):
     if temp:
@@ -314,7 +315,7 @@ def lock():
             if not checked_out_by == user:
                 log(
                     f"WARNING: It looks like {checked_out_by} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(checked_out_since)).isoformat()})... maybe talk to them before overriding?")
-            choices = ("try again", "override", "exit")
+            choices = ("Try again", "override", "exit")
             choice = None
             while choice not in choices:
                 choice = get_input_choice(choices)
@@ -619,7 +620,7 @@ def sync():
     if p := process_running(DAW_PROCESS_REGEX):
         log(
             f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open synced projects before proceeding, else corruption may occur.")
-        if get_input_choice(("proceed", "cancel")) == "cancel":
+        if get_input_choice(("Proceed", "cancel")) == "cancel":
             unlock()
             raise SystemExit
     if API_URL and API_KEY:
@@ -687,7 +688,7 @@ def sync():
                                                                 "remote" if up == "local" else "local",
                                                                 dst))
             if up == "remote":
-                if not get_input_choice(("confirm", "skip")) == "confirm":
+                if not get_input_choice(("Confirm", "skip")) == "confirm":
                     continue
             else:
                 try:
@@ -736,7 +737,7 @@ if __name__ == '__main__':
 
         log(
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making edits, as to avoid conflicts.")
-        if get_input_choice(("yes", "no")) == "yes":
+        if get_input_choice(("Yes", "no")) == "yes":
             check_out(current_user())
             log("Alright, it's all yours. This window will stay open. Please remember to check in when you are done.")
             input("[enter] to check in")
