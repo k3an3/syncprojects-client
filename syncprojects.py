@@ -20,7 +20,7 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.3c'
+__version__ = '1.3d'
 CODENAME = "IT GOES TO 11"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
@@ -247,7 +247,7 @@ def is_updated(dir_name, group, remote_hs):
     dst_hash = remote_hs.get(dir_name)
     remote_hash_cache[join(dest, dir_name)] = dst_hash
     if LEGACY_MODE or not dst_hash:
-        log(f"Checking with the slow method. ({LEGACY_MODE=})")
+        log("Checking with the slow/old method just in case we missed it...")
         try:
             dst_hash = hash_directory(join(dest, dir_name))
         except FileNotFoundError:
@@ -616,6 +616,16 @@ def read_paths():
     return paths
 
 
+def handle_new_project(project_name, remote_hs):
+    if project_name not in remote_hs.content:
+        for proj in remote_hs.content.keys():
+            if project_name.lower() == proj.lower():
+                log(f"\nERROR: Your project is named \"{project_name}\", but a similarly named project \"{proj}\" already exists remotely. Please check your spelling/capitalization and try again.")
+                unlock()
+                input("[enter] to exit")
+                raise SystemExit
+        
+
 def sync():
     if p := process_running(DAW_PROCESS_REGEX):
         log(
@@ -663,6 +673,7 @@ def sync():
         up = is_updated(project, group, remote_hs)
         if not_local:
             up == "remote"
+            handle_new_project(project, remote_hs)
         if project in wants:
             log(f"Overriding because {wants['user']} requested this project!!!!")
             sleep(0.9)
