@@ -20,7 +20,7 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.3d'
+__version__ = '1.3e'
 CODENAME = "IT GOES TO 11"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
@@ -748,7 +748,7 @@ if __name__ == '__main__':
 
         log(
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making edits, as to avoid conflicts.")
-        if get_input_choice(("Yes", "no")) == "yes":
+        if get_input_choice(("yes", "No")) == "yes":
             check_out(current_user())
             log("Alright, it's all yours. This window will stay open. Please remember to check in when you are done.")
             input("[enter] to check in")
