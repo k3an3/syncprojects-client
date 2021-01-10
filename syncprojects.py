@@ -20,7 +20,7 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.3e'
+__version__ = '1.3f'
 CODENAME = "IT GOES TO 11"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
@@ -280,11 +280,10 @@ def get_input_choice(options):
             if len(s) > 1:
                 log("Did you know? You don't need to type the entire word. Save some time and just type the "
                     "first character, indicated by \"[{}].\"".format(s[0]))
-                sleep(2)
             if s and sel.lower().startswith(s.lower()):
                 log(f"User selected '{sel}' by typing '{s}':", quiet=True, level=1)
                 return sel.lower()
-            elif not s and sel[0].upper():
+            elif not s and sel[0].isupper():
                 return sel.lower()
 
 def check_out(user, temp=False, hours=8):
