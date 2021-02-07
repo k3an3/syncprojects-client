@@ -20,8 +20,8 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.3f'
-CODENAME = "IT GOES TO 11"
+__version__ = '1.4'
+CODENAME = "DOING THE WORK FOR YOU"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝
@@ -44,6 +44,9 @@ CONFIG_PATH = expanduser("~/Desktop/Studio_Sync.txt")
 # Where the hashes should be stored. Do not modify this file!
 LOCAL_HASH_STORE = expanduser("~/Desktop/studio_hashes.txt")
 REMOTE_HASH_STORE = "hashes"
+SMB_DRIVE = "X:"
+SMB_SERVER = "mydomain.example.com"
+SMB_SHARE = "studio_all"
 
 API_URL = 'https://mydomain.example.com/api/'
 API_KEY = ''
@@ -191,6 +194,13 @@ class HashStore:
 local_hs = HashStore(LOCAL_HASH_STORE)
 remote_hash_cache = {}
 local_hash_cache = {}
+
+
+def mount_persistent_drive():
+    try:
+        subprocess.run(["net", "use", SMB_DRIVE, f"\\\\{SMB_SERVER}\\{SMB_SHARE}", "/persistent:Yes"], check=True)
+    except subprocess.CalledProcessError as e:
+        log("Drive mount failed!", e.output.decode())
 
 
 def api_unblock():
