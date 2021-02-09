@@ -35,14 +35,14 @@ BANNER = """
 # User Configuration #
 ######################
 # The directory where you store your Cubase project files.
-SOURCE = "D:\\Music\\Studio"
+SOURCE = "C:\\Music\\Studio"
 # The path to the network drive containing shared projects.
-DEFAULT_DEST = "X:\\studio"
+DEFAULT_DEST = "X:\\"
 # Where the config file will be stored. On each line of this file
 # should be a directory name that you wish to sync from the "source" directory.
-CONFIG_PATH = expanduser("~/Desktop/Studio_Sync.txt")
+CONFIG_PATH = expanduser("~/Documents/Studio_Sync.txt")
 # Where the hashes should be stored. Do not modify this file!
-LOCAL_HASH_STORE = expanduser("~/Desktop/studio_hashes.txt")
+LOCAL_HASH_STORE = expanduser("~/studio_hashes.txt")
 REMOTE_HASH_STORE = "hashes"
 SMB_DRIVE = "X:"
 SMB_SERVER = "mydomain.example.com"
@@ -59,6 +59,7 @@ DEST_MAPPING = {
     'ASF': 'X:\\SomeDir',
 }
 # "Mutex" that ensures only one instance runs at once.
+# TODO: One per namespace
 MUTEX_PATH = "X:\\SomeDir\\sync.lock"
 # Which text editor to use for editing the changelog.
 NOTEPAD = which("notepad")
@@ -74,7 +75,6 @@ DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 DEFAULT_HASH_ALGO = md5
 BINARY_CLEAN_GLOB = "syncprojects*.exe"
 FIREWALL_NAME = "My Firewall"
-MOUNT_COMMAND = ""
 # Use hashing over SMB instead of quicker, manifest hashfile
 LEGACY_MODE = False
 # File to keep track of last sync
@@ -197,6 +197,7 @@ local_hash_cache = {}
 
 
 def mount_persistent_drive():
+    log("Mounting share drive...")
     try:
         subprocess.run(["net", "use", SMB_DRIVE, f"\\\\{SMB_SERVER}\\{SMB_SHARE}", "/persistent:Yes"], check=True)
     except subprocess.CalledProcessError as e:
@@ -588,10 +589,6 @@ def process_running(regex):
             return process
 
 
-def mount_drive():
-    os.system(MOUNT_COMMAND)
-
-
 def check_wants():
     wants_file = join(DEFAULT_DEST, 'remote.wants')
     if isfile(wants_file):
@@ -642,8 +639,6 @@ def sync():
         if get_input_choice(("Proceed", "cancel")) == "cancel":
             unlock()
             raise SystemExit
-    if API_URL and API_KEY:
-        api_unblock()
     log("Syncing projects...")
     start = datetime.datetime.now()
     log("Opening local database: " + str(local_hs.open()), quiet=True, level=1)
@@ -745,6 +740,10 @@ if __name__ == '__main__':
             error.append(f"Error! Create {CONFIG_PATH} before proceeding.")
         elif not isdir(SOURCE):
             error.append(f"Error! Source path \"{SOURCE}\" not found.")
+        if API_URL and API_KEY:
+            api_unblock()
+        if (SMB_SHARE and SMB_DRIVE and SMB_SERVER) and not isdir(SMB_DRIVE):
+            mount_persistent_drive()
         for directory in (DEFAULT_DEST, *DEST_MAPPING.values()):
             if not isdir(directory):
                 error.append(f"Error! Destination path {directory} not found.")
