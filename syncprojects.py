@@ -726,6 +726,12 @@ def sync():
     log("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
+def check_connect_share():
+    if API_URL and API_KEY:
+        api_unblock()
+    if (SMB_SHARE and SMB_DRIVE and SMB_SERVER) and not isdir(SMB_DRIVE):
+        mount_persistent_drive()
+
 if __name__ == '__main__':
     log(BANNER, level=99)
     log("[v{}]".format(__version__))
@@ -740,10 +746,7 @@ if __name__ == '__main__':
             error.append(f"Error! Create {CONFIG_PATH} before proceeding.")
         elif not isdir(SOURCE):
             error.append(f"Error! Source path \"{SOURCE}\" not found.")
-        if API_URL and API_KEY:
-            api_unblock()
-        if (SMB_SHARE and SMB_DRIVE and SMB_SERVER) and not isdir(SMB_DRIVE):
-            mount_persistent_drive()
+        check_connect_share()
         for directory in (DEFAULT_DEST, *DEST_MAPPING.values()):
             if not isdir(directory):
                 error.append(f"Error! Destination path {directory} not found.")
@@ -760,6 +763,7 @@ if __name__ == '__main__':
             check_out(current_user())
             log("Alright, it's all yours. This window will stay open. Please remember to check in when you are done.")
             input("[enter] to check in")
+            check_connect_share()
             sync()
         unlock()
         if not len(sys.argv) > 1:
