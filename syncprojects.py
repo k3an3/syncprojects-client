@@ -46,7 +46,9 @@ LOCAL_HASH_STORE = expanduser("~/studio_hashes.txt")
 REMOTE_HASH_STORE = "hashes"
 SMB_DRIVE = "X:"
 SMB_SERVER = "mydomain.example.com"
-SMB_SHARE = "studio_all"
+SMB_SHARE = ""
+SMB_USER = ""
+SMB_PASS = ""
 
 API_URL = 'https://mydomain.example.com/api/'
 API_KEY = ''
@@ -198,10 +200,16 @@ local_hash_cache = {}
 
 def mount_persistent_drive():
     log("Mounting share drive...")
+    credentials = [] 
+    if SMB_USER and SMB_PASS:
+        credentials.append(f"/user:{SMB_USER}")
+        credentials.append(SMB_PASS)
     try:
-        subprocess.run(["net", "use", SMB_DRIVE, f"\\\\{SMB_SERVER}\\{SMB_SHARE}", "/persistent:Yes"], check=True)
+        subprocess.run(["net", "use", SMB_DRIVE, f"\\\\{SMB_SERVER}\\{SMB_SHARE}", "/persistent:Yes", *credentials], check=True)
     except subprocess.CalledProcessError as e:
-        log("Drive mount failed!", e.output.decode())
+        log("Drive mount failed!")
+        if e.output:
+            log(e.output.decode())
 
 
 def api_unblock():
