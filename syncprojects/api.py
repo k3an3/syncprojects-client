@@ -15,9 +15,11 @@ def login_prompt(sync_api):
     while attempts < 3:
         try:
             sync_api.login(input("syncprojects.app username: "), getpass.getpass())
-            break
+            return True
         except HTTPError:
             attempts += 1
+    else:
+        return False
 
 
 class Project:
@@ -43,7 +45,8 @@ class SyncAPI:
         if force:
             json = {'force': True}
         attempts = 0
-        while attempts < 1:
+        while attempts < 2:
+            # Try using access token, fall back to refreshing, then re-login
             r = self._request(f"projects/{project}/lock/", method='PUT' if lock else 'DELETE', json=json)
             if r.status_code == 200:
                 return r.json()

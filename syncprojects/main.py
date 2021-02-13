@@ -1,12 +1,11 @@
 import concurrent.futures
 import datetime
-import getpass
 import json
 import os
-import pathlib
 import re
 import shelve
 import subprocess
+import sys
 import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
@@ -18,14 +17,15 @@ from shutil import which, copyfile
 
 import psutil
 import requests
-import sys
-import win32file
+
+if os.name == 'nt':
+    import win32file
 from time import sleep
 
 __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.utils import error_log, log
+from syncprojects.utils import format_time, current_user, Logger, get_datadir, prompt_to_exit
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -37,6 +37,7 @@ BANNER = """
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝
 \"{}\"""".format(CODENAME)
 
+# WARNING: hardcoded configuration is deprecated and will be removed soon!
 ######################
 # User Configuration #
 ######################
@@ -53,10 +54,10 @@ REMOTE_HASH_STORE = "hashes"
 SMB_DRIVE = "X:"
 SMB_SERVER = "mydomain.example.com"
 SMB_SHARE = "studio_all"
-CONFIG_FILE_DIR = expanduser("~/AppData/Local/syncprojects/")
 
 FIREWALL_API_URL = 'https://mydomain.example.com/api/'
 FIREWALL_API_KEY = ''
+FIREWALL_NAME = "My Firewall"
 
 ##########################
 # Advanced Configuration #
@@ -68,37 +69,33 @@ DEST_MAPPING = {
 # "Mutex" that ensures only one instance runs at once.
 MUTEX_PATH = "X:\\SomeDir\\sync.lock"
 # Which text editor to use for editing the changelog.
-NOTEPAD = which("notepad")
 # The width of the changelog header in new files.
-CHANGELOG_HEADER_WIDTH = 50
 UPDATE_PATH_GLOB = ""
 TELEMETRY = ""
 LOG_LEVEL = 0
-PROJECT_GLOB = "*.cpr"
 # Number of threads
-MAX_WORKERS = 25
-DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 DEFAULT_HASH_ALGO = md5
-BINARY_CLEAN_GLOB = "syncprojects*.exe"
-FIREWALL_NAME = "My Firewall"
-MOUNT_COMMAND = ""
 # Use hashing over SMB instead of quicker, manifest hashfile
 LEGACY_MODE = False
 # File to keep track of last sync
-LAST_FILE = ".last_sync"
 NEURAL_DSP_PATH = "C:\\ProgramData\\Neural DSP"
 AMP_PRESET_DIR = "X:\\SomeDir\\Amp Settings"
+
+# These will stay, though
+#############
+# CONSTANTS #
+#############
+CHANGELOG_HEADER_WIDTH = 50
+MAX_WORKERS = 25
+NOTEPAD = which("notepad")
+DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
+PROJECT_GLOB = "*.cpr"
+BINARY_CLEAN_GLOB = "syncprojects*.exe"
 
 try:
     from config import *
 except ImportError:
     pass
-
-
-def resolve_username(user):
-    if user == "Admin":
-        return "Keane"
-    return user
 
 
 def get_local_neural_dsp_amps():
@@ -138,10 +135,6 @@ def sync_amps():
         pull_amp_settings(amp)
         spinner.next()
     print()
-
-
-def format_time():
-    return datetime.datetime.now().strftime("%H:%M:%S %m-%d-%Y")
 
 
 class HashStore:
@@ -348,10 +341,6 @@ def print_latest_change(directory_path):
         print("~~~")
 
 
-def current_user():
-    return resolve_username(getpass.getuser())
-
-
 def validate_changelog(changelog_file):
     r = re.compile(r'^-- [a-zA-Z0-9_-]+: ([0-9]{2}:){2}[0-9]{2} ([0-9]{2}-){2}[0-9]{4} --$')
     with open(changelog_file) as f:
@@ -410,7 +399,7 @@ def changelog(directory):
         f.seek(0)
         f.writelines(lines)
     subprocess.run([NOTEPAD, changelog_file])
-    while (err := validate_changelog(changelog_file)):
+    while err := validate_changelog(changelog_file):
         log("Error! Improper formatting in changelog. Please correct it:\n")
         log(err)
         subprocess.run([NOTEPAD, changelog_file])
@@ -564,10 +553,6 @@ def process_running(regex):
             return process
 
 
-def mount_drive():
-    os.system(MOUNT_COMMAND)
-
-
 def check_wants():
     wants_file = join(DEFAULT_DEST, 'remote.wants')
     if isfile(wants_file):
@@ -608,8 +593,7 @@ def handle_new_project(project_name, remote_hs):
                 log(
                     f"\nERROR: Your project is named \"{project_name}\", but a similarly named project \"{proj}\" already exists remotely. Please check your spelling/capitalization and try again.")
                 unlock()
-                input("[enter] to exit")
-                raise SystemExit
+                prompt_to_exit()
 
 
 def sync():
@@ -708,29 +692,57 @@ def sync():
     log("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
+def migrate_old_settings(config):
+    config.update({
+        'source': SOURCE,
+        'default_dest': DEFAULT_DEST,
+        'local_hash_store': LOCAL_HASH_STORE,
+        'remote_hash_store': REMOTE_HASH_STORE,
+        'smb_drive': SMB_DRIVE,
+        'smb_server': SMB_SERVER,
+        'smb_share': SMB_SHARE,
+        'firewall_api_url': FIREWALL_API_URL,
+        'firewall_api_key': FIREWALL_API_KEY,
+        'firewall_name': FIREWALL_NAME,
+        'dest_mapping': DEST_MAPPING,
+        'mutex_path': MUTEX_PATH,
+        'update_path_glob': UPDATE_PATH_GLOB,
+        'telemetry_file': TELEMETRY,
+        'log_level': LOG_LEVEL,
+        'amp_preset_sync_dir': AMP_PRESET_DIR,
+        'neural_dsp_path': NEURAL_DSP_PATH,
+        'legacy_mode': LEGACY_MODE,
+    })
+
+
 def get_or_create_config():
-    config_dir = pathlib.Path.home() / "AppData/Roaming/Syncprojects"
+    config_dir = get_datadir("syncprojects")
     created = False
     try:
         config_dir.mkdir(parents=True)
     except FileExistsError:
         created = True
-    config = shelve.open(config_dir / "config")
+    config = shelve.open(str(config_dir / "config"))
     if created:
-        config.update(**globals())
+        migrate_old_settings(config)
     return config, created
 
 
 if __name__ == '__main__':
+    config, created = get_or_create_config()
+    logger = Logger(TELEMETRY, LOG_LEVEL, DEFAULT_DEST)
+    # TODO: quick hack
+    log = logger.log
+    error_log = logger.error_log
+
     log(BANNER, level=99)
     log("[v{}]".format(__version__))
     error = []
-    config, created = get_or_create_config()
     sync_api = SyncAPI(config.get('refresh_token'), config.get('access_token'))
     if created:
-        attempts = 0
-        success = False
-        login_prompt(sync_api)
+        if not login_prompt(sync_api):
+            log("Couldn't log in with provided credentials.")
+            prompt_to_exit()
 
     try:
         if TELEMETRY:
@@ -747,11 +759,11 @@ if __name__ == '__main__':
                 error.append(f"Error! Destination path {directory} not found.")
         if error:
             log(*error)
-            input("[enter] to exit")
-            raise SystemExit
+            prompt_to_exit()
         for project in sync_api.get_projects():
             sync_api.lock(project)
-            sync()
+            # TODO: sync one at a time
+            sync(project)
             sync_api.unlock(project)
 
         log(
@@ -763,9 +775,9 @@ if __name__ == '__main__':
             input("[enter] to check in")
             sync()
         if not len(sys.argv) > 1:
-            input("[enter] to exit")
+            prompt_to_exit()
     except Exception as e:
         log("Fatal error! Provide the developer (syncprojects-dev@keane.space) with the following information:\n",
             str(e),
             str(traceback.format_exc()))
-        input("[enter] to exit")
+        prompt_to_exit()
