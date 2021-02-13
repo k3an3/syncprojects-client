@@ -3,7 +3,9 @@ import datetime
 import getpass
 import json
 import os
+import pathlib
 import re
+import shelve
 import subprocess
 import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -20,7 +22,11 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '2.0'
+__version__ = '1.6'
+
+from syncprojects.api import SyncAPI, login_prompt
+from syncprojects.utils import error_log, log
+
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
@@ -47,6 +53,7 @@ REMOTE_HASH_STORE = "hashes"
 SMB_DRIVE = "X:"
 SMB_SERVER = "mydomain.example.com"
 SMB_SHARE = "studio_all"
+CONFIG_FILE_DIR = expanduser("~/AppData/Local/syncprojects/")
 
 FIREWALL_API_URL = 'https://mydomain.example.com/api/'
 FIREWALL_API_KEY = ''
@@ -133,40 +140,8 @@ def sync_amps():
     print()
 
 
-# TODO
-def save_last_file(directory):
-    with open(join(directory, LAST_FILE), 'w') as f:
-        f.write(f"{current_user()},{datetime.datetime.now().timestamp()}")
-
-
-# TODO
-def read_last_file(directory):
-    with open(join(directory, LAST_FILE), 'r') as f:
-        user, timestamp = f.read().split(',')
-    return user, datetime.datetime.fromtimestamp(float(timestamp))
-
-
 def format_time():
     return datetime.datetime.now().strftime("%H:%M:%S %m-%d-%Y")
-
-
-def error_log(func, e):
-    log("Error during {}:\n".format(func), str(e),
-        str(traceback.format_exc()), quiet=True)
-
-
-def log(*args, **kwargs):
-    level = kwargs.pop('level', 0)
-    if not kwargs.pop('quiet', None):
-        print(*args, **kwargs)
-    if TELEMETRY and level <= LOG_LEVEL:
-        try:
-            with open(TELEMETRY, "a") as f:
-                f.write("[{}]({}) {}{}".format(format_time(), level, kwargs.get('sep', ' ').join(args),
-                                               kwargs.get('endl', '\n')))
-        except Exception:
-            with open(join(DEFAULT_DEST, f"{current_user()}_syncprojects_debug.txt"), "a") as f:
-                f.write("[{}] ERROR IN LOGGING:\n{}".format(format_time(), traceback.format_exc()))
 
 
 class HashStore:
@@ -733,10 +708,30 @@ def sync():
     log("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
+def get_or_create_config():
+    config_dir = pathlib.Path.home() / "AppData/Roaming/Syncprojects"
+    created = False
+    try:
+        config_dir.mkdir(parents=True)
+    except FileExistsError:
+        created = True
+    config = shelve.open(config_dir / "config")
+    if created:
+        config.update(**globals())
+    return config, created
+
+
 if __name__ == '__main__':
     log(BANNER, level=99)
     log("[v{}]".format(__version__))
     error = []
+    config, created = get_or_create_config()
+    sync_api = SyncAPI(config.get('refresh_token'), config.get('access_token'))
+    if created:
+        attempts = 0
+        success = False
+        login_prompt(sync_api)
+
     try:
         if TELEMETRY:
             print("Logging enabled with loglevel", LOG_LEVEL)
@@ -754,8 +749,10 @@ if __name__ == '__main__':
             log(*error)
             input("[enter] to exit")
             raise SystemExit
-        lock()
-        sync()
+        for project in sync_api.get_projects():
+            sync_api.lock(project)
+            sync()
+            sync_api.unlock(project)
 
         log(
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
@@ -765,7 +762,6 @@ if __name__ == '__main__':
             log("Alright, it's all yours. This window will stay open. Please remember to check in when you are done.")
             input("[enter] to check in")
             sync()
-        unlock()
         if not len(sys.argv) > 1:
             input("[enter] to exit")
     except Exception as e:
