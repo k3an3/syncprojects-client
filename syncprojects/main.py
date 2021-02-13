@@ -20,8 +20,8 @@ import sys
 import win32file
 from time import sleep
 
-__version__ = '1.4'
-CODENAME = "DOING THE WORK FOR YOU"
+__version__ = '2.0'
+CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝
@@ -48,8 +48,8 @@ SMB_DRIVE = "X:"
 SMB_SERVER = "mydomain.example.com"
 SMB_SHARE = "studio_all"
 
-API_URL = 'https://mydomain.example.com/api/'
-API_KEY = ''
+FIREWALL_API_URL = 'https://mydomain.example.com/api/'
+FIREWALL_API_KEY = ''
 
 ##########################
 # Advanced Configuration #
@@ -206,7 +206,7 @@ def mount_persistent_drive():
 def api_unblock():
     log("Requesting firewall exception... ", end="")
     try:
-        r = requests.post(API_URL + "firewall/unblock", headers={'X-Auth-Token': API_KEY},
+        r = requests.post(FIREWALL_API_URL + "firewall/unblock", headers={'X-Auth-Token': FIREWALL_API_KEY},
                           data={'device': FIREWALL_NAME})
     except Exception as e:
         error_log("api_unblock", e)
@@ -295,6 +295,7 @@ def get_input_choice(options):
                 return sel.lower()
             elif not s and sel[0].isupper():
                 return sel.lower()
+
 
 def check_out(user, temp=False, hours=8):
     if temp:
@@ -629,11 +630,12 @@ def handle_new_project(project_name, remote_hs):
     if project_name not in remote_hs.content:
         for proj in remote_hs.content.keys():
             if project_name.lower() == proj.lower():
-                log(f"\nERROR: Your project is named \"{project_name}\", but a similarly named project \"{proj}\" already exists remotely. Please check your spelling/capitalization and try again.")
+                log(
+                    f"\nERROR: Your project is named \"{project_name}\", but a similarly named project \"{proj}\" already exists remotely. Please check your spelling/capitalization and try again.")
                 unlock()
                 input("[enter] to exit")
                 raise SystemExit
-        
+
 
 def sync():
     if p := process_running(DAW_PROCESS_REGEX):
@@ -642,7 +644,7 @@ def sync():
         if get_input_choice(("Proceed", "cancel")) == "cancel":
             unlock()
             raise SystemExit
-    if API_URL and API_KEY:
+    if FIREWALL_API_URL and FIREWALL_API_KEY:
         api_unblock()
     log("Syncing projects...")
     start = datetime.datetime.now()
@@ -756,7 +758,8 @@ if __name__ == '__main__':
         sync()
 
         log(
-            "Would you like to check out the studio for up to 8 hours? This will prevent other users from making edits, as to avoid conflicts.")
+            "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
+            "edits, as to avoid conflicts.")
         if get_input_choice(("yes", "No")) == "yes":
             check_out(current_user())
             log("Alright, it's all yours. This window will stay open. Please remember to check in when you are done.")
