@@ -1,9 +1,17 @@
 import datetime
+import functools
 import getpass
 import pathlib
 import sys
 import traceback
 from os.path import join
+
+import jwt
+from flask import request, abort
+from jwt import DecodeError, ExpiredSignatureError
+from sqlitedict import SqliteDict
+
+from syncprojects.config import DEV_PUBLIC_KEY, PROD_PUBLIC_KEY
 
 
 class Logger:
@@ -67,3 +75,68 @@ def get_datadir(app: str) -> pathlib.Path:
         return home / ".local/share" / app
     elif sys.platform == "darwin":
         return home / "Library/Application Support" / app
+
+
+def get_public_key():
+    return PROD_PUBLIC_KEY or DEV_PUBLIC_KEY
+
+
+def get_verified_data(f):
+    @functools.wraps(f)
+    def wrapped(*args, **kwargs):
+        try:
+            if request.method == "POST":
+                data = request.get_json()['data']
+            else:
+                data = request.params['data']
+            return f(jwt.decode(data, get_public_key(), algorithms=["RS256"]), *args, **kwargs)
+        except (ExpiredSignatureError, KeyError, ValueError, DecodeError):
+            abort(403)
+        except TypeError:
+            abort(400)
+
+        return f(*args, **kwargs)
+
+    return wrapped
+
+
+def migrate_old_settings(new_config):
+    import config
+    new_config.update({
+        'source': config.SOURCE,
+        'default_dest': config.DEFAULT_DEST,
+        'local_hash_store': config.LOCAL_HASH_STORE,
+        'remote_hash_store': config.REMOTE_HASH_STORE,
+        'smb_drive': config.SMB_DRIVE,
+        'smb_server': config.SMB_SERVER,
+        'smb_share': config.SMB_SHARE,
+        'firewall_api_url': config.FIREWALL_API_URL,
+        'firewall_api_key': config.FIREWALL_API_KEY,
+        'firewall_name': config.FIREWALL_NAME,
+        'dest_mapping': config.DEST_MAPPING,
+        'mutex_path': config.MUTEX_PATH,
+        'update_path_glob': config.UPDATE_PATH_GLOB,
+        'telemetry_file': config.TELEMETRY,
+        'log_level': config.LOG_LEVEL,
+        'amp_preset_sync_dir': config.AMP_PRESET_DIR,
+        'neural_dsp_path': config.NEURAL_DSP_PATH,
+        'legacy_mode': config.LEGACY_MODE,
+    })
+    new_config.commit()
+
+
+def get_or_create_config():
+    config_dir = get_datadir("syncprojects")
+    config_created = False
+    try:
+        config_dir.mkdir(parents=True)
+    except FileExistsError:
+        config_created = True
+    loaded_config = SqliteDict(str(config_dir / "config.db"))
+    if config_created:
+        migrate_old_settings(loaded_config)
+    loaded_config.autocommit = True
+    return loaded_config, config_created
+
+
+appdata, created = get_or_create_config()

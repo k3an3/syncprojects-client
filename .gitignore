@@ -60,5 +60,5 @@ docs/_build/
 target/
 
 # Project
-config.py
 .idea/
+local_config.py

@@ -3,20 +3,20 @@ import datetime
 import json
 import os
 import re
-import shelve
 import subprocess
 import sys
 import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
-from hashlib import md5
 from os import listdir, readlink, symlink, scandir
 from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
 from pathlib import Path
-from shutil import which, copyfile
+from shutil import copyfile
 
 import psutil
 import requests
+
+import config
 
 if os.name == 'nt':
     import win32file
@@ -25,7 +25,7 @@ from time import sleep
 __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.utils import format_time, current_user, Logger, get_datadir, prompt_to_exit
+from syncprojects.utils import format_time, current_user, Logger, prompt_to_exit, appdata, created
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -37,69 +37,9 @@ BANNER = """
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝
 \"{}\"""".format(CODENAME)
 
-# WARNING: hardcoded configuration is deprecated and will be removed soon!
-######################
-# User Configuration #
-######################
-# The directory where you store your Cubase project files.
-SOURCE = "D:\\Music\\Studio"
-# The path to the network drive containing shared projects.
-DEFAULT_DEST = "X:\\studio"
-# Where the config file will be stored. On each line of this file
-# should be a directory name that you wish to sync from the "source" directory.
-CONFIG_PATH = expanduser("~/Desktop/Studio_Sync.txt")
-# Where the hashes should be stored. Do not modify this file!
-LOCAL_HASH_STORE = expanduser("~/Desktop/studio_hashes.txt")
-REMOTE_HASH_STORE = "hashes"
-SMB_DRIVE = "X:"
-SMB_SERVER = "mydomain.example.com"
-SMB_SHARE = "studio_all"
-
-FIREWALL_API_URL = 'https://mydomain.example.com/api/'
-FIREWALL_API_KEY = ''
-FIREWALL_NAME = "My Firewall"
-
-##########################
-# Advanced Configuration #
-##########################
-# Namespace mappings for different backup drives.
-DEST_MAPPING = {
-    'ASF': 'X:\\SomeDir',
-}
-# "Mutex" that ensures only one instance runs at once.
-MUTEX_PATH = "X:\\SomeDir\\sync.lock"
-# Which text editor to use for editing the changelog.
-# The width of the changelog header in new files.
-UPDATE_PATH_GLOB = ""
-TELEMETRY = ""
-LOG_LEVEL = 0
-# Number of threads
-DEFAULT_HASH_ALGO = md5
-# Use hashing over SMB instead of quicker, manifest hashfile
-LEGACY_MODE = False
-# File to keep track of last sync
-NEURAL_DSP_PATH = "C:\\ProgramData\\Neural DSP"
-AMP_PRESET_DIR = "X:\\SomeDir\\Amp Settings"
-
-# These will stay, though
-#############
-# CONSTANTS #
-#############
-CHANGELOG_HEADER_WIDTH = 50
-MAX_WORKERS = 25
-NOTEPAD = which("notepad")
-DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
-PROJECT_GLOB = "*.cpr"
-BINARY_CLEAN_GLOB = "syncprojects*.exe"
-
-try:
-    from config import *
-except ImportError:
-    pass
-
 
 def get_local_neural_dsp_amps():
-    with scandir(NEURAL_DSP_PATH) as entries:
+    with scandir(config.NEURAL_DSP_PATH) as entries:
         for entry in entries:
             if entry.is_dir() and entry.name != "Impulse Responses":
                 yield entry.name
@@ -107,8 +47,8 @@ def get_local_neural_dsp_amps():
 
 def push_amp_settings(amp):
     try:
-        copy_tree(join(NEURAL_DSP_PATH, amp, "User"),
-                  join(AMP_PRESET_DIR, amp, current_user()),
+        copy_tree(join(config.NEURAL_DSP_PATH, amp, "User"),
+                  join(config.AMP_PRESET_DIR, amp, current_user()),
                   single_depth=True,
                   update=True,
                   progress=False)
@@ -118,11 +58,11 @@ def push_amp_settings(amp):
 
 
 def pull_amp_settings(amp):
-    with scandir(join(AMP_PRESET_DIR, amp)) as entries:
+    with scandir(join(config.AMP_PRESET_DIR, amp)) as entries:
         for entry in entries:
             if entry.name != current_user():
                 copy_tree(entry.path,
-                          join(NEURAL_DSP_PATH, amp, "User", entry.name),
+                          join(config.NEURAL_DSP_PATH, amp, "User", entry.name),
                           update=True,
                           progress=False)
 
@@ -159,14 +99,16 @@ class HashStore:
             json.dump(self.content, f)
 
 
-local_hs = HashStore(LOCAL_HASH_STORE)
+local_hs = HashStore(config.LOCAL_HASH_STORE)
 remote_hash_cache = {}
 local_hash_cache = {}
 
 
 def mount_persistent_drive():
     try:
-        subprocess.run(["net", "use", SMB_DRIVE, f"\\\\{SMB_SERVER}\\{SMB_SHARE}", "/persistent:Yes"], check=True)
+        subprocess.run(
+            ["net", "use", config.SMB_DRIVE, f"\\\\{config.SMB_SERVER}\\{config.SMB_SHARE}", "/persistent:Yes"],
+            check=True)
     except subprocess.CalledProcessError as e:
         log("Drive mount failed!", e.output.decode())
 
@@ -174,8 +116,9 @@ def mount_persistent_drive():
 def api_unblock():
     log("Requesting firewall exception... ", end="")
     try:
-        r = requests.post(FIREWALL_API_URL + "firewall/unblock", headers={'X-Auth-Token': FIREWALL_API_KEY},
-                          data={'device': FIREWALL_NAME})
+        r = requests.post(config.FIREWALL_API_URL + "firewall/unblock",
+                          headers={'X-Auth-Token': config.FIREWALL_API_KEY},
+                          data={'device': config.FIREWALL_NAME})
     except Exception as e:
         error_log("api_unblock", e)
         log("failed! Hopefully the sync still works...")
@@ -195,7 +138,7 @@ def print_hr(char="-", chars=79):
 
 def hash_file(file_path, hash=None, block_size=4096):
     if not hash:
-        hash = DEFAULT_HASH_ALGO()
+        hash = config.DEFAULT_HASH_ALGO()
     with open(file_path, 'rb') as fp:
         while True:
             data = fp.read(block_size)
@@ -207,9 +150,9 @@ def hash_file(file_path, hash=None, block_size=4096):
 
 
 def hash_directory(dir_name):
-    hash = DEFAULT_HASH_ALGO()
+    hash = config.DEFAULT_HASH_ALGO()
     if isdir(dir_name):
-        for file_name in glob(join(dir_name, PROJECT_GLOB)):
+        for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
             if isfile(file_name):
                 log("Hashing", file_name, quiet=True, level=3)
                 hash_file(file_name, hash)
@@ -219,12 +162,12 @@ def hash_directory(dir_name):
 
 
 def is_updated(dir_name, group, remote_hs):
-    dest = DEST_MAPPING.get(group, DEFAULT_DEST)
+    dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
     src_hash = local_hash_cache[dir_name]
     log("local_hash is", src_hash, quiet=True, level=2)
     dst_hash = remote_hs.get(dir_name)
     remote_hash_cache[join(dest, dir_name)] = dst_hash
-    if LEGACY_MODE or not dst_hash:
+    if config.LEGACY_MODE or not dst_hash:
         log("Checking with the slow/old method just in case we missed it...")
         try:
             dst_hash = hash_directory(join(dest, dir_name))
@@ -270,14 +213,14 @@ def check_out(user, temp=False, hours=8):
         until = 'temp'
     else:
         until = (datetime.datetime.now() + datetime.timedelta(hours=hours)).timestamp()
-    with open(expanduser(MUTEX_PATH), "w") as f:
+    with open(expanduser(config.MUTEX_PATH), "w") as f:
         f.write("{},{},{}".format(user, until, datetime.datetime.now().timestamp()))
 
 
 def lock():
     user = current_user()
-    while isfile(expanduser(MUTEX_PATH)):
-        with open(expanduser(MUTEX_PATH)) as f:
+    while isfile(expanduser(config.MUTEX_PATH)):
+        with open(expanduser(config.MUTEX_PATH)) as f:
             try:
                 checked_out_by, checked_out_until, checked_out_since = f.read().strip().split(',')
             except ValueError:
@@ -316,7 +259,7 @@ def lock():
 
 def unlock():
     try:
-        Path(expanduser(MUTEX_PATH)).unlink()
+        Path(expanduser(config.MUTEX_PATH)).unlink()
     except (FileNotFoundError, PermissionError) as e:
         error_log("unlock", e)
 
@@ -381,12 +324,12 @@ def validate_changelog(changelog_file):
 
 
 def changelog(directory):
-    changelog_file = join(SOURCE, directory, "changelog.txt")
+    changelog_file = join(config.SOURCE, directory, "changelog.txt")
     if not isfile(changelog_file):
         log("Creating changelog...")
-        divider = print_hr("*", CHANGELOG_HEADER_WIDTH)
+        divider = print_hr("*", config.CHANGELOG_HEADER_WIDTH)
         changelog_header = divider + "\n*{}*\n".format(
-            ("CHANGELOG: " + directory).center(CHANGELOG_HEADER_WIDTH - 2)) + divider
+            ("CHANGELOG: " + directory).center(config.CHANGELOG_HEADER_WIDTH - 2)) + divider
         with open(changelog_file, "w") as f:
             f.write(changelog_header)
     print("Add a summary of the changes you made to {}, then save and close Notepad.".format(directory))
@@ -398,17 +341,17 @@ def changelog(directory):
         lines.insert(3, header)
         f.seek(0)
         f.writelines(lines)
-    subprocess.run([NOTEPAD, changelog_file])
+    subprocess.run([config.NOTEPAD, changelog_file])
     while err := validate_changelog(changelog_file):
         log("Error! Improper formatting in changelog. Please correct it:\n")
         log(err)
-        subprocess.run([NOTEPAD, changelog_file])
+        subprocess.run([config.NOTEPAD, changelog_file])
 
 
 def clean_up():
     try:
         current_file = abspath(sys.argv[0])
-        for file in glob(join(dirname(current_file), BINARY_CLEAN_GLOB)):
+        for file in glob(join(dirname(current_file), config.BINARY_CLEAN_GLOB)):
             try:
                 log(f"Unlinking {file}.", quiet=True, level=3)
                 Path(file).unlink()
@@ -432,7 +375,7 @@ def update():
         log("Failed to resolve local file for update. Skipping...")
         return
     try:
-        remote_file = glob(UPDATE_PATH_GLOB)[::-1][0]
+        remote_file = glob(config.UPDATE_PATH_GLOB)[::-1][0]
     except IndexError:
         log("Update file not found. Skipping...")
         return
@@ -507,7 +450,7 @@ def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
     from distutils.dir_util import mkpath
 
     if not executor:
-        executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+        executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS)
 
     names = listdir(src)
 
@@ -554,7 +497,7 @@ def process_running(regex):
 
 
 def check_wants():
-    wants_file = join(DEFAULT_DEST, 'remote.wants')
+    wants_file = join(config.DEFAULT_DEST, 'remote.wants')
     if isfile(wants_file):
         try:
             log("Loading wants file...", quiet=True)
@@ -576,7 +519,7 @@ def check_wants():
 
 def read_paths():
     paths = set()
-    with open(CONFIG_PATH) as f:
+    with open(config.CONFIG_PATH) as f:
         for line in f:
             try:
                 project, group = line.strip().split(":")
@@ -597,13 +540,13 @@ def handle_new_project(project_name, remote_hs):
 
 
 def sync():
-    if p := process_running(DAW_PROCESS_REGEX):
+    if p := process_running(config.DAW_PROCESS_REGEX):
         log(
             f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open synced projects before proceeding, else corruption may occur.")
         if get_input_choice(("Proceed", "cancel")) == "cancel":
             unlock()
             raise SystemExit
-    if FIREWALL_API_URL and FIREWALL_API_KEY:
+    if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
         api_unblock()
     log("Syncing projects...")
     start = datetime.datetime.now()
@@ -613,8 +556,8 @@ def sync():
     paths = read_paths()
 
     log("Checking local projects for changes...")
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(hash_directory, join(SOURCE, p[0])): p[0] for p in paths}
+    with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+        futures = {executor.submit(hash_directory, join(config.SOURCE, p[0])): p[0] for p in paths}
         for result in concurrent.futures.as_completed(futures):
             project = futures[result]
             try:
@@ -627,11 +570,11 @@ def sync():
         print(print_hr())
         log("Syncing {}...".format(project))
         not_local = False
-        if not isdir(join(SOURCE, project)):
+        if not isdir(join(config.SOURCE, project)):
             log("{} does not exist locally.".format(project))
             not_local = True
-        dest = DEST_MAPPING.get(group, DEFAULT_DEST)
-        remote_store_name = join(dest, REMOTE_HASH_STORE)
+        dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
+        remote_store_name = join(dest, config.REMOTE_HASH_STORE)
         try:
             # Database already opened, contents cached
             remote_hs = remote_stores[remote_store_name]
@@ -654,10 +597,10 @@ def sync():
             up = get_input_choice(("local", "remote", "skip"))
         if up == "remote":
             src = dest
-            dst = SOURCE
+            dst = config.SOURCE
             print_latest_change(join(dest, project))
         elif up == "local":
-            src = SOURCE
+            src = config.SOURCE
             dst = dest
             changelog(project)
         else:
@@ -676,13 +619,13 @@ def sync():
                     remote_hs.update(project, remote_hash_cache[join(src, project)])
                 except Exception as e:
                     error_log("sync:update_remote_hashes", e)
-                    if not LEGACY_MODE:
+                    if not config.LEGACY_MODE:
                         log("Failed to update remote hashes!")
                         raise e
             copy(project, src, dst)
         except Exception as e:
             log("Error syncing", project, str(e))
-            log("If the remote directory does not exist, please remove it from", CONFIG_PATH)
+            log("If the remote directory does not exist, please remove it from", config.CONFIG_PATH)
             sleep(2)
         else:
             log("Successfully synced", project)
@@ -692,45 +635,8 @@ def sync():
     log("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
-def migrate_old_settings(config):
-    config.update({
-        'source': SOURCE,
-        'default_dest': DEFAULT_DEST,
-        'local_hash_store': LOCAL_HASH_STORE,
-        'remote_hash_store': REMOTE_HASH_STORE,
-        'smb_drive': SMB_DRIVE,
-        'smb_server': SMB_SERVER,
-        'smb_share': SMB_SHARE,
-        'firewall_api_url': FIREWALL_API_URL,
-        'firewall_api_key': FIREWALL_API_KEY,
-        'firewall_name': FIREWALL_NAME,
-        'dest_mapping': DEST_MAPPING,
-        'mutex_path': MUTEX_PATH,
-        'update_path_glob': UPDATE_PATH_GLOB,
-        'telemetry_file': TELEMETRY,
-        'log_level': LOG_LEVEL,
-        'amp_preset_sync_dir': AMP_PRESET_DIR,
-        'neural_dsp_path': NEURAL_DSP_PATH,
-        'legacy_mode': LEGACY_MODE,
-    })
-
-
-def get_or_create_config():
-    config_dir = get_datadir("syncprojects")
-    created = False
-    try:
-        config_dir.mkdir(parents=True)
-    except FileExistsError:
-        created = True
-    config = shelve.open(str(config_dir / "config"))
-    if created:
-        migrate_old_settings(config)
-    return config, created
-
-
 if __name__ == '__main__':
-    config, created = get_or_create_config()
-    logger = Logger(TELEMETRY, LOG_LEVEL, DEFAULT_DEST)
+    logger = Logger(config.TELEMETRY, config.LOG_LEVEL, config.DEFAULT_DEST)
     # TODO: quick hack
     log = logger.log
     error_log = logger.error_log
@@ -738,23 +644,23 @@ if __name__ == '__main__':
     log(BANNER, level=99)
     log("[v{}]".format(__version__))
     error = []
-    sync_api = SyncAPI(config.get('refresh_token'), config.get('access_token'))
+    sync_api = SyncAPI(appdata.get('refresh_token'), appdata.get('access_token'))
     if created:
         if not login_prompt(sync_api):
             log("Couldn't log in with provided credentials.")
             prompt_to_exit()
 
     try:
-        if TELEMETRY:
-            print("Logging enabled with loglevel", LOG_LEVEL)
+        if config.TELEMETRY:
+            print("Logging enabled with loglevel", config.LOG_LEVEL)
         clean_up()
-        if UPDATE_PATH_GLOB and update():
+        if config.UPDATE_PATH_GLOB and update():
             raise SystemExit
-        if not isfile(CONFIG_PATH):
-            error.append(f"Error! Create {CONFIG_PATH} before proceeding.")
-        elif not isdir(SOURCE):
-            error.append(f"Error! Source path \"{SOURCE}\" not found.")
-        for directory in (DEFAULT_DEST, *DEST_MAPPING.values()):
+        if not isfile(config.CONFIG_PATH):
+            error.append(f"Error! Create {config.CONFIG_PATH} before proceeding.")
+        elif not isdir(config.SOURCE):
+            error.append(f"Error! Source path \"{config.SOURCE}\" not found.")
+        for directory in (config.DEFAULT_DEST, *config.DEST_MAPPING.values()):
             if not isdir(directory):
                 error.append(f"Error! Destination path {directory} not found.")
         if error:

@@ -1,25 +1,31 @@
 import getpass
-import os
+import webbrowser
+from time import sleep
 
 import requests
 from requests import HTTPError
 
-if os.getenv("DEBUG"):
-    API_BASE_URL = "http://localhost:8000/api/v1/"
-else:
-    API_BASE_URL = "https://syncprojects.app/api/v1/"
+from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
+from syncprojects.utils import Logger, appdata
+
+API_BASE_URL = SYNCPROJECTS_URL + "api/v1/"
 
 
-def login_prompt(sync_api):
+def login_prompt(sync_api) -> bool:
+    del appdata['refresh_token']
+    del appdata['access_token']
     attempts = 0
-    while attempts < 3:
-        try:
-            sync_api.login(input("syncprojects.app username: "), getpass.getpass())
-            return True
-        except HTTPError:
-            attempts += 1
+    if LOGIN_MODE == "web":
+        return sync_api.web_login()
     else:
-        return False
+        # default: prompt
+        while attempts < 3:
+            try:
+                sync_api.login(input("syncprojects.app username: "), getpass.getpass())
+                return True
+            except HTTPError:
+                attempts += 1
+    return False
 
 
 class Project:
@@ -72,3 +78,13 @@ class SyncAPI:
     def refresh(self):
         resp = self._request('token/refresh/', 'POST', json={"refresh": self.refresh_token}).json()
         self.access_token = resp["access"]
+
+    def web_login(self):
+        webbrowser.open(API_BASE_URL + "token/fetch")
+        Logger.log("Waiting for successful login...")
+        while True:
+            if 'refresh_token' in appdata:
+                self.refresh_token = appdata['refresh_token']
+                self.access_token = appdata['access_token']
+                return True
+            sleep(1)
