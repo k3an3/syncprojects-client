@@ -71,11 +71,8 @@ YQIDAQAB
 
 PROD_PUBLIC_KEY = ""
 DEBUG = False
-LOGIN_MODE = "prompt"  # prompt, web
-if DEBUG:
-    SYNCPROJECTS_URL = "http://localhost:5000/"
-else:
-    SYNCPROJECTS_URL = "https://syncprojects.app/"
+LOGIN_MODE = "web"  # prompt, web
+SYNCPROJECTS_URL = "https://syncprojects.app/"
 
 try:
     from local_config import *

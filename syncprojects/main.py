@@ -12,11 +12,13 @@ from os import listdir, readlink, symlink, scandir
 from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
 from pathlib import Path
 from shutil import copyfile
+from threading import Thread
 
 import psutil
 import requests
 
 import config
+from syncprojects.server import app
 
 if os.name == 'nt':
     import win32file
@@ -25,7 +27,7 @@ from time import sleep
 __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.utils import format_time, current_user, Logger, prompt_to_exit, appdata, created
+from syncprojects.utils import format_time, current_user, Logger, prompt_to_exit, appdata
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -644,8 +646,15 @@ if __name__ == '__main__':
     log(BANNER, level=99)
     log("[v{}]".format(__version__))
     error = []
-    sync_api = SyncAPI(appdata.get('refresh_token'), appdata.get('access_token'))
-    if created:
+
+    # init API client
+    sync_api = SyncAPI(logger, appdata.get('refresh'), appdata.get('access'))
+
+    # Start local Flask server
+    web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
+    web_thread.start()
+
+    if not sync_api.has_tokens():
         if not login_prompt(sync_api):
             log("Couldn't log in with provided credentials.")
             prompt_to_exit()
@@ -656,17 +665,17 @@ if __name__ == '__main__':
         clean_up()
         if config.UPDATE_PATH_GLOB and update():
             raise SystemExit
-        if not isfile(config.CONFIG_PATH):
-            error.append(f"Error! Create {config.CONFIG_PATH} before proceeding.")
-        elif not isdir(config.SOURCE):
+        if not (config.DEBUG or isdir(config.SOURCE)):
             error.append(f"Error! Source path \"{config.SOURCE}\" not found.")
         for directory in (config.DEFAULT_DEST, *config.DEST_MAPPING.values()):
-            if not isdir(directory):
+            if not (config.DEBUG or isdir(directory)):
                 error.append(f"Error! Destination path {directory} not found.")
         if error:
             log(*error)
             prompt_to_exit()
-        for project in sync_api.get_projects():
+        projects = sync_api.get_projects()
+        log(f"{len(projects)} to sync.")
+        for project in projects:
             sync_api.lock(project)
             # TODO: sync one at a time
             sync(project)

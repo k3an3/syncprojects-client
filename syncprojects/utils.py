@@ -11,7 +11,7 @@ from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
 from sqlitedict import SqliteDict
 
-from syncprojects.config import DEV_PUBLIC_KEY, PROD_PUBLIC_KEY
+from syncprojects.config import DEV_PUBLIC_KEY, PROD_PUBLIC_KEY, DEBUG
 
 
 class Logger:
@@ -88,11 +88,15 @@ def get_verified_data(f):
             if request.method == "POST":
                 data = request.get_json()['data']
             else:
-                data = request.params['data']
+                data = request.args['data']
             return f(jwt.decode(data, get_public_key(), algorithms=["RS256"]), *args, **kwargs)
-        except (ExpiredSignatureError, KeyError, ValueError, DecodeError):
+        except (ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
+            if DEBUG:
+                raise e
             abort(403)
-        except TypeError:
+        except TypeError as e:
+            if DEBUG:
+                raise e
             abort(400)
 
         return f(*args, **kwargs)
@@ -130,9 +134,10 @@ def get_or_create_config():
     config_created = False
     try:
         config_dir.mkdir(parents=True)
-    except FileExistsError:
         config_created = True
-    loaded_config = SqliteDict(str(config_dir / "config.db"))
+    except FileExistsError:
+        pass
+    loaded_config = SqliteDict(str(config_dir / "config.sqlite"))
     if config_created:
         migrate_old_settings(loaded_config)
     loaded_config.autocommit = True
