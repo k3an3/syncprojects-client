@@ -1,21 +1,21 @@
+import traceback
+from glob import glob
+from os import listdir, readlink, symlink, scandir
+from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
+
 import concurrent.futures
 import datetime
 import json
 import os
+import psutil
 import re
+import requests
 import subprocess
 import sys
-import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
-from glob import glob
-from os import listdir, readlink, symlink, scandir
-from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
 from pathlib import Path
 from shutil import copyfile
 from threading import Thread
-
-import psutil
-import requests
 
 import config
 from syncprojects.server import app
@@ -674,7 +674,6 @@ if __name__ == '__main__':
             log(*error)
             prompt_to_exit()
         projects = sync_api.get_projects()
-        log(f"{len(projects)} to sync.")
         for project in projects:
             sync_api.lock(project)
             # TODO: sync one at a time

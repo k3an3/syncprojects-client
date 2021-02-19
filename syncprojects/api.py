@@ -1,10 +1,10 @@
 import getpass
-import sys
-import webbrowser
-from time import sleep
 
 import requests
+import sys
+import webbrowser
 from requests import HTTPError
+from time import sleep
 
 from syncprojects.config import LOGIN_MODE, DEBUG, SYNCPROJECTS_URL
 from syncprojects.utils import Logger, appdata
@@ -73,14 +73,14 @@ class SyncAPI:
     def get_projects(self):
         return [Project(p["name"], p["id"]) for p in self._request("projects/")["results"]]
 
-    def _lock_request(self, project: int, lock: bool = False, force: bool = True):
+    def _lock_request(self, project: int, lock: bool = False, force: bool = True, reason: str = ""):
         json = {}
         if force:
-            json = {'force': True}
+            json = {'force': True, "reason": reason}
         return self._request(f"projects/{project}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
-    def lock(self, project: Project, force: bool = False):
-        return self._lock_request(project.p_id, True, force)
+    def lock(self, project: Project, force: bool = False, reason: str = "Sync"):
+        return self._lock_request(project.p_id, True, force, reason)
 
     def unlock(self, project: Project, force: bool = False):
         return self._lock_request(project.p_id, False, force)
