@@ -1,10 +1,11 @@
+import datetime
 import getpass
-
-import requests
 import sys
 import webbrowser
-from requests import HTTPError
 from time import sleep
+
+import requests
+from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, DEBUG, SYNCPROJECTS_URL
 from syncprojects.utils import Logger, appdata
@@ -41,10 +42,22 @@ class Project:
 
 
 class SyncAPI:
-    def __init__(self, logger: Logger, refresh_token: str, access_token: str = ""):
+    def __init__(self, logger: Logger, refresh_token: str, access_token: str = "", username: str = ""):
         self.refresh_token = refresh_token
         self.access_token = access_token
         self.logger = logger
+        self._username = username
+
+    @property
+    def username(self) -> str:
+        """
+        Lazy evaluate; fetch the first time this is called.
+        :return:
+        """
+        if not self._username:
+            self._username = self._request('users/self/')['username']
+            appdata['username'] = self._username
+        return self._username
 
     def has_tokens(self) -> bool:
         return self.refresh_token and self.access_token
@@ -73,14 +86,19 @@ class SyncAPI:
     def get_projects(self):
         return [Project(p["name"], p["id"]) for p in self._request("projects/")["results"]]
 
-    def _lock_request(self, project: int, lock: bool = False, force: bool = True, reason: str = ""):
+    def _lock_request(self, project: int, lock: bool = False, force: bool = True, reason: str = "",
+                      until: datetime.datetime = None):
         json = {}
         if force:
-            json = {'force': True, "reason": reason}
+            json['force'] = force
+        if reason:
+            json['reason'] = reason
+        if until:
+            json['until'] = until
         return self._request(f"projects/{project}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
-    def lock(self, project: Project, force: bool = False, reason: str = "Sync"):
-        return self._lock_request(project.p_id, True, force, reason)
+    def lock(self, project: Project, force: bool = False, reason: str = "Sync", until: float = None):
+        return self._lock_request(project.p_id, True, force, reason, until)
 
     def unlock(self, project: Project, force: bool = False):
         return self._lock_request(project.p_id, False, force)

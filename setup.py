@@ -35,6 +35,7 @@ setup(
         'pyjwt[crypto]',
         'cx_Freeze',
         'sqlitedict',
+        'timeago',
     ],
     executables=gen_executables()
 )

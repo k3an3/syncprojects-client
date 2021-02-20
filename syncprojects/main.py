@@ -1,21 +1,22 @@
-import traceback
-from glob import glob
-from os import listdir, readlink, symlink, scandir
-from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
-
 import concurrent.futures
 import datetime
 import json
 import os
-import psutil
 import re
-import requests
 import subprocess
 import sys
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from os import listdir, readlink, symlink, scandir
+from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
 from pathlib import Path
 from shutil import copyfile
 from threading import Thread
+
+import psutil
+import requests
+import timeago
 
 import config
 from syncprojects.server import app
@@ -210,34 +211,21 @@ def get_input_choice(options):
                 return sel.lower()
 
 
-def check_out(user, temp=False, hours=8):
-    if temp:
-        until = 'temp'
-    else:
-        until = (datetime.datetime.now() + datetime.timedelta(hours=hours)).timestamp()
+def check_out(user, hours=8):
+    until = (datetime.datetime.now() + datetime.timedelta(hours=hours)).timestamp()
+    lock(project, api_client)
     with open(expanduser(config.MUTEX_PATH), "w") as f:
         f.write("{},{},{}".format(user, until, datetime.datetime.now().timestamp()))
 
 
-def lock():
-    user = current_user()
-    while isfile(expanduser(config.MUTEX_PATH)):
-        with open(expanduser(config.MUTEX_PATH)) as f:
-            try:
-                checked_out_by, checked_out_until, checked_out_since = f.read().strip().split(',')
-            except ValueError:
-                log("That's weird, somebody left an invalid lockfile! Contents:\n^^^")
-                f.seek(0)
-                log(f.read())
-                log("$$$\nIgnoring...!")
-                f.close()
-                unlock()
-                break
-        if checked_out_by == user or checked_out_until == 'temp':
+def lock(project, api_client, reason, duration):
+    locked = api_client.lock(project, reason, duration)
+    if locked['status'] == 'locked':
+        if locked['locked_by'] == api_client.username or not locked['until']:
             log("A sync is still running or did not complete successfully.")
-            if not checked_out_by == user:
+            if not locked['locked_by'] == api_client.username:
                 log(
-                    f"WARNING: It looks like {checked_out_by} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(checked_out_since)).isoformat()})... maybe talk to them before overriding?")
+                    f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['locked_by'])).isoformat()})... maybe talk to them before overriding?")
             choices = ("Try again", "override", "exit")
             choice = None
             while choice not in choices:
@@ -246,24 +234,24 @@ def lock():
                 log("Bailing!")
                 raise SystemExit
             elif choice == "override":
-                break
+                api_client.lock(project, force=True)
         else:
-            checked_out_until = datetime.datetime.fromtimestamp(float(checked_out_until))
-            hours = (checked_out_until - datetime.datetime.now()).total_seconds() / 3600
-            if hours <= 0:
-                break
-            log(
-                f"The studio is currently checked out by {checked_out_by} for {round(hours, 2)} hours or until it's checked in.")
-            log("Bailing!")
-            raise SystemExit
-    check_out(user, temp=True)
+            checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
+            if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
+                log(
+                    f"The studio is currently checked out by {locked['locked_by']} for "
+                    f"{timeago.format(checked_out_until, datetime.datetime.now())} hours "
+                    f"or until it's checked in.")
+                log("Bailing!")
+                raise SystemExit
 
 
-def unlock():
-    try:
-        Path(expanduser(config.MUTEX_PATH)).unlink()
-    except (FileNotFoundError, PermissionError) as e:
-        error_log("unlock", e)
+def unlock(project, api_client):
+    unlocked = api_client.unlock(project)
+    if unlocked['status'] == 'locked':
+        log(f"WARNING: The studio could not be unlocked: {unlocked}")
+    elif unlocked['status'] == 'unlocked':
+        log(f"WARNING: The studio was already unlocked: {unlocked}")
 
 
 def print_latest_change(directory_path):
@@ -648,14 +636,14 @@ if __name__ == '__main__':
     error = []
 
     # init API client
-    sync_api = SyncAPI(logger, appdata.get('refresh'), appdata.get('access'))
+    api_client = SyncAPI(logger, appdata.get('refresh'), appdata.get('access'), appdata.get('username'))
 
     # Start local Flask server
     web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
     web_thread.start()
 
-    if not sync_api.has_tokens():
-        if not login_prompt(sync_api):
+    if not api_client.has_tokens():
+        if not login_prompt(api_client):
             log("Couldn't log in with provided credentials.")
             prompt_to_exit()
 
@@ -673,12 +661,13 @@ if __name__ == '__main__':
         if error:
             log(*error)
             prompt_to_exit()
-        projects = sync_api.get_projects()
+        projects = api_client.get_projects()
         for project in projects:
-            sync_api.lock(project)
             # TODO: sync one at a time
+            lock(project, api_client)
             sync(project)
-            sync_api.unlock(project)
+            unlock(project, api_client)
+            api_client.unlock(project)
 
         log(
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
