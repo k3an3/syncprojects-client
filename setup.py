@@ -16,7 +16,7 @@ setup(
     name='syncprojects',
     version='2.0',
     packages=['syncprojects'],
-    url='https://syncprojects.app',
+    url='https://syncprojects.example.com',
     license='',
     author="Keane O'Kelley",
     author_email='dev@keane.space',

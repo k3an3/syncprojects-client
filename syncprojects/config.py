@@ -72,7 +72,7 @@ YQIDAQAB
 PROD_PUBLIC_KEY = ""
 DEBUG = False
 LOGIN_MODE = "web"  # prompt, web
-SYNCPROJECTS_URL = "https://syncprojects.app/"
+SYNCPROJECTS_URL = "https://syncprojects.example.com/"
 
 try:
     from local_config import *
