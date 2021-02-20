@@ -9,7 +9,7 @@ import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
 from os import listdir, readlink, symlink, scandir
-from os.path import basename, dirname, expanduser, join, isdir, isfile, abspath, islink
+from os.path import basename, dirname, join, isdir, isfile, abspath, islink
 from pathlib import Path
 from shutil import copyfile
 from threading import Thread
@@ -211,21 +211,21 @@ def get_input_choice(options):
                 return sel.lower()
 
 
-def check_out(user, hours=8):
+def check_out(project, api_client, hours=8):
     until = (datetime.datetime.now() + datetime.timedelta(hours=hours)).timestamp()
-    lock(project, api_client)
-    with open(expanduser(config.MUTEX_PATH), "w") as f:
-        f.write("{},{},{}".format(user, until, datetime.datetime.now().timestamp()))
+    lock(project, api_client, "checkout", until)
 
 
-def lock(project, api_client, reason, duration):
+def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):
     locked = api_client.lock(project, reason, duration)
+    if 'id' in locked:
+        return locked['id']
     if locked['status'] == 'locked':
-        if locked['locked_by'] == api_client.username or not locked['until']:
+        if locked['locked_by'] == "self" or not locked.get('until'):
             log("A sync is still running or did not complete successfully.")
-            if not locked['locked_by'] == api_client.username:
+            if not locked['locked_by'] == "self":
                 log(
-                    f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['locked_by'])).isoformat()})... maybe talk to them before overriding?")
+                    f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})... maybe talk to them before overriding?")
             choices = ("Try again", "override", "exit")
             choice = None
             while choice not in choices:
@@ -673,7 +673,7 @@ if __name__ == '__main__':
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
             "edits, as to avoid conflicts.")
         if get_input_choice(("yes", "No")) == "yes":
-            check_out(current_user())
+            check_out(project, api_client)
             log("Alright, it's all yours. This window will stay open. Please remember to check in when you are done.")
             input("[enter] to check in")
             sync()

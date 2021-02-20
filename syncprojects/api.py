@@ -94,7 +94,7 @@ class SyncAPI:
         if reason:
             json['reason'] = reason
         if until:
-            json['until'] = until
+            json['until'] = until.timestamp()
         return self._request(f"projects/{project}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
     def lock(self, project: Project, force: bool = False, reason: str = "Sync", until: float = None):
