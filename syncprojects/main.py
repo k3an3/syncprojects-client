@@ -1,6 +1,7 @@
 import concurrent.futures
 import datetime
 import json
+import logging
 import os
 import re
 import subprocess
@@ -28,7 +29,7 @@ from time import sleep
 __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.utils import format_time, current_user, Logger, prompt_to_exit, appdata
+from syncprojects.utils import format_time, current_user, prompt_to_exit, appdata, fmt_error
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -56,7 +57,7 @@ def push_amp_settings(amp):
                   update=True,
                   progress=False)
     except FileNotFoundError:
-        log(traceback.format_exc(), level=2)
+        logger.debug(traceback.format_exc())
         pass
 
 
@@ -113,22 +114,22 @@ def mount_persistent_drive():
             ["net", "use", config.SMB_DRIVE, f"\\\\{config.SMB_SERVER}\\{config.SMB_SHARE}", "/persistent:Yes"],
             check=True)
     except subprocess.CalledProcessError as e:
-        log("Drive mount failed!", e.output.decode())
+        logger.error(f"Drive mount failed! {e.output.decode()}")
 
 
 def api_unblock():
-    log("Requesting firewall exception... ", end="")
+    logger.info("Requesting firewall exception... ")
     try:
         r = requests.post(config.FIREWALL_API_URL + "firewall/unblock",
                           headers={'X-Auth-Token': config.FIREWALL_API_KEY},
                           data={'device': config.FIREWALL_NAME})
     except Exception as e:
-        error_log("api_unblock", e)
-        log("failed! Hopefully the sync still works...")
+        logger.error(fmt_error("api_unblock", e))
+        logger.warning("failed! Hopefully the sync still works...")
     if r.status_code == 204:
-        log("success!")
+        logger.info("success!")
     else:
-        log("error code", r.status_code)
+        logger.error(f"error code {r.status_code}")
 
 
 def copy(dir_name, src, dst, update=True):
@@ -157,7 +158,7 @@ def hash_directory(dir_name):
     if isdir(dir_name):
         for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
             if isfile(file_name):
-                log("Hashing", file_name, quiet=True, level=3)
+                logger.debug(f"Hashing {file_name}")
                 hash_file(file_name, hash)
         hash_digest = hash.hexdigest()
         remote_hash_cache[dir_name] = hash_digest
@@ -167,24 +168,24 @@ def hash_directory(dir_name):
 def is_updated(dir_name, group, remote_hs):
     dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
     src_hash = local_hash_cache[dir_name]
-    log("local_hash is", src_hash, quiet=True, level=2)
+    logger.debug(f"local_hash is {src_hash}")
     dst_hash = remote_hs.get(dir_name)
     remote_hash_cache[join(dest, dir_name)] = dst_hash
     if config.LEGACY_MODE or not dst_hash:
-        log("Checking with the slow/old method just in case we missed it...")
+        logger.info("Checking with the slow/old method just in case we missed it...")
         try:
             dst_hash = hash_directory(join(dest, dir_name))
         except FileNotFoundError:
             dst_hash = ""
-    log("remote_hash is", dst_hash, quiet=True, level=2)
+    logger.debug(f"remote_hash is {dst_hash}")
     known_hash = local_hs.get(dir_name)
     if not known_hash:
-        log("Not in database; adding...")
+        logger.info("Not in database; adding...")
         new_hash = src_hash or dst_hash
         local_hs.update(dir_name, new_hash)
         known_hash = new_hash
     else:
-        log("known_hash is", known_hash, quiet=True, level=2)
+        logger.debug(f"known_hash is {known_hash}")
     if not src_hash == known_hash and not dst_hash == known_hash:
         return "mismatch"
     elif src_hash and (not dst_hash or not src_hash == known_hash):
@@ -194,20 +195,20 @@ def is_updated(dir_name, group, remote_hs):
 
 
 def get_input_choice(options):
-    # TODO: default option
     formatted_options = '[{}]: '.format('/'.join(["[{}]{}".format(o[0], o[1:]) for o in options]))
     while True:
-        log(formatted_options, end='', level=1)
+        logger.info(formatted_options)
         s = input()
         # match partial option
         for sel in options:
             if len(s) > 1:
-                log("Did you know? You don't need to type the entire word. Save some time and just type the "
-                    "first character, indicated by \"[{}].\"".format(s[0]))
+                logger.info("Did you know? You don't need to type the entire word. Save some time and just type the "
+                            "first character, indicated by \"[{}].\"".format(s[0]))
             if s and sel.lower().startswith(s.lower()):
-                log(f"User selected '{sel}' by typing '{s}':", quiet=True, level=1)
+                logger.debug(f"User selected '{sel}' by typing '{s}':")
                 return sel.lower()
             elif not s and sel[0].isupper():
+                # Default
                 return sel.lower()
 
 
@@ -222,36 +223,36 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
         return locked['id']
     if locked['status'] == 'locked':
         if locked['locked_by'] == "self" or not locked.get('until'):
-            log("A sync is still running or did not complete successfully.")
+            logger.warning("A sync is still running or did not complete successfully.")
             if not locked['locked_by'] == "self":
-                log(
+                logger.warning(
                     f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})... maybe talk to them before overriding?")
             choices = ("Try again", "override", "exit")
             choice = None
             while choice not in choices:
                 choice = get_input_choice(choices)
             if choice == "exit":
-                log("Bailing!")
+                logger.info("Bailing!")
                 raise SystemExit
             elif choice == "override":
                 api_client.lock(project, force=True)
         else:
             checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
             if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
-                log(
+                logger.error(
                     f"The studio is currently checked out by {locked['locked_by']} for "
                     f"{timeago.format(checked_out_until, datetime.datetime.now())} hours "
                     f"or until it's checked in.")
-                log("Bailing!")
+                logger.info("Bailing!")
                 raise SystemExit
 
 
 def unlock(project, api_client):
     unlocked = api_client.unlock(project)
     if unlocked['status'] == 'locked':
-        log(f"WARNING: The studio could not be unlocked: {unlocked}")
+        logger.warning(f"WARNING: The studio could not be unlocked: {unlocked}")
     elif unlocked['status'] == 'unlocked':
-        log(f"WARNING: The studio was already unlocked: {unlocked}")
+        logger.warning(f"WARNING: The studio was already unlocked: {unlocked}")
 
 
 def print_latest_change(directory_path):
@@ -316,7 +317,7 @@ def validate_changelog(changelog_file):
 def changelog(directory):
     changelog_file = join(config.SOURCE, directory, "changelog.txt")
     if not isfile(changelog_file):
-        log("Creating changelog...")
+        logger.info("Creating changelog...")
         divider = print_hr("*", config.CHANGELOG_HEADER_WIDTH)
         changelog_header = divider + "\n*{}*\n".format(
             ("CHANGELOG: " + directory).center(config.CHANGELOG_HEADER_WIDTH - 2)) + divider
@@ -333,8 +334,8 @@ def changelog(directory):
         f.writelines(lines)
     subprocess.run([config.NOTEPAD, changelog_file])
     while err := validate_changelog(changelog_file):
-        log("Error! Improper formatting in changelog. Please correct it:\n")
-        log(err)
+        logger.warning("Error! Improper formatting in changelog. Please correct it:\n")
+        logger.warning(err)
         subprocess.run([config.NOTEPAD, changelog_file])
 
 
@@ -343,38 +344,38 @@ def clean_up():
         current_file = abspath(sys.argv[0])
         for file in glob(join(dirname(current_file), config.BINARY_CLEAN_GLOB)):
             try:
-                log(f"Unlinking {file}.", quiet=True, level=3)
+                logger.debug(f"Unlinking {file}.")
                 Path(file).unlink()
             except:
-                log(f"Couldn't unlink {file}.", quiet=True, level=3)
+                logger.debug(f"Couldn't unlink {file}.")
     except Exception as e:
-        error_log("cleanup", e)
+        logger.error(fmt_error("cleanup", e))
 
 
 def move_file_on_reboot(src, dst):
     try:
         win32file.MoveFileEx(src, dst, win32file.MOVEFILE_DELAY_UNTIL_REBOOT)
     except Exception as e:
-        error_log("pending file move", e)
+        logger.error(fmt_error("pending file move", e))
 
 
 def update():
     local_file = abspath(sys.argv[0])
-    log("Checking for updates...")
+    logger.info("Checking for updates...")
     if not isfile(local_file):
-        log("Failed to resolve local file for update. Skipping...")
+        logger.info("Failed to resolve local file for update. Skipping...")
         return
     try:
         remote_file = glob(config.UPDATE_PATH_GLOB)[::-1][0]
     except IndexError:
-        log("Update file not found. Skipping...")
+        logger.info("Update file not found. Skipping...")
         return
 
     remote_hash = hash_file(remote_file)
     local_hash = hash_file(local_file)
-    log(f"{local_file=} {local_hash=} {remote_file=} {remote_hash=}", quiet=True, level=2)
+    logger.debug(f"{local_file=} {local_hash=} {remote_file=} {remote_hash=}")
     if not local_hash == remote_hash:
-        log("Updating to", basename(remote_file), "from", local_file)
+        logger.info(f"Updating to {basename(remote_file)} from {local_file}")
         new_path = join(dirname(local_file), "syncprojects-{}.exe".format(int(datetime.datetime.now().timestamp())))
         copyfile(remote_file, new_path)
         move_file_on_reboot(new_path, join(dirname(local_file), 'syncprojects-latest.exe'))
@@ -422,7 +423,7 @@ def get_patched_progress():
 def handle_link(src_name, dst_name, verbose, dry_run):
     link_dest = readlink(src_name)
     if verbose >= 1:
-        log("linking %s -> %s", dst_name, link_dest, level=3)
+        logger.debug(f"linking {dst_name} -> {link_dest}")
     if not dry_run:
         symlink(link_dest, dst_name)
     return dst_name
@@ -490,20 +491,20 @@ def check_wants():
     wants_file = join(config.DEFAULT_DEST, 'remote.wants')
     if isfile(wants_file):
         try:
-            log("Loading wants file...", quiet=True)
+            logger.debug("Loading wants file...")
             with open(wants_file) as f:
                 wants = json.load(f)
-                log("Wants file contains:", wants, quiet=True)
+                logger.debug(f"Wants file contains: {wants}")
                 if wants.get('user') != current_user():
-                    log("Wants are not from current user, fetching", level=1, quiet=True)
+                    logger.debug("Wants are not from current user, fetching")
                     Path(wants_file).unlink()
                     return wants['projects']
                 else:
-                    log("Wants are from current user, not fetching...", level=1, quiet=True)
+                    logger.debug("Wants are from current user, not fetching...")
         except Exception as e:
-            log("Exception in wants:", str(e), quiet=True)
+            logger.debug("Exception in wants:" + str(e))
     else:
-        log("Didn't find wants file. Skipping...", quiet=True)
+        logger.debug("Didn't find wants file. Skipping...")
     return []
 
 
@@ -523,29 +524,31 @@ def handle_new_project(project_name, remote_hs):
     if project_name not in remote_hs.content:
         for proj in remote_hs.content.keys():
             if project_name.lower() == proj.lower():
-                log(
-                    f"\nERROR: Your project is named \"{project_name}\", but a similarly named project \"{proj}\" already exists remotely. Please check your spelling/capitalization and try again.")
+                logger.error(
+                    f"\nERROR: Your project is named \"{project_name}\", but a similarly named project \"{proj}\" "
+                    f"already exists remotely. Please check your spelling/capitalization and try again.")
                 unlock()
                 prompt_to_exit()
 
 
 def sync():
     if p := process_running(config.DAW_PROCESS_REGEX):
-        log(
-            f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open synced projects before proceeding, else corruption may occur.")
+        logger.warning(
+            f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open "
+            f"synced projects before proceeding, else corruption may occur.")
         if get_input_choice(("Proceed", "cancel")) == "cancel":
             unlock()
             raise SystemExit
     if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
         api_unblock()
-    log("Syncing projects...")
+    logger.info("Syncing projects...")
     start = datetime.datetime.now()
-    log("Opening local database: " + str(local_hs.open()), quiet=True, level=1)
+    logger.debug("Opening local database: " + str(local_hs.open()))
     wants = check_wants()
     remote_stores = {}
     paths = read_paths()
 
-    log("Checking local projects for changes...")
+    logger.info("Checking local projects for changes...")
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
         futures = {executor.submit(hash_directory, join(config.SOURCE, p[0])): p[0] for p in paths}
         for result in concurrent.futures.as_completed(futures):
@@ -558,10 +561,10 @@ def sync():
 
     for project, group in paths:
         print(print_hr())
-        log("Syncing {}...".format(project))
+        logger.info("Syncing {}...".format(project))
         not_local = False
         if not isdir(join(config.SOURCE, project)):
-            log("{} does not exist locally.".format(project))
+            logger.info("{} does not exist locally.".format(project))
             not_local = True
         dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
         remote_store_name = join(dest, config.REMOTE_HASH_STORE)
@@ -571,19 +574,19 @@ def sync():
         except KeyError:
             remote_hs = HashStore(remote_store_name)
             # Database not opened yet, need to read from disk
-            log("Opening remote database: " + str(remote_hs.open()), quiet=True, level=1)
+            logger.debug("Opening remote database: " + str(remote_hs.open()))
             remote_stores[remote_store_name] = remote_hs
         up = is_updated(project, group, remote_hs)
         if not_local:
             up == "remote"
             handle_new_project(project, remote_hs)
         if project in wants:
-            log(f"Overriding because {wants['user']} requested this project!!!!")
+            logger.warning(f"Overriding because {wants['user']} requested this project!!!!")
             sleep(0.9)
             up = "local"
         if up == "mismatch":
             print_latest_change(join(dest, project))
-            log("WARNING: Both local and remote have changed!!!! Which to keep?")
+            logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
             up = get_input_choice(("local", "remote", "skip"))
         if up == "remote":
             src = dest
@@ -594,13 +597,13 @@ def sync():
             dst = dest
             changelog(project)
         else:
-            log("No change for", project)
+            logger.info("No change for", project)
             continue
         local_hs.update(project, remote_hash_cache[join(src, project)])
         try:
-            log("Now copying {} from {} ({}) to {} ({})".format(project, up, src,
-                                                                "remote" if up == "local" else "local",
-                                                                dst))
+            logger.info("Now copying {} from {} ({}) to {} ({})".format(project, up, src,
+                                                                        "remote" if up == "local" else "local",
+                                                                        dst))
             if up == "remote":
                 if not get_input_choice(("Confirm", "skip")) == "confirm":
                     continue
@@ -608,31 +611,42 @@ def sync():
                 try:
                     remote_hs.update(project, remote_hash_cache[join(src, project)])
                 except Exception as e:
-                    error_log("sync:update_remote_hashes", e)
+                    logger.error(fmt_error("sync:update_remote_hashes", e))
                     if not config.LEGACY_MODE:
-                        log("Failed to update remote hashes!")
+                        logger.critical("Failed to update remote hashes!")
                         raise e
             copy(project, src, dst)
         except Exception as e:
-            log("Error syncing", project, str(e))
-            log("If the remote directory does not exist, please remove it from", config.CONFIG_PATH)
+            logger.error(f"Error syncing {project}: {e}. If the remote directory does not exist, please remove it "
+                         f"from the database.")
             sleep(2)
         else:
-            log("Successfully synced", project)
+            logger.info(f"Successfully synced {project}")
     print(print_hr())
     sync_amps()
     print(print_hr('='))
-    log("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
+    logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
 if __name__ == '__main__':
-    logger = Logger(config.TELEMETRY, config.LOG_LEVEL, config.DEFAULT_DEST)
-    # TODO: quick hack
-    log = logger.log
-    error_log = logger.error_log
+    # Set up logging
+    logger = logging.getLogger('syncprojects')
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    if config.DEBUG:
+        ch.setLevel(logging.DEBUG)
+    else:
+        ch.setLevel(logging.INFO)
+    logger.addHandler(ch)
+    if config.TELEMETRY:
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh = logging.FileHandler(config.TELEMETRY)
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
 
-    log(BANNER, level=99)
-    log("[v{}]".format(__version__))
+    logger.info(BANNER)
+    logger.info("[v{}]".format(__version__))
     error = []
 
     # init API client
@@ -644,12 +658,12 @@ if __name__ == '__main__':
 
     if not api_client.has_tokens():
         if not login_prompt(api_client):
-            log("Couldn't log in with provided credentials.")
+            logger.error("Couldn't log in with provided credentials.")
             prompt_to_exit()
 
     try:
         if config.TELEMETRY:
-            print("Logging enabled with loglevel", config.LOG_LEVEL)
+            print("Logging enabled with path", config.TELEMETRY)
         clean_up()
         if config.UPDATE_PATH_GLOB and update():
             raise SystemExit
@@ -659,7 +673,7 @@ if __name__ == '__main__':
             if not (config.DEBUG or isdir(directory)):
                 error.append(f"Error! Destination path {directory} not found.")
         if error:
-            log(*error)
+            logger.error(','.join(error))
             prompt_to_exit()
         projects = api_client.get_projects()
         for project in projects:
@@ -669,18 +683,18 @@ if __name__ == '__main__':
             unlock(project, api_client)
             api_client.unlock(project)
 
-        log(
+        logger.info(
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
             "edits, as to avoid conflicts.")
         if get_input_choice(("yes", "No")) == "yes":
             check_out(project, api_client)
-            log("Alright, it's all yours. This window will stay open. Please remember to check in when you are done.")
+            logger.info("Alright, it's all yours. This window will stay open. Please remember to check in when you "
+                        "are done.")
             input("[enter] to check in")
             sync()
         if not len(sys.argv) > 1:
             prompt_to_exit()
     except Exception as e:
-        log("Fatal error! Provide the developer (syncprojects-dev@keane.space) with the following information:\n",
-            str(e),
-            str(traceback.format_exc()))
+        logger.critical(f"Fatal error! Provide the developer (syncprojects-dev@keane.space) with the following "
+                        f"information:\n{str(e)} {str(traceback.format_exc())}")
         prompt_to_exit()

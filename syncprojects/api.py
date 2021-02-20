@@ -1,5 +1,6 @@
 import datetime
 import getpass
+import logging
 import sys
 import webbrowser
 from time import sleep
@@ -8,30 +9,36 @@ import requests
 from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, DEBUG, SYNCPROJECTS_URL
-from syncprojects.utils import Logger, appdata
+from syncprojects.utils import appdata
 
 if DEBUG:
     SYNCPROJECTS_URL = "http://localhost:8000/"
 API_BASE_URL = SYNCPROJECTS_URL + "api/v1/"
+logger = logging.getLogger('syncprojects.api')
 
 
 def login_prompt(sync_api) -> bool:
     for key in ('refresh_token', 'access_token'):
         try:
             del appdata[key]
+            logger.debug(f"Existing {key} deleted from appdata.")
         except KeyError:
             pass
     attempts = 0
     if LOGIN_MODE == "web":
+        logger.debug("Attempting web logon")
         return sync_api.web_login()
     else:
         # default: prompt
+        logger.debug("Attempting prompt logon")
         while attempts < 3:
             try:
                 sync_api.login(input(f"username for {SYNCPROJECTS_URL}: "), getpass.getpass())
+                logger.debug(f"Login success.")
                 return True
-            except HTTPError:
+            except HTTPError as e:
                 attempts += 1
+                logger.debug(f"Got error: {e}")
     return False
 
 
@@ -42,11 +49,11 @@ class Project:
 
 
 class SyncAPI:
-    def __init__(self, logger: Logger, refresh_token: str, access_token: str = "", username: str = ""):
+    def __init__(self, refresh_token: str, access_token: str = "", username: str = ""):
         self.refresh_token = refresh_token
         self.access_token = access_token
-        self.logger = logger
         self._username = username
+        self.logger = logging.getLogger('syncprojects.api.SyncAPI')
 
     @property
     def username(self) -> str:
@@ -55,8 +62,10 @@ class SyncAPI:
         :return:
         """
         if not self._username:
+            self.logger.debug("Fetching username from API")
             self._username = self._request('users/self/')['username']
             appdata['username'] = self._username
+            self.logger.debug(f"Got result {self._username}")
         return self._username
 
     def has_tokens(self) -> bool:
@@ -73,13 +82,13 @@ class SyncAPI:
             if r.status_code == 200:
                 return r.json()
             elif r.status_code == 401:
+                self.logger.debug("Got 401 response, requesting credential re-entry...")
                 login_prompt(self)
-                self.logger.log("Requesting credential re-entry...", level=1)
             elif refresh and r.status_code == 403:
-                self.logger.log("Attempting credential refresh...", level=1)
+                self.logger.debug("Got 403 response, attempting credential refresh...")
                 self.refresh()
             attempts += 1
-        self.logger.log(
+        self.logger.error(
             f"Multiple requests failed, most recent response code {r.status_code} and msg {r.text}. Exiting...")
         sys.exit(1)
 
@@ -95,6 +104,7 @@ class SyncAPI:
             json['reason'] = reason
         if until:
             json['until'] = until.timestamp()
+        self.logger.debug(f"Submitting {lock=} request for {project} with config {json}")
         return self._request(f"projects/{project}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
     def lock(self, project: Project, force: bool = False, reason: str = "Sync", until: float = None):
@@ -104,23 +114,27 @@ class SyncAPI:
         return self._lock_request(project.p_id, False, force)
 
     def login(self, username: str, password: str):
+        self.logger.debug("Sending creds for login")
         resp = self._request('token/', 'POST', json={'username': username, 'password': password}, auth=False)
         self.access_token = resp['access']
         self.refresh_token = resp['refresh']
         appdata['access'] = resp['access']
         appdata['refresh'] = resp['refresh']
+        self.logger.debug("Saved credentials updated after login.")
 
     def refresh(self):
         resp = self._request('token/refresh/', 'POST', json={"refresh": self.refresh_token}, auth=False, refresh=False)
         self.access_token = resp["access"]
         appdata["access"] = resp["access"]
+        self.logger.debug("Saved credentials updated after refresh.")
 
     def web_login(self):
         webbrowser.open(SYNCPROJECTS_URL + "sync/client_login/")
-        self.logger.log("Waiting for successful login...")
+        self.logger.info("Waiting for successful login...")
         while True:
             if 'refresh_token' in appdata:
                 self.refresh_token = appdata['refresh_token']
                 self.access_token = appdata['access_token']
+                self.logger.debug("Saved credentials updated from Flask server")
                 return True
             sleep(1)
