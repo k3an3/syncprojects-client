@@ -9,7 +9,7 @@ import requests
 from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, DEBUG, SYNCPROJECTS_URL
-from syncprojects.utils import appdata
+from syncprojects.storage import appdata
 
 if DEBUG:
     SYNCPROJECTS_URL = "http://localhost:8000/"
@@ -40,12 +40,6 @@ def login_prompt(sync_api) -> bool:
                 attempts += 1
                 logger.debug(f"Got error: {e}")
     return False
-
-
-class Project:
-    def __init__(self, name: str, p_id: int):
-        self.name = name
-        self.p_id = p_id
 
 
 class SyncAPI:
@@ -93,7 +87,7 @@ class SyncAPI:
         sys.exit(1)
 
     def get_projects(self):
-        return [Project(p["name"], p["id"]) for p in self._request("projects/")["results"]]
+        return self._request("projects/")["results"]
 
     def _lock_request(self, project: int, lock: bool = False, force: bool = True, reason: str = "",
                       until: datetime.datetime = None):

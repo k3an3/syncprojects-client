@@ -3,7 +3,8 @@ import logging
 from flask import Flask, request
 
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
-from syncprojects.utils import get_verified_data, appdata
+from syncprojects.storage import appdata
+from syncprojects.utils import get_verified_data
 
 app = Flask(__name__)
 logger = logging.getLogger('syncprojects.server')

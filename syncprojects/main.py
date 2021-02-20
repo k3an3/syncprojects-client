@@ -7,29 +7,31 @@ import re
 import subprocess
 import sys
 import traceback
+from argparse import ArgumentParser
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
-from os import listdir, readlink, symlink, scandir
-from os.path import basename, dirname, join, isdir, isfile, abspath, islink
+from os import scandir
+from os.path import basename, dirname, join, isdir, isfile, abspath
 from pathlib import Path
 from shutil import copyfile
 from threading import Thread
 
-import psutil
 import requests
 import timeago
 
 import config
 from syncprojects.server import app
+from syncprojects.storage import appdata, HashStore
 
 if os.name == 'nt':
-    import win32file
+    pass
 from time import sleep
 
 __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.utils import format_time, current_user, prompt_to_exit, appdata, fmt_error
+from syncprojects.utils import format_time, current_user, prompt_to_exit, fmt_error, copy_tree, \
+    process_running, move_file_on_reboot
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -79,28 +81,6 @@ def sync_amps():
         pull_amp_settings(amp)
         spinner.next()
     print()
-
-
-class HashStore:
-    def __init__(self, hash_store_path):
-        self.store = hash_store_path
-        self.content = {}
-
-    def get(self, key):
-        return self.content.get(key)
-
-    def open(self):
-        try:
-            with open(self.store) as f:
-                self.content = json.load(f)
-                return self.content
-        except (FileNotFoundError, json.decoder.JSONDecodeError):
-            return {}
-
-    def update(self, key, value):
-        self.content[key] = value
-        with open(self.store, "w") as f:
-            json.dump(self.content, f)
 
 
 local_hs = HashStore(config.LOCAL_HASH_STORE)
@@ -154,13 +134,13 @@ def hash_file(file_path, hash=None, block_size=4096):
 
 
 def hash_directory(dir_name):
-    hash = config.DEFAULT_HASH_ALGO()
+    hash_algo = config.DEFAULT_HASH_ALGO()
     if isdir(dir_name):
         for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
             if isfile(file_name):
                 logger.debug(f"Hashing {file_name}")
-                hash_file(file_name, hash)
-        hash_digest = hash.hexdigest()
+                hash_file(file_name, hash_algo)
+        hash_digest = hash_algo.hexdigest()
         remote_hash_cache[dir_name] = hash_digest
         return hash_digest
 
@@ -352,13 +332,6 @@ def clean_up():
         logger.error(fmt_error("cleanup", e))
 
 
-def move_file_on_reboot(src, dst):
-    try:
-        win32file.MoveFileEx(src, dst, win32file.MOVEFILE_DELAY_UNTIL_REBOOT)
-    except Exception as e:
-        logger.error(fmt_error("pending file move", e))
-
-
 def update():
     local_file = abspath(sys.argv[0])
     logger.info("Checking for updates...")
@@ -382,111 +355,6 @@ def update():
         return subprocess.run([join(dirname(local_file), new_path)])
 
 
-def get_patched_progress():
-    # Import a clean version of the entire package.
-    import progress
-
-    # Import the wraps decorator for copying over the name, docstring, and other metadata.
-    from functools import wraps
-
-    # Get the current platform.
-    from sys import platform
-
-    # Check if we're on Windows.
-    if platform.startswith("win"):
-        # Disable HIDE_CURSOR and SHOW_CURSOR characters.
-        progress.HIDE_CURSOR = ''
-        progress.SHOW_CURSOR = ''
-
-    # Create a patched clearln function that wraps the original function.
-    @wraps(progress.Infinite.clearln)
-    def patchedclearln(self):
-        # Get the current platform.
-        from sys import platform
-        # Some sort of check copied from the source.
-        if self.file and self.is_tty():
-            # Check if we're on Windows.
-            if platform.startswith("win"):
-                # Don't use the character.
-                print('\r', end='', file=self.file)
-            else:
-                # Use the character.
-                print('\r\x1b[K', end='', file=self.file)
-
-    # Copy over the patched clearln function into the imported clearln function.
-    progress.Infinite.clearln = patchedclearln
-
-    # Return the modified version of the entire package.
-    return progress
-
-
-def handle_link(src_name, dst_name, verbose, dry_run):
-    link_dest = readlink(src_name)
-    if verbose >= 1:
-        logger.debug(f"linking {dst_name} -> {link_dest}")
-    if not dry_run:
-        symlink(link_dest, dst_name)
-    return dst_name
-
-
-progress = get_patched_progress()
-from progress.bar import IncrementalBar
-from progress.spinner import Spinner
-
-
-def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
-              preserve_symlinks=0, update=0, verbose=1, dry_run=0,
-              progress=True, executor=None, single_depth=False):
-    from distutils.file_util import copy_file
-    from distutils.dir_util import mkpath
-
-    if not executor:
-        executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS)
-
-    names = listdir(src)
-
-    if not dry_run:
-        mkpath(dst, verbose=verbose)
-
-    outputs = []
-    if progress:
-        bar = IncrementalBar("Copying", max=len(names))
-    for n in names:
-        src_name = join(src, n)
-        dst_name = join(dst, n)
-
-        if progress:
-            bar.next()
-        if n.startswith('.nfs'):
-            # skip NFS rename files
-            continue
-
-        if preserve_symlinks and islink(src_name):
-            outputs.append(executor.submit(handle_link, src_name, dst_name, verbose, dry_run))
-
-        elif isdir(src_name) and not single_depth:
-            outputs.append(
-                executor.submit(
-                    copy_tree, src_name, dst_name, preserve_mode,
-                    preserve_times, preserve_symlinks, update,
-                    verbose=verbose, dry_run=dry_run, progress=False, executor=executor))
-        else:
-            executor.submit(
-                copy_file, src_name, dst_name, preserve_mode,
-                preserve_times, update, verbose=verbose,
-                dry_run=dry_run)
-            outputs.append(dst_name)
-    if progress:
-        bar.finish()
-    return outputs
-
-
-def process_running(regex):
-    for process in psutil.process_iter():
-        if regex.search(process.name()):
-            return process
-
-
 def check_wants():
     wants_file = join(config.DEFAULT_DEST, 'remote.wants')
     if isfile(wants_file):
@@ -508,18 +376,6 @@ def check_wants():
     return []
 
 
-def read_paths():
-    paths = set()
-    with open(config.CONFIG_PATH) as f:
-        for line in f:
-            try:
-                project, group = line.strip().split(":")
-            except ValueError:
-                project, group = line.strip(), ""
-            paths.add((project, group))
-    return paths
-
-
 def handle_new_project(project_name, remote_hs):
     if project_name not in remote_hs.content:
         for proj in remote_hs.content.keys():
@@ -531,7 +387,7 @@ def handle_new_project(project_name, remote_hs):
                 prompt_to_exit()
 
 
-def sync():
+def check_daw_running():
     if p := process_running(config.DAW_PROCESS_REGEX):
         logger.warning(
             f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open "
@@ -539,18 +395,19 @@ def sync():
         if get_input_choice(("Proceed", "cancel")) == "cancel":
             unlock()
             raise SystemExit
-    if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
-        api_unblock()
-    logger.info("Syncing projects...")
+
+
+def sync(project):
+    logger.info(f"Syncing project {project['name']}...")
     start = datetime.datetime.now()
-    logger.debug("Opening local database: " + str(local_hs.open()))
+    logger.debug("Opening local legacy hash store: " + str(local_hs.open()))
     wants = check_wants()
     remote_stores = {}
-    paths = read_paths()
+    songs = [song['name'] for song in project['songs']]
 
-    logger.info("Checking local projects for changes...")
+    logger.info("Checking local files for changes...")
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-        futures = {executor.submit(hash_directory, join(config.SOURCE, p[0])): p[0] for p in paths}
+        futures = {executor.submit(hash_directory, join(config.SOURCE, s[0])): s[0] for s in songs}
         for result in concurrent.futures.as_completed(futures):
             project = futures[result]
             try:
@@ -559,7 +416,7 @@ def sync():
                 src_hash = ""
             local_hash_cache[project] = src_hash
 
-    for project, group in paths:
+    for song in songs:
         print(print_hr())
         logger.info("Syncing {}...".format(project))
         not_local = False
@@ -628,29 +485,19 @@ def sync():
     logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
-if __name__ == '__main__':
-    # Set up logging
-    logger = logging.getLogger('syncprojects')
-    logger.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    if config.DEBUG:
-        ch.setLevel(logging.DEBUG)
-    else:
-        ch.setLevel(logging.INFO)
-    logger.addHandler(ch)
-    if config.TELEMETRY:
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.FileHandler(config.TELEMETRY)
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument('--service', action='store_true')
+    parser.add_argument('--tui', action='store_true')
+    parser.add_argument('--debug', action='store_true')
+    return parser.parse_args()
 
-    logger.info(BANNER)
-    logger.info("[v{}]".format(__version__))
+
+def main(args):
     error = []
 
     # init API client
-    api_client = SyncAPI(logger, appdata.get('refresh'), appdata.get('access'), appdata.get('username'))
+    api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'))
 
     # Start local Flask server
     web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
@@ -675,13 +522,17 @@ if __name__ == '__main__':
         if error:
             logger.error(','.join(error))
             prompt_to_exit()
+
+        check_daw_running()
+        if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
+            api_unblock()
+
         projects = api_client.get_projects()
         for project in projects:
             # TODO: sync one at a time
             lock(project, api_client)
             sync(project)
             unlock(project, api_client)
-            api_client.unlock(project)
 
         logger.info(
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
@@ -698,3 +549,28 @@ if __name__ == '__main__':
         logger.critical(f"Fatal error! Provide the developer (syncprojects-dev@keane.space) with the following "
                         f"information:\n{str(e)} {str(traceback.format_exc())}")
         prompt_to_exit()
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    if args.debug:
+        config.DEBUG = True
+    # Set up logging
+    logger = logging.getLogger('syncprojects')
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    if config.DEBUG:
+        ch.setLevel(logging.DEBUG)
+    else:
+        ch.setLevel(logging.INFO)
+    logger.addHandler(ch)
+    if appdata.get('telemetry'):
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh = logging.FileHandler(appdata['telemetry'])
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+
+    logger.info(BANNER)
+    logger.info("[v{}]".format(__version__))
+    main(args)

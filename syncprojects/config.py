@@ -13,7 +13,6 @@ SOURCE = "D:\\Music\\Studio"
 DEFAULT_DEST = "X:\\studio"
 # Where the config file will be stored. On each line of this file
 # should be a directory name that you wish to sync from the "source" directory.
-CONFIG_PATH = expanduser("~/Desktop/Studio_Sync.txt")
 # Where the hashes should be stored. Do not modify this file!
 LOCAL_HASH_STORE = expanduser("~/Desktop/studio_hashes.txt")
 REMOTE_HASH_STORE = "hashes"
