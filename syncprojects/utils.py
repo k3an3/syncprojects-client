@@ -16,7 +16,7 @@ from jwt import DecodeError, ExpiredSignatureError
 from progress.bar import IncrementalBar
 
 from syncprojects import config
-from syncprojects.config import DEV_PUBLIC_KEY, PROD_PUBLIC_KEY, DEBUG
+from syncprojects.config import DEBUG, PUBLIC_KEY
 
 logger = logging.getLogger('syncprojects.utils')
 
@@ -68,10 +68,6 @@ def get_datadir(app: str) -> pathlib.Path:
         return home / "Library/Application Support" / app
 
 
-def get_public_key():
-    return PROD_PUBLIC_KEY or DEV_PUBLIC_KEY
-
-
 def get_verified_data(f):
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
@@ -80,7 +76,7 @@ def get_verified_data(f):
                 data = request.get_json()['data']
             else:
                 data = request.args['data']
-            return f(jwt.decode(data, get_public_key(), algorithms=["RS256"]), *args, **kwargs)
+            return f(jwt.decode(data, PUBLIC_KEY, algorithms=["RS256"]), *args, **kwargs)
         except (ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
             if DEBUG:
                 raise e

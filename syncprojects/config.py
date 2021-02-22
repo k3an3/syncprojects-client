@@ -57,7 +57,7 @@ DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 PROJECT_GLOB = "*.cpr"
 BINARY_CLEAN_GLOB = "syncprojects*.exe"
 
-DEV_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
+PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsgFcJbSX6zfOhx/MImB2
 RY3vN1bXKN2dqz15B8os4yO9AdQIKPcNagWXeA/gbY+3YXuS6bexBcZe+B4jltoS
 GHHyfRdmyAR3fDRvyBiehYkHK5u/NEw6OWflE70LCfT6UJodmiPbFHG9zhgOkb7U
@@ -68,7 +68,6 @@ YQIDAQAB
 -----END PUBLIC KEY-----
 """
 
-PROD_PUBLIC_KEY = ""
 DEBUG = False
 LOGIN_MODE = "web"  # prompt, web
 SYNCPROJECTS_URL = "https://syncprojects.example.com/"

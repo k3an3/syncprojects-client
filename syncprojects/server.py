@@ -8,6 +8,8 @@ from syncprojects.utils import get_verified_data
 
 app = Flask(__name__)
 logger = logging.getLogger('syncprojects.server')
+wz_logger = logging.getLogger('werkzeug')
+wz_logger.setLevel(logging.ERROR)
 
 
 @app.route('/api/auth', methods=['GET', 'POST'])

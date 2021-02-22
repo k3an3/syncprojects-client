@@ -8,11 +8,9 @@ from time import sleep
 import requests
 from requests import HTTPError
 
-from syncprojects.config import LOGIN_MODE, DEBUG, SYNCPROJECTS_URL
+from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
 
-if DEBUG:
-    SYNCPROJECTS_URL = "http://localhost:8000/"
 API_BASE_URL = SYNCPROJECTS_URL + "api/v1/"
 logger = logging.getLogger('syncprojects.api')
 
