@@ -7,7 +7,7 @@ except ImportError:
 
 def gen_executables():
     try:
-        return [Executable("main.py")]
+        return [Executable("syncprojects/main.py", icon="benny.ico")]
     except NameError:
         return []
 
