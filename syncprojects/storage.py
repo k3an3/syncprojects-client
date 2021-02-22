@@ -35,8 +35,8 @@ def get_hash_store(project):
 
 # legacy
 class HashStore:
-    def __init__(self, project):
-        self.project = project
+    def __init__(self, hash_store_path):
+        self.store = hash_store_path
         self.content = {}
 
     def get(self, key):

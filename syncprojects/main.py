@@ -181,7 +181,7 @@ def check_out(project, api_client, hours=8):
 
 
 def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):
-    locked = api_client.lock(project['id'], reason, duration)
+    locked = api_client.lock(project['id'], reason=reason, until=duration)
     logger.debug(f"Got lock response {locked}")
     if 'id' in locked:
         return locked['id']
@@ -508,8 +508,6 @@ def main(args):
             prompt_to_exit()
 
     try:
-        if config.TELEMETRY:
-            print("Logging enabled with path", config.TELEMETRY)
         clean_up()
         if config.UPDATE_PATH_GLOB and update():
             raise SystemExit
@@ -554,20 +552,21 @@ if __name__ == '__main__':
         config.DEBUG = True
     # Set up logging
     logger = logging.getLogger('syncprojects')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     if config.DEBUG:
         ch.setLevel(logging.DEBUG)
     else:
         ch.setLevel(logging.INFO)
     logger.addHandler(ch)
-    if appdata.get('telemetry'):
+    if appdata.get('telemetry_file'):
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.FileHandler(appdata['telemetry'])
+        fh = logging.FileHandler(appdata['telemetry_file'])
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
+        logger.info(f"Logging debug output to {appdata['telemetry_file']}")
 
-    logger.info(BANNER)
+    print(BANNER)
     logger.info("[v{}]".format(__version__))
     main(args)
