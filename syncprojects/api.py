@@ -101,11 +101,11 @@ class SyncAPI:
         self.logger.debug(f"Submitting {lock=} request for {project} with config {json}")
         return self._request(f"projects/{project}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
-    def lock(self, project: Project, force: bool = False, reason: str = "Sync", until: float = None):
-        return self._lock_request(project.p_id, True, force, reason, until)
+    def lock(self, project: int, force: bool = False, reason: str = "Sync", until: float = None):
+        return self._lock_request(project, True, force, reason, until)
 
-    def unlock(self, project: Project, force: bool = False):
-        return self._lock_request(project.p_id, False, force)
+    def unlock(self, project: int, force: bool = False):
+        return self._lock_request(project, False, force)
 
     def login(self, username: str, password: str):
         self.logger.debug("Sending creds for login")

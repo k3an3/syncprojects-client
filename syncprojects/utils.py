@@ -17,7 +17,6 @@ from progress.bar import IncrementalBar
 
 from syncprojects import config
 from syncprojects.config import DEV_PUBLIC_KEY, PROD_PUBLIC_KEY, DEBUG
-from syncprojects.main import logger
 
 logger = logging.getLogger('syncprojects.utils')
 

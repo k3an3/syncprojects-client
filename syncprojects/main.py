@@ -181,7 +181,7 @@ def check_out(project, api_client, hours=8):
 
 
 def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):
-    locked = api_client.lock(project, reason, duration)
+    locked = api_client.lock(project['id'], reason, duration)
     logger.debug(f"Got lock response {locked}")
     if 'id' in locked:
         return locked['id']
@@ -204,7 +204,7 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
             checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
             if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
                 logger.info(
-                    f"The studio is currently checked out by {locked['locked_by']} for "
+                    f"The project is currently checked out by {locked['locked_by']} for "
                     f"{timeago.format(checked_out_until, datetime.datetime.now())} hours "
                     f"or until it's checked in.")
                 logger.info("Bailing!")
@@ -216,7 +216,7 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
 
 
 def unlock(project, api_client):
-    unlocked = api_client.unlock(project)
+    unlocked = api_client.unlock(project['id'])
     if unlocked['status'] == 'locked':
         logger.warning(f"WARNING: The studio could not be unlocked: {unlocked}")
     elif unlocked['status'] == 'unlocked':
@@ -392,6 +392,7 @@ def sync(project):
     wants = check_wants()
     remote_stores = {}
     songs = [song['name'] for song in project['songs']]
+    project = project['name']
 
     logger.info("Checking local files for changes...")
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
