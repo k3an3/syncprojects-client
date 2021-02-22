@@ -229,3 +229,22 @@ def move_file_on_reboot(src, dst):
         win32file.MoveFileEx(src, dst, win32file.MOVEFILE_DELAY_UNTIL_REBOOT)
     except Exception as e:
         logger.error(fmt_error("pending file move", e))
+
+
+# TODO: prompt server instead
+def get_input_choice(options):
+    formatted_options = '[{}]: '.format('/'.join(["[{}]{}".format(o[0], o[1:]) for o in options]))
+    while True:
+        logger.info(formatted_options)
+        s = input()
+        # match partial option
+        for sel in options:
+            if len(s) > 1:
+                logger.info("Did you know? You don't need to type the entire word. Save some time and just type the "
+                            "first character, indicated by \"[{}].\"".format(s[0]))
+            if s and sel.lower().startswith(s.lower()):
+                logger.debug(f"User selected '{sel}' by typing '{s}':")
+                return sel.lower()
+            elif not s and sel[0].isupper():
+                # Default
+                return sel.lower()
