@@ -87,7 +87,7 @@ class SyncAPI:
     def get_projects(self):
         return self._request("projects/")["results"]
 
-    def _lock_request(self, project: int, lock: bool = False, force: bool = True, reason: str = "",
+    def _lock_request(self, project: dict, lock: bool = False, force: bool = True, reason: str = "",
                       until: datetime.datetime = None):
         json = {}
         if force:
@@ -96,13 +96,13 @@ class SyncAPI:
             json['reason'] = reason
         if until:
             json['until'] = until.timestamp()
-        self.logger.debug(f"Submitting {lock=} request for {project} with config {json}")
-        return self._request(f"projects/{project}/lock/", method='PUT' if lock else 'DELETE', json=json)
+        self.logger.debug(f"Submitting {lock=} request for {project['name']} with config {json}")
+        return self._request(f"projects/{project['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
-    def lock(self, project: int, force: bool = False, reason: str = "Sync", until: float = None):
+    def lock(self, project: dict, force: bool = False, reason: str = "Sync", until: float = None):
         return self._lock_request(project, True, force, reason, until)
 
-    def unlock(self, project: int, force: bool = False):
+    def unlock(self, project: dict, force: bool = False):
         return self._lock_request(project, False, force)
 
     def login(self, username: str, password: str):
