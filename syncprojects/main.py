@@ -9,7 +9,6 @@ import sys
 import traceback
 from argparse import ArgumentParser
 from concurrent.futures.thread import ThreadPoolExecutor
-from glob import glob
 from os import scandir
 from os.path import join, isdir, isfile
 from pathlib import Path
@@ -31,7 +30,7 @@ __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.utils import format_time, current_user, prompt_to_exit, fmt_error, copy_tree, \
-    process_running, get_input_choice, print_hr, print_latest_change, clean_up, update
+    process_running, get_input_choice, print_hr, print_latest_change, clean_up, update, hash_directory
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -116,31 +115,6 @@ def api_unblock():
 
 def copy(dir_name, src, dst, update=True):
     copy_tree(join(src, dir_name), join(dst, dir_name), update=update)
-
-
-def hash_file(file_path, hash_algo=None, block_size=4096):
-    if not hash_algo:
-        hash_algo = config.DEFAULT_HASH_ALGO()
-    with open(file_path, 'rb') as fp:
-        while True:
-            data = fp.read(block_size)
-            if data:
-                hash_algo.update(fp.read())
-            else:
-                break
-    return hash_algo.hexdigest()
-
-
-def hash_directory(dir_name):
-    hash_algo = config.DEFAULT_HASH_ALGO()
-    if isdir(dir_name):
-        for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
-            if isfile(file_name):
-                logger.debug(f"Hashing {file_name}")
-                hash_file(file_name, hash_algo)
-        hash_digest = hash_algo.hexdigest()
-        remote_hash_cache[dir_name] = hash_digest
-        return hash_digest
 
 
 def is_updated(dir_name, group, remote_hs):
@@ -310,14 +284,15 @@ def check_wants():
     return []
 
 
-def handle_new_project(project_name, remote_hs):
-    if project_name not in remote_hs.content:
-        for proj in remote_hs.content.keys():
-            if project_name.lower() == proj.lower():
+def handle_new_song(song_name, remote_hs):
+    if song_name not in remote_hs.content:
+        for song in remote_hs.content.keys():
+            if song_name.lower() == song.lower():
                 logger.error(
-                    f"\nERROR: Your project is named \"{project_name}\", but a similarly named project \"{proj}\" "
+                    f"\nERROR: Your song is named \"{song_name}\", but a similarly named song \"{song}\" "
                     f"already exists remotely. Please check your spelling/capitalization and try again.")
-                unlock()
+                # TODO
+                # unlock(project, api_client)
                 prompt_to_exit()
 
 
@@ -327,7 +302,6 @@ def check_daw_running():
             f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open "
             f"synced projects before proceeding, else corruption may occur.")
         if get_input_choice(("Proceed", "cancel")) == "cancel":
-            unlock()
             raise SystemExit
 
 
@@ -378,7 +352,7 @@ def sync(project):
         up = is_updated(song, project, remote_hs)
         if not_local:
             up == "remote"
-            handle_new_project(song, remote_hs)
+            handle_new_song(song, remote_hs)
         if song in wants:
             logger.warning(f"Overriding because {wants['user']} requested this song!!!!")
             sleep(0.9)

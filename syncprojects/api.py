@@ -127,7 +127,6 @@ class SyncAPI:
         config = self.queue.get()
         self.refresh_token = config['refresh']
         self.access_token = config['access']
-        appdata['refresh'] = self.refresh_token
-        appdata['access'] = self.access_token
+        appdata.update(config)
         self.logger.debug("Saved credentials updated from Flask server")
         return True

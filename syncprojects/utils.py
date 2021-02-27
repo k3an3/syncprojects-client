@@ -19,9 +19,8 @@ from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
 from progress.bar import IncrementalBar
 
-from syncprojects import config
-from syncprojects.config import DEBUG, PUBLIC_KEY
-from syncprojects.main import logger, hash_file
+import syncprojects.config as config
+from syncprojects.main import logger, remote_hash_cache
 
 logger = logging.getLogger('syncprojects.utils')
 
@@ -81,13 +80,13 @@ def get_verified_data(f):
                 data = request.get_json()['data']
             else:
                 data = request.args['data']
-            return f(jwt.decode(data, PUBLIC_KEY, algorithms=["RS256"]), *args, **kwargs)
+            return f(jwt.decode(data, config.PUBLIC_KEY, algorithms=["RS256"]), *args, **kwargs)
         except (ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
-            if DEBUG:
+            if config.DEBUG:
                 raise e
             abort(403)
         except TypeError as e:
-            if DEBUG:
+            if config.DEBUG:
                 raise e
             abort(400)
 
@@ -97,8 +96,7 @@ def get_verified_data(f):
 
 
 def migrate_old_settings(new_config):
-    import config
-    update({
+    new_config.update({
         'source': config.SOURCE,
         'default_dest': config.DEFAULT_DEST,
         'local_hash_store': config.LOCAL_HASH_STORE,
@@ -224,8 +222,10 @@ def handle_link(src_name, dst_name, verbose, dry_run):
     return dst_name
 
 
+# noinspection PyUnresolvedReferences
 def move_file_on_reboot(src, dst):
     try:
+        # pylint: disable=undefined-variable
         win32file.MoveFileEx(src, dst, win32file.MOVEFILE_DELAY_UNTIL_REBOOT)
     except Exception as e:
         logger.error(fmt_error("pending file move", e))
@@ -308,3 +308,28 @@ def update():
         copyfile(remote_file, new_path)
         move_file_on_reboot(new_path, join(dirname(local_file), 'syncprojects-latest.exe'))
         return subprocess.run([join(dirname(local_file), new_path)])
+
+
+def hash_file(file_path, hash_algo=None, block_size=4096):
+    if not hash_algo:
+        hash_algo = config.DEFAULT_HASH_ALGO()
+    with open(file_path, 'rb') as fp:
+        while True:
+            data = fp.read(block_size)
+            if data:
+                hash_algo.update(fp.read())
+            else:
+                break
+    return hash_algo.hexdigest()
+
+
+def hash_directory(dir_name):
+    hash_algo = config.DEFAULT_HASH_ALGO()
+    if isdir(dir_name):
+        for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
+            if isfile(file_name):
+                logger.debug(f"Hashing {file_name}")
+                hash_file(file_name, hash_algo)
+        hash_digest = hash_algo.hexdigest()
+        remote_hash_cache[dir_name] = hash_digest
+        return hash_digest
