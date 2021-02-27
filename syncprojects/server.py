@@ -16,7 +16,7 @@ wz_logger.setLevel(logging.ERROR)
 @get_verified_data
 def auth(data):
     appdata.update(data)
-    app.config['event'].set()
+    app.config['queue'].put(data)
     if request.method == "POST":
         return '', 204
     else:

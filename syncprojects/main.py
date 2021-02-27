@@ -13,8 +13,9 @@ from glob import glob
 from os import scandir
 from os.path import basename, dirname, join, isdir, isfile, abspath
 from pathlib import Path
+from queue import Queue
 from shutil import copyfile
-from threading import Thread, Event
+from threading import Thread
 
 import requests
 import timeago
@@ -512,13 +513,13 @@ def sync_all_projects(projects, api_client):
 
 def main(args):
     error = []
-    event = Event()
+    queue = Queue()
 
     # init API client
-    api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), event)
+    api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), queue)
 
     # Start local Flask server
-    app.config['event'] = event
+    app.config['queue'] = queue
     web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
     web_thread.start()
 
