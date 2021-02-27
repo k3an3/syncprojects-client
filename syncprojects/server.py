@@ -1,6 +1,6 @@
 import logging
 
-from flask import Flask, request
+from flask import Flask, request, cli
 
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
@@ -9,7 +9,10 @@ from syncprojects.utils import get_verified_data
 app = Flask(__name__)
 logger = logging.getLogger('syncprojects.server')
 wz_logger = logging.getLogger('werkzeug')
-wz_logger.setLevel(logging.ERROR)
+if not DEBUG:
+    wz_logger.disabled = True
+    app.logger.disabled = True
+    cli.show_server_banner = lambda *_: None
 
 
 @app.route('/api/auth', methods=['GET', 'POST'])

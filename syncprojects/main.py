@@ -401,7 +401,7 @@ def sync(project):
     if not songs:
         logger.info("No songs, skipping")
         return
-    logger.info(f"Got songs list {songs}")
+    logger.debug(f"Got songs list {songs}")
     project = project['name']
 
     logger.info("Checking local files for changes...")
@@ -430,7 +430,7 @@ def sync(project):
         remote_stores[remote_store_name] = remote_hs
 
     for song in songs:
-        logger.info(print_hr())
+        print(print_hr())
         logger.info("Syncing {}...".format(song))
         not_local = False
         if not isdir(join(config.SOURCE, song)):
@@ -482,8 +482,8 @@ def sync(project):
             sleep(2)
         else:
             logger.info(f"Successfully synced {song}")
-    logger.info(print_hr())
-    logger.info(print_hr('='))
+    print(print_hr())
+    print(print_hr('='))
 
 
 def parse_args():
@@ -497,6 +497,7 @@ def parse_args():
 
 def sync_all_projects(projects, api_client):
     start = datetime.datetime.now()
+    print(print_hr('='))
     for project in projects:
         try:
             if not project['sync_enabled']:
@@ -507,7 +508,9 @@ def sync_all_projects(projects, api_client):
         lock(project, api_client)
         sync(project)
         unlock(project, api_client)
+    print(print_hr('='))
     sync_amps()
+    print(print_hr('='))
     logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 

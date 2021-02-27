@@ -46,7 +46,7 @@ class SyncAPI:
         self.access_token = access_token
         self._username = username
         self.logger = logging.getLogger('syncprojects.api.SyncAPI')
-        self.event = event
+        self.queue = queue
 
     @property
     def username(self) -> str:
@@ -125,9 +125,9 @@ class SyncAPI:
         webbrowser.open(SYNCPROJECTS_URL + "sync/client_login/")
         self.logger.info("Waiting for successful login...")
         config = self.queue.get()
-        self.refresh_token = config['refresh_token']
-        self.access_token = config['access_token']
-        appdata['refresh_token'] = self.refresh_token
-        appdata['access_token'] = self.access_token
+        self.refresh_token = config['refresh']
+        self.access_token = config['access']
+        appdata['refresh'] = self.refresh_token
+        appdata['access'] = self.access_token
         self.logger.debug("Saved credentials updated from Flask server")
         return True
