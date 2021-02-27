@@ -11,10 +11,9 @@ from argparse import ArgumentParser
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
 from os import scandir
-from os.path import basename, dirname, join, isdir, isfile, abspath
+from os.path import join, isdir, isfile
 from pathlib import Path
 from queue import Queue
-from shutil import copyfile
 from threading import Thread
 
 import requests
@@ -32,7 +31,7 @@ __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.utils import format_time, current_user, prompt_to_exit, fmt_error, copy_tree, \
-    process_running, move_file_on_reboot, get_input_choice
+    process_running, get_input_choice, print_hr, print_latest_change, clean_up, update
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -117,10 +116,6 @@ def api_unblock():
 
 def copy(dir_name, src, dst, update=True):
     copy_tree(join(src, dir_name), join(dst, dir_name), update=update)
-
-
-def print_hr(char="-", chars=79):
-    return char * chars
 
 
 def hash_file(file_path, hash_algo=None, block_size=4096):
@@ -230,26 +225,6 @@ def unlock(project, api_client):
         logger.warning(f"WARNING: The studio was already unlocked: {unlocked}")
 
 
-def print_latest_change(directory_path):
-    changelog_file = join(directory_path, "changelog.txt")
-    if not isfile(changelog_file):
-        return
-    with open(changelog_file) as f:
-        lines = f.readlines()
-    start = None
-    end = None
-    for n, line in enumerate(lines):
-        if not start and line.startswith('--') and line.rstrip().endswith('--'):
-            start = n
-        elif start and not line.strip():
-            end = n
-            break
-    if start:
-        print("Latest changes:\n~~~")
-        print(''.join(lines[start:end]))
-        print("~~~")
-
-
 def validate_changelog(changelog_file):
     r = re.compile(r'^-- [a-zA-Z0-9_-]+: ([0-9]{2}:){2}[0-9]{2} ([0-9]{2}-){2}[0-9]{4} --$')
     with open(changelog_file) as f:
@@ -312,42 +287,6 @@ def changelog(directory):
         logger.warning("Error! Improper formatting in changelog. Please correct it:\n")
         logger.warning(err)
         subprocess.run([config.NOTEPAD, changelog_file])
-
-
-def clean_up():
-    try:
-        current_file = abspath(sys.argv[0])
-        for file in glob(join(dirname(current_file), config.BINARY_CLEAN_GLOB)):
-            try:
-                logger.debug(f"Unlinking {file}.")
-                Path(file).unlink()
-            except:
-                logger.debug(f"Couldn't unlink {file}.")
-    except Exception as e:
-        logger.error(fmt_error("cleanup", e))
-
-
-def update():
-    local_file = abspath(sys.argv[0])
-    logger.info("Checking for updates...")
-    if not isfile(local_file):
-        logger.info("Failed to resolve local file for update. Skipping...")
-        return
-    try:
-        remote_file = glob(config.UPDATE_PATH_GLOB)[::-1][0]
-    except IndexError:
-        logger.info("Update file not found. Skipping...")
-        return
-
-    remote_hash = hash_file(remote_file)
-    local_hash = hash_file(local_file)
-    logger.debug(f"{local_file=} {local_hash=} {remote_file=} {remote_hash=}")
-    if not local_hash == remote_hash:
-        logger.info(f"Updating to {basename(remote_file)} from {local_file}")
-        new_path = join(dirname(local_file), "syncprojects-{}.exe".format(int(datetime.datetime.now().timestamp())))
-        copyfile(remote_file, new_path)
-        move_file_on_reboot(new_path, join(dirname(local_file), 'syncprojects-latest.exe'))
-        return subprocess.run([join(dirname(local_file), new_path)])
 
 
 def check_wants():

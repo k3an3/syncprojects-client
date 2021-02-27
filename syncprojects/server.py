@@ -2,8 +2,8 @@ import logging
 
 from flask import Flask, request, cli
 
+import syncprojects.utils
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
-from syncprojects.storage import appdata
 from syncprojects.utils import get_verified_data
 
 app = Flask(__name__)
@@ -18,7 +18,7 @@ if not DEBUG:
 @app.route('/api/auth', methods=['GET', 'POST'])
 @get_verified_data
 def auth(data):
-    appdata.update(data)
+    syncprojects.utils.update(data)
     app.config['queue'].put(data)
     if request.method == "POST":
         return '', 204
