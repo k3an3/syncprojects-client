@@ -3,11 +3,15 @@ import functools
 import getpass
 import logging
 import pathlib
+import subprocess
 import sys
 import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
 from os import listdir, readlink, symlink
-from os.path import join, islink, isdir
+from os.path import join, islink, isdir, isfile, abspath, dirname, basename
+from pathlib import Path
+from shutil import copyfile
 
 import jwt
 import psutil
@@ -17,6 +21,7 @@ from progress.bar import IncrementalBar
 
 from syncprojects import config
 from syncprojects.config import DEBUG, PUBLIC_KEY
+from syncprojects.main import logger, hash_file
 
 logger = logging.getLogger('syncprojects.utils')
 
@@ -93,7 +98,7 @@ def get_verified_data(f):
 
 def migrate_old_settings(new_config):
     import config
-    new_config.update({
+    update({
         'source': config.SOURCE,
         'default_dest': config.DEFAULT_DEST,
         'local_hash_store': config.LOCAL_HASH_STORE,
@@ -243,3 +248,63 @@ def get_input_choice(options):
             elif not s and sel[0].isupper():
                 # Default
                 return sel
+
+
+def print_hr(char="-", chars=79):
+    return char * chars
+
+
+def print_latest_change(directory_path):
+    changelog_file = join(directory_path, "changelog.txt")
+    if not isfile(changelog_file):
+        return
+    with open(changelog_file) as f:
+        lines = f.readlines()
+    start = None
+    end = None
+    for n, line in enumerate(lines):
+        if not start and line.startswith('--') and line.rstrip().endswith('--'):
+            start = n
+        elif start and not line.strip():
+            end = n
+            break
+    if start:
+        print("Latest changes:\n~~~")
+        print(''.join(lines[start:end]))
+        print("~~~")
+
+
+def clean_up():
+    try:
+        current_file = abspath(sys.argv[0])
+        for file in glob(join(dirname(current_file), config.BINARY_CLEAN_GLOB)):
+            try:
+                logger.debug(f"Unlinking {file}.")
+                Path(file).unlink()
+            except:
+                logger.debug(f"Couldn't unlink {file}.")
+    except Exception as e:
+        logger.error(fmt_error("cleanup", e))
+
+
+def update():
+    local_file = abspath(sys.argv[0])
+    logger.info("Checking for updates...")
+    if not isfile(local_file):
+        logger.info("Failed to resolve local file for update. Skipping...")
+        return
+    try:
+        remote_file = glob(config.UPDATE_PATH_GLOB)[::-1][0]
+    except IndexError:
+        logger.info("Update file not found. Skipping...")
+        return
+
+    remote_hash = hash_file(remote_file)
+    local_hash = hash_file(local_file)
+    logger.debug(f"{local_file=} {local_hash=} {remote_file=} {remote_hash=}")
+    if not local_hash == remote_hash:
+        logger.info(f"Updating to {basename(remote_file)} from {local_file}")
+        new_path = join(dirname(local_file), "syncprojects-{}.exe".format(int(datetime.datetime.now().timestamp())))
+        copyfile(remote_file, new_path)
+        move_file_on_reboot(new_path, join(dirname(local_file), 'syncprojects-latest.exe'))
+        return subprocess.run([join(dirname(local_file), new_path)])
