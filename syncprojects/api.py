@@ -96,7 +96,7 @@ class SyncAPI:
             json['reason'] = reason
         if until:
             json['until'] = until.timestamp()
-        self.logger.debug(f"Submitting {lock=} request for {project['name']} with config {json}")
+        self.logger.debug(f"Submitting {'' if lock else 'UN'}LOCK request for {project['name']} with config {json}")
         return self._request(f"projects/{project['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
     def lock(self, project: dict, force: bool = False, reason: str = "Sync", until: float = None):

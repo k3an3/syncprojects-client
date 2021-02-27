@@ -242,4 +242,4 @@ def get_input_choice(options):
                 return sel.lower()
             elif not s and sel[0].isupper():
                 # Default
-                return sel.lower()
+                return sel

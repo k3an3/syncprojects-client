@@ -47,7 +47,11 @@ class HashStore:
             with open(self.store) as f:
                 self.content = json.load(f)
                 return self.content
-        except (FileNotFoundError, json.decoder.JSONDecodeError):
+        except FileNotFoundError:
+            logger.debug(f"Didn't find hash store at {self.store}, returning empty")
+            return {}
+        except json.decoder.JSONDecodeError:
+            logger.debug(f"Error decoding JSON in hash store {self.store}, returning empty")
             return {}
 
     def update(self, key, value):

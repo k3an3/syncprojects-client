@@ -74,8 +74,9 @@ def pull_amp_settings(amp):
 
 
 def sync_amps():
-    from utils import progress
-    spinner = progress.Spinner("Syncing Neural DSP presets ")
+    # TODO: a mess
+    from progress import spinner
+    spinner = spinner.Spinner("Syncing Neural DSP presets ")
     for amp in get_local_neural_dsp_amps():
         push_amp_settings(amp)
         spinner.next()
@@ -161,6 +162,7 @@ def is_updated(dir_name, group, remote_hs):
     logger.debug(f"remote_hash is {dst_hash}")
     known_hash = local_hs.get(dir_name)
     if not known_hash:
+        logger.debug(f"didn't exist in database: {dir_name=}")
         logger.info("Not in database; adding...")
         new_hash = src_hash or dst_hash
         local_hs.update(dir_name, new_hash)
@@ -187,7 +189,7 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
         return locked['id']
     if locked['status'] == 'locked':
         if not locked.get('until'):
-            logger.warning("A sync is still running or did not complete successfully.")
+            logger.warning(f"{project['name']}: A sync is still running or did not complete successfully.")
             if not locked['locked_by'] == "self":
                 logger.warning(
                     f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})... maybe talk to them before overriding?")
@@ -200,6 +202,8 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
                 raise SystemExit
             elif choice == "override":
                 api_client.lock(project, force=True)
+            elif choice == "Try Again":
+                lock(project, api_client, reason, duration)
         elif not locked['locked_by'] == "self":
             checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
             if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
@@ -217,7 +221,9 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
 
 def unlock(project, api_client):
     unlocked = api_client.unlock(project)
-    if unlocked['status'] == 'locked':
+    if unlocked.get("result") == "success":
+        logger.debug("Successful unlock")
+    elif unlocked['status'] == 'locked':
         logger.warning(f"WARNING: The studio could not be unlocked: {unlocked}")
     elif unlocked['status'] == 'unlocked':
         logger.warning(f"WARNING: The studio was already unlocked: {unlocked}")
@@ -387,26 +393,31 @@ def check_daw_running():
 
 def sync(project):
     logger.info(f"Syncing project {project['name']}...")
-    start = datetime.datetime.now()
-    logger.debug("Loading local legacy hash store: " + str(local_hs.open()))
+    logger.debug(f"{local_hs.open()=}")
     wants = check_wants()
     remote_stores = {}
-    songs = [song['name'] for song in project['songs']]
+    songs = [song.get('directory_name') or song['name'] for song in project['songs']]
+    if not songs:
+        logger.info("No songs, skipping")
+        return
+    logger.info(f"Got songs list {songs}")
     project = project['name']
 
     logger.info("Checking local files for changes...")
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-        futures = {executor.submit(hash_directory, join(config.SOURCE, s[0])): s[0] for s in songs}
+        futures = {executor.submit(hash_directory, join(config.SOURCE, s)): s for s in songs}
         for result in concurrent.futures.as_completed(futures):
             song = futures[result]
             try:
                 src_hash = result.result()
             except FileNotFoundError:
+                log.debug(f"Didn't get hash for {song}")
                 src_hash = ""
             local_hash_cache[song] = src_hash
     project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
     remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
-    logger.debug(f"{project_dest=}, {remote_store_name=}")
+    logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
+    logger.debug(f"{local_hash_cache=}")
     try:
         # Database already opened, contents cached
         remote_hs = remote_stores[remote_store_name]
@@ -414,7 +425,7 @@ def sync(project):
     except KeyError:
         remote_hs = HashStore(remote_store_name)
         # Database not opened yet, need to read from disk
-        logger.debug("Opened remote database: " + str(remote_hs.open()))
+        logger.debug(f"{remote_hs.open()=}")
         remote_stores[remote_store_name] = remote_hs
 
     for song in songs:
@@ -471,9 +482,7 @@ def sync(project):
         else:
             logger.info(f"Successfully synced {song}")
     logger.info(print_hr())
-    sync_amps()
     logger.info(print_hr('='))
-    logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
 def parse_args():
@@ -486,10 +495,19 @@ def parse_args():
 
 
 def sync_all_projects(projects, api_client):
+    start = datetime.datetime.now()
     for project in projects:
+        try:
+            if not project['sync_enabled']:
+                logger.debug(f"Project {project['name']} sync disabled, skipping...")
+                continue
+        except KeyError:
+            pass
         lock(project, api_client)
         sync(project)
         unlock(project, api_client)
+    sync_amps()
+    logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
 def main(args):
@@ -511,7 +529,7 @@ def main(args):
         clean_up()
         if config.UPDATE_PATH_GLOB and update():
             raise SystemExit
-        if not (config.DEBUG or isdir(config.SOURCE)):
+        if not isdir(config.SOURCE):
             error.append(f"Error! Source path \"{config.SOURCE}\" not found.")
         for directory in (config.DEFAULT_DEST, *config.DEST_MAPPING.values()):
             if not (config.DEBUG or isdir(directory)):
