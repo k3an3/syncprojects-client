@@ -1,24 +1,19 @@
 import concurrent.futures
 import datetime
-import json
 import logging
 import os
-import re
-import subprocess
 import sys
 import traceback
-from argparse import ArgumentParser
 from concurrent.futures.thread import ThreadPoolExecutor
 from os import scandir
-from os.path import join, isdir, isfile
-from pathlib import Path
+from os.path import join, isdir
 from queue import Queue
 from threading import Thread
 
-import requests
 import timeago
 
 import syncprojects.config as config
+from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
@@ -29,8 +24,9 @@ from time import sleep
 __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.utils import format_time, current_user, prompt_to_exit, fmt_error, copy_tree, \
-    process_running, get_input_choice, print_hr, print_latest_change, clean_up, update, hash_directory
+from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
+    clean_up, update, hash_directory, api_unblock, \
+    check_daw_running, parse_args
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -89,35 +85,8 @@ remote_hash_cache = {}
 local_hash_cache = {}
 
 
-def mount_persistent_drive():
-    try:
-        subprocess.run(
-            ["net", "use", config.SMB_DRIVE, f"\\\\{config.SMB_SERVER}\\{config.SMB_SHARE}", "/persistent:Yes"],
-            check=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Drive mount failed! {e.output.decode()}")
-
-
-def api_unblock():
-    logger.info("Requesting firewall exception... ")
-    try:
-        r = requests.post(config.FIREWALL_API_URL + "firewall/unblock",
-                          headers={'X-Auth-Token': config.FIREWALL_API_KEY},
-                          data={'device': config.FIREWALL_NAME})
-    except Exception as e:
-        logger.error(fmt_error("api_unblock", e))
-        logger.warning("failed! Hopefully the sync still works...")
-    if r.status_code == 204:
-        logger.info("success!")
-    else:
-        logger.error(f"error code {r.status_code}")
-
-
-def copy(dir_name, src, dst, update=True):
-    copy_tree(join(src, dir_name), join(dst, dir_name), update=update)
-
-
 def is_updated(dir_name, group, remote_hs):
+    # Can't refactor move with the hash caches here
     dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
     src_hash = local_hash_cache[dir_name]
     logger.debug(f"local_hash is {src_hash}")
@@ -197,112 +166,6 @@ def unlock(project, api_client):
         logger.warning(f"WARNING: The studio could not be unlocked: {unlocked}")
     elif unlocked['status'] == 'unlocked':
         logger.warning(f"WARNING: The studio was already unlocked: {unlocked}")
-
-
-def validate_changelog(changelog_file):
-    r = re.compile(r'^-- [a-zA-Z0-9_-]+: ([0-9]{2}:){2}[0-9]{2} ([0-9]{2}-){2}[0-9]{4} --$')
-    with open(changelog_file) as f:
-        header = None
-        inside_entry = False
-        bullets = 0
-        complete = False
-        for line in f.readlines()[3:]:
-            line = line.rstrip()
-            # Seen nothing yet; look for header with username/date
-            if not header and not inside_entry and r.match(line):
-                header = line
-            # Seen the header already, look for the opening divider
-            elif not inside_entry and header and line.startswith('============'):
-                inside_entry = True
-            # Seen the header and opening divider
-            elif header and inside_entry:
-                # Line is a valid bullet, count these
-                if line.startswith('* '):
-                    bullets += 1
-                # Seen at least one bullet, but current line is blank. Good to go.
-                elif bullets > 0 and not line:
-                    header = None
-                    inside_entry = False
-                    bullets = 0
-                    complete = True
-                else:
-                    return f"Unexpected entry within block {header}:\n~~~\n{line}\n~~~\nA valid block looks like:\n-- User: HH:MM:SS MM-DD-YYYY --\n===============================\n* A bullet point\n* Another bullet point"
-            # Outside block, line is empty
-            elif not line.rstrip():
-                continue
-            # A complete block was parsed, and we reached the next header. Return successful validation.
-            elif complete and r.match(line):
-                return False
-            else:
-                return f"Unexpected text in body:\n~~~\n{line}\n~~~"
-        return False
-
-
-def changelog(directory):
-    changelog_file = join(config.SOURCE, directory, "changelog.txt")
-    if not isfile(changelog_file):
-        logger.info("Creating changelog...")
-        divider = print_hr("*", config.CHANGELOG_HEADER_WIDTH)
-        changelog_header = divider + "\n*{}*\n".format(
-            ("CHANGELOG: " + directory).center(config.CHANGELOG_HEADER_WIDTH - 2)) + divider
-        with open(changelog_file, "w") as f:
-            f.write(changelog_header)
-    print("Add a summary of the changes you made to {}, then save and close Notepad.".format(directory))
-    user = current_user()
-    header = "\n\n-- {}: {} --\n".format(user, format_time())
-    header += "=" * (len(header) - 3) + "\n\n"
-    with open(changelog_file, "r+") as f:
-        lines = f.readlines()
-        lines.insert(3, header)
-        f.seek(0)
-        f.writelines(lines)
-    subprocess.run([config.NOTEPAD, changelog_file])
-    while err := validate_changelog(changelog_file):
-        logger.warning("Error! Improper formatting in changelog. Please correct it:\n")
-        logger.warning(err)
-        subprocess.run([config.NOTEPAD, changelog_file])
-
-
-def check_wants():
-    wants_file = join(config.DEFAULT_DEST, 'remote.wants')
-    if isfile(wants_file):
-        try:
-            logger.debug("Loading wants file...")
-            with open(wants_file) as f:
-                wants = json.load(f)
-                logger.debug(f"Wants file contains: {wants}")
-                if wants.get('user') != current_user():
-                    logger.debug("Wants are not from current user, fetching")
-                    Path(wants_file).unlink()
-                    return wants['projects']
-                else:
-                    logger.debug("Wants are from current user, not fetching...")
-        except Exception as e:
-            logger.debug("Exception in wants:" + str(e))
-    else:
-        logger.debug("Didn't find wants file. Skipping...")
-    return []
-
-
-def handle_new_song(song_name, remote_hs):
-    if song_name not in remote_hs.content:
-        for song in remote_hs.content.keys():
-            if song_name.lower() == song.lower():
-                logger.error(
-                    f"\nERROR: Your song is named \"{song_name}\", but a similarly named song \"{song}\" "
-                    f"already exists remotely. Please check your spelling/capitalization and try again.")
-                # TODO
-                # unlock(project, api_client)
-                prompt_to_exit()
-
-
-def check_daw_running():
-    if p := process_running(config.DAW_PROCESS_REGEX):
-        logger.warning(
-            f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open "
-            f"synced projects before proceeding, else corruption may occur.")
-        if get_input_choice(("Proceed", "cancel")) == "cancel":
-            raise SystemExit
 
 
 def sync(project):
@@ -397,15 +260,6 @@ def sync(project):
             logger.info(f"Successfully synced {song}")
     print(print_hr())
     print(print_hr('='))
-
-
-def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument('--service', action='store_true')
-    parser.add_argument('--tui', action='store_true')
-    parser.add_argument('--debug', action='store_true')
-    parser.add_argument('--sync', action='store_true')
-    return parser.parse_args()
 
 
 def sync_all_projects(projects, api_client):

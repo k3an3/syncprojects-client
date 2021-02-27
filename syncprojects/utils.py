@@ -3,24 +3,24 @@ import functools
 import getpass
 import logging
 import pathlib
+import re
 import subprocess
 import sys
 import traceback
-from concurrent.futures.thread import ThreadPoolExecutor
+from argparse import ArgumentParser
 from glob import glob
-from os import listdir, readlink, symlink
-from os.path import join, islink, isdir, isfile, abspath, dirname, basename
+from os import readlink, symlink
+from os.path import join, isdir, isfile, abspath, dirname, basename
 from pathlib import Path
 from shutil import copyfile
 
 import jwt
 import psutil
+import requests
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
-from progress.bar import IncrementalBar
 
 import syncprojects.config as config
-from syncprojects.main import logger, remote_hash_cache
 
 logger = logging.getLogger('syncprojects.utils')
 
@@ -157,56 +157,6 @@ def get_patched_progress():
     return progress
 
 
-progress = get_patched_progress()
-
-
-def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
-              preserve_symlinks=0, update=0, verbose=1, dry_run=0,
-              progress=True, executor=None, single_depth=False):
-    from distutils.file_util import copy_file
-    from distutils.dir_util import mkpath
-
-    if not executor:
-        executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS)
-
-    names = listdir(src)
-
-    if not dry_run:
-        mkpath(dst, verbose=verbose)
-
-    outputs = []
-    if progress:
-        bar = IncrementalBar("Copying", max=len(names))
-    for n in names:
-        src_name = join(src, n)
-        dst_name = join(dst, n)
-
-        if progress:
-            bar.next()
-        if n.startswith('.nfs'):
-            # skip NFS rename files
-            continue
-
-        if preserve_symlinks and islink(src_name):
-            outputs.append(executor.submit(handle_link, src_name, dst_name, verbose, dry_run))
-
-        elif isdir(src_name) and not single_depth:
-            outputs.append(
-                executor.submit(
-                    copy_tree, src_name, dst_name, preserve_mode,
-                    preserve_times, preserve_symlinks, update,
-                    verbose=verbose, dry_run=dry_run, progress=False, executor=executor))
-        else:
-            executor.submit(
-                copy_file, src_name, dst_name, preserve_mode,
-                preserve_times, update, verbose=verbose,
-                dry_run=dry_run)
-            outputs.append(dst_name)
-    if progress:
-        bar.finish()
-    return outputs
-
-
 def process_running(regex):
     for process in psutil.process_iter():
         if regex.search(process.name()):
@@ -324,6 +274,8 @@ def hash_file(file_path, hash_algo=None, block_size=4096):
 
 
 def hash_directory(dir_name):
+    # TODO: hash cache
+    from syncprojects.main import remote_hash_cache
     hash_algo = config.DEFAULT_HASH_ALGO()
     if isdir(dir_name):
         for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
@@ -333,3 +285,84 @@ def hash_directory(dir_name):
         hash_digest = hash_algo.hexdigest()
         remote_hash_cache[dir_name] = hash_digest
         return hash_digest
+
+
+def mount_persistent_drive():
+    try:
+        subprocess.run(
+            ["net", "use", config.SMB_DRIVE, f"\\\\{config.SMB_SERVER}\\{config.SMB_SHARE}", "/persistent:Yes"],
+            check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Drive mount failed! {e.output.decode()}")
+
+
+def api_unblock():
+    logger.info("Requesting firewall exception... ")
+    try:
+        r = requests.post(config.FIREWALL_API_URL + "firewall/unblock",
+                          headers={'X-Auth-Token': config.FIREWALL_API_KEY},
+                          data={'device': config.FIREWALL_NAME})
+    except Exception as e:
+        logger.error(fmt_error("api_unblock", e))
+        logger.warning("failed! Hopefully the sync still works...")
+    if r.status_code == 204:
+        logger.info("success!")
+    else:
+        logger.error(f"error code {r.status_code}")
+
+
+def validate_changelog(changelog_file):
+    r = re.compile(r'^-- [a-zA-Z0-9_-]+: ([0-9]{2}:){2}[0-9]{2} ([0-9]{2}-){2}[0-9]{4} --$')
+    with open(changelog_file) as f:
+        header = None
+        inside_entry = False
+        bullets = 0
+        complete = False
+        for line in f.readlines()[3:]:
+            line = line.rstrip()
+            # Seen nothing yet; look for header with username/date
+            if not header and not inside_entry and r.match(line):
+                header = line
+            # Seen the header already, look for the opening divider
+            elif not inside_entry and header and line.startswith('============'):
+                inside_entry = True
+            # Seen the header and opening divider
+            elif header and inside_entry:
+                # Line is a valid bullet, count these
+                if line.startswith('* '):
+                    bullets += 1
+                # Seen at least one bullet, but current line is blank. Good to go.
+                elif bullets > 0 and not line:
+                    header = None
+                    inside_entry = False
+                    bullets = 0
+                    complete = True
+                else:
+                    return f"Unexpected entry within block {header}:\n~~~\n{line}\n~~~\nA valid block looks like:\n-- User: HH:MM:SS MM-DD-YYYY --\n===============================\n* A bullet point\n* Another bullet point"
+            # Outside block, line is empty
+            elif not line.rstrip():
+                continue
+            # A complete block was parsed, and we reached the next header. Return successful validation.
+            elif complete and r.match(line):
+                return False
+            else:
+                return f"Unexpected text in body:\n~~~\n{line}\n~~~"
+        return False
+
+
+def check_daw_running():
+    if p := process_running(config.DAW_PROCESS_REGEX):
+        logger.warning(
+            f"\nWARNING: It appears that your DAW is running ({p.name()}).\nThat's fine, but please close any open "
+            f"synced projects before proceeding, else corruption may occur.")
+        if get_input_choice(("Proceed", "cancel")) == "cancel":
+            raise SystemExit
+
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument('--service', action='store_true')
+    parser.add_argument('--tui', action='store_true')
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--sync', action='store_true')
+    return parser.parse_args()
