@@ -181,7 +181,7 @@ def check_out(project, api_client, hours=8):
 
 
 def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):
-    locked = api_client.lock(project['id'], reason=reason, until=duration)
+    locked = api_client.lock(project, reason=reason, until=duration)
     logger.debug(f"Got lock response {locked}")
     if 'id' in locked:
         return locked['id']
@@ -216,7 +216,7 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
 
 
 def unlock(project, api_client):
-    unlocked = api_client.unlock(project['id'])
+    unlocked = api_client.unlock(project)
     if unlocked['status'] == 'locked':
         logger.warning(f"WARNING: The studio could not be unlocked: {unlocked}")
     elif unlocked['status'] == 'unlocked':
