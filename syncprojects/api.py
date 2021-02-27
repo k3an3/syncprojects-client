@@ -3,7 +3,7 @@ import getpass
 import logging
 import sys
 import webbrowser
-from time import sleep
+from threading import Event
 
 import requests
 from requests import HTTPError
@@ -41,11 +41,12 @@ def login_prompt(sync_api) -> bool:
 
 
 class SyncAPI:
-    def __init__(self, refresh_token: str, access_token: str = "", username: str = ""):
+    def __init__(self, refresh_token: str, access_token: str = "", username: str = "", event: Event = None):
         self.refresh_token = refresh_token
         self.access_token = access_token
         self._username = username
         self.logger = logging.getLogger('syncprojects.api.SyncAPI')
+        self.event = event
 
     @property
     def username(self) -> str:
@@ -123,10 +124,8 @@ class SyncAPI:
     def web_login(self):
         webbrowser.open(SYNCPROJECTS_URL + "sync/client_login/")
         self.logger.info("Waiting for successful login...")
-        while True:
-            if 'refresh_token' in appdata:
-                self.refresh_token = appdata['refresh_token']
-                self.access_token = appdata['access_token']
-                self.logger.debug("Saved credentials updated from Flask server")
-                return True
-            sleep(1)
+        self.event.wait()
+        self.refresh_token = appdata['refresh_token']
+        self.access_token = appdata['access_token']
+        self.logger.debug("Saved credentials updated from Flask server")
+        return True

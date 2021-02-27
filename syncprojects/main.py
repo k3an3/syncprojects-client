@@ -14,7 +14,7 @@ from os import scandir
 from os.path import basename, dirname, join, isdir, isfile, abspath
 from pathlib import Path
 from shutil import copyfile
-from threading import Thread
+from threading import Thread, Event
 
 import requests
 import timeago
@@ -122,17 +122,17 @@ def print_hr(char="-", chars=79):
     return char * chars
 
 
-def hash_file(file_path, hash=None, block_size=4096):
-    if not hash:
-        hash = config.DEFAULT_HASH_ALGO()
+def hash_file(file_path, hash_algo=None, block_size=4096):
+    if not hash_algo:
+        hash_algo = config.DEFAULT_HASH_ALGO()
     with open(file_path, 'rb') as fp:
         while True:
             data = fp.read(block_size)
             if data:
-                hash.update(fp.read())
+                hash_algo.update(fp.read())
             else:
                 break
-    return hash.hexdigest()
+    return hash_algo.hexdigest()
 
 
 def hash_directory(dir_name):
@@ -411,7 +411,7 @@ def sync(project):
             try:
                 src_hash = result.result()
             except FileNotFoundError:
-                log.debug(f"Didn't get hash for {song}")
+                logger.debug(f"Didn't get hash for {song}")
                 src_hash = ""
             local_hash_cache[song] = src_hash
     project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
@@ -512,11 +512,13 @@ def sync_all_projects(projects, api_client):
 
 def main(args):
     error = []
+    event = Event()
 
     # init API client
-    api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'))
+    api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), event)
 
     # Start local Flask server
+    app.config['event'] = event
     web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
     web_thread.start()
 
