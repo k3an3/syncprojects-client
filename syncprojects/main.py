@@ -19,7 +19,7 @@ from threading import Thread
 import requests
 import timeago
 
-import config
+import syncprojects.config as config
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
