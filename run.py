@@ -1,3 +1,6 @@
-import syncprojects.main
+import subprocess
+import os
+import sys
 
-syncprojects.main.main()
+os.environ['PYTHONPATH'] = '.'
+subprocess.run(['python', 'syncprojects/main.py', *sys.argv[1:]])

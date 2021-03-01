@@ -1,3 +1,5 @@
+from multiprocessing import freeze_support
+freeze_support()
 import concurrent.futures
 import datetime
 import logging
@@ -36,28 +38,6 @@ BANNER = """
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝
 \"{}\"""".format(CODENAME)
 
-args = parse_args()
-if args.debug:
-    config.DEBUG = True
-# Set up logging
-logger = logging.getLogger('syncprojects')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-if config.DEBUG:
-    ch.setLevel(logging.DEBUG)
-else:
-    ch.setLevel(logging.INFO)
-logger.addHandler(ch)
-if appdata.get('telemetry_file'):
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    fh = logging.FileHandler(appdata['telemetry_file'])
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.info(f"Logging debug output to {appdata['telemetry_file']}")
-
-print(BANNER)
-logger.info("[v{}]".format(__version__))
 
 
 def get_local_neural_dsp_amps():
@@ -204,6 +184,7 @@ def sync(project):
     logger.info("Checking local files for changes...")
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
         futures = {executor.submit(hash_directory, join(config.SOURCE, s)): s for s in songs}
+        # concurrency bug with cx_freeze here
         for result in concurrent.futures.as_completed(futures):
             song = futures[result]
             try:
@@ -359,4 +340,26 @@ def main():
 
 
 if __name__ == '__main__':
+    args = parse_args()
+    if args.debug:
+        config.DEBUG = True
+    # Set up logging
+    logger = logging.getLogger('syncprojects')
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    if config.DEBUG:
+        ch.setLevel(logging.DEBUG)
+    else:
+        ch.setLevel(logging.INFO)
+    logger.addHandler(ch)
+    if appdata.get('telemetry_file'):
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh = logging.FileHandler(appdata['telemetry_file'])
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+        logger.info(f"Logging debug output to {appdata['telemetry_file']}")
+
+    print(BANNER)
+    logger.info("[v{}]".format(__version__))
     main()
