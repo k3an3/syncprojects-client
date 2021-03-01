@@ -17,8 +17,6 @@ from syncprojects.operations import copy, changelog, check_wants, handle_new_son
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-if os.name == 'nt':
-    pass
 from time import sleep
 
 __version__ = '1.6'
@@ -37,6 +35,29 @@ BANNER = """
 ███████║   ██║   ██║ ╚████║╚██████╗██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║   ███████║
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝
 \"{}\"""".format(CODENAME)
+
+args = parse_args()
+if args.debug:
+    config.DEBUG = True
+# Set up logging
+logger = logging.getLogger('syncprojects')
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+if config.DEBUG:
+    ch.setLevel(logging.DEBUG)
+else:
+    ch.setLevel(logging.INFO)
+logger.addHandler(ch)
+if appdata.get('telemetry_file'):
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh = logging.FileHandler(appdata['telemetry_file'])
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    logger.info(f"Logging debug output to {appdata['telemetry_file']}")
+
+print(BANNER)
+logger.info("[v{}]".format(__version__))
 
 
 def get_local_neural_dsp_amps():
@@ -281,7 +302,7 @@ def sync_all_projects(projects, api_client):
     logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
-def main(args):
+def main():
     error = []
     queue = Queue()
 
@@ -338,26 +359,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    if args.debug:
-        config.DEBUG = True
-    # Set up logging
-    logger = logging.getLogger('syncprojects')
-    logger.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
-    if config.DEBUG:
-        ch.setLevel(logging.DEBUG)
-    else:
-        ch.setLevel(logging.INFO)
-    logger.addHandler(ch)
-    if appdata.get('telemetry_file'):
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.FileHandler(appdata['telemetry_file'])
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        logger.info(f"Logging debug output to {appdata['telemetry_file']}")
-
-    print(BANNER)
-    logger.info("[v{}]".format(__version__))
-    main(args)
+    main()

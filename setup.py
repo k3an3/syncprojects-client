@@ -26,16 +26,24 @@ setup(
             'syncprojects=syncprojects.main:main'
         ]
     },
+    options={
+        'build_exe': {
+            # Slim down build
+            'excludes': ['tkinter', 'unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
+            # Won't run correctly without
+            'packages': ['jinja2'],
+        }
+    },
     install_requires=[
-        'requests',
-        'psutil',
-        'pywin32',
-        'progress',
-        'flask',
-        'pyjwt[crypto]',
-        'cx_Freeze',
-        'sqlitedict',
-        'timeago',
+        'requests==2.24.0',
+        'psutil==5.7.2',
+        'pywin32==228',
+        'progress==1.5',
+        'flask==1.1.2',
+        'pyjwt[crypto]==2.0.1',
+        'cx_Freeze==6.5.3',
+        'sqlitedict==1.7.0',
+        'timeago==1.0.15',
     ],
     executables=gen_executables()
 )
