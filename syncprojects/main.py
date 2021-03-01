@@ -84,7 +84,7 @@ local_hash_cache = {}
 def is_updated(dir_name, group, remote_hs):
     # Can't refactor move with the hash caches here
     dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
-    src_hash = local_hash_cache[dir_name]
+    src_hash = local_hash_cache[join(config.SOURCE, dir_name)]
     logger.debug(f"local_hash is {src_hash}")
     dst_hash = remote_hs.get(dir_name)
     remote_hash_cache[join(dest, dir_name)] = dst_hash
