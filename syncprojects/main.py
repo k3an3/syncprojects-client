@@ -1,6 +1,7 @@
 import traceback
+from glob import glob
 from os import scandir
-from os.path import join, isdir
+from os.path import join, isdir, isfile
 
 import concurrent.futures
 import datetime
@@ -12,7 +13,7 @@ from queue import Queue
 from threading import Thread
 from time import sleep
 
-import syncprojects.config as config
+from syncprojects import config as config
 from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
@@ -21,8 +22,8 @@ __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
-    clean_up, update, hash_directory, api_unblock, \
-    check_daw_running, parse_args
+    clean_up, update, api_unblock, \
+    check_daw_running, parse_args, logger, hash_file
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -79,6 +80,18 @@ def sync_amps():
 local_hs = HashStore(config.LOCAL_HASH_STORE)
 remote_hash_cache = {}
 local_hash_cache = {}
+
+
+def hash_directory(dir_name):
+    hash_algo = config.DEFAULT_HASH_ALGO()
+    if isdir(dir_name):
+        for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
+            if isfile(file_name):
+                logger.debug(f"Hashing {file_name}")
+                hash_file(file_name, hash_algo)
+        hash_digest = hash_algo.hexdigest()
+        remote_hash_cache[dir_name] = hash_digest
+        return hash_digest
 
 
 def is_updated(dir_name, group, remote_hs):
@@ -192,6 +205,7 @@ def sync(project):
     remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
     logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
     logger.debug(f"{local_hash_cache=}")
+    logger.debug(f"{remote_hash_cache=}")
     try:
         # Database already opened, contents cached
         remote_hs = remote_stores[remote_store_name]
@@ -329,7 +343,7 @@ def main():
         if not len(sys.argv) > 1:
             prompt_to_exit()
     except Exception as e:
-        logger.critical(f"Fatal error! Provide the developer (syncprojects-dev@keane.space) with the following "
+        logger.critical(f"Fatal error! Provide the help desk (support@syncprojects.app) with the following "
                         f"information:\n{str(e)} {str(traceback.format_exc())}")
         prompt_to_exit()
 
@@ -358,3 +372,4 @@ if __name__ == '__main__':
     print(BANNER)
     logger.info("[v{}]".format(__version__))
     main()
+

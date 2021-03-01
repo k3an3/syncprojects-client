@@ -1,24 +1,24 @@
-import datetime
-import functools
 import getpass
-import logging
-import pathlib
-import re
-import subprocess
-import sys
 import traceback
-from argparse import ArgumentParser
 from glob import glob
 from os import readlink, symlink
-from os.path import join, isdir, isfile, abspath, dirname, basename
-from pathlib import Path
-from shutil import copyfile
+from os.path import join, isfile, abspath, dirname, basename
 
+import datetime
+import functools
 import jwt
+import logging
+import pathlib
 import psutil
+import re
 import requests
+import subprocess
+import sys
+from argparse import ArgumentParser
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
+from pathlib import Path
+from shutil import copyfile
 
 import syncprojects.config as config
 
@@ -271,20 +271,6 @@ def hash_file(file_path, hash_algo=None, block_size=4096):
             else:
                 break
     return hash_algo.hexdigest()
-
-
-def hash_directory(dir_name):
-    # TODO: hash cache
-    from syncprojects.main import remote_hash_cache
-    hash_algo = config.DEFAULT_HASH_ALGO()
-    if isdir(dir_name):
-        for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
-            if isfile(file_name):
-                logger.debug(f"Hashing {file_name}")
-                hash_file(file_name, hash_algo)
-        hash_digest = hash_algo.hexdigest()
-        remote_hash_cache[dir_name] = hash_digest
-        return hash_digest
 
 
 def mount_persistent_drive():
