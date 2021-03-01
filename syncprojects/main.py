@@ -1,25 +1,21 @@
-from multiprocessing import freeze_support
-freeze_support()
+import traceback
+from os import scandir
+from os.path import join, isdir
+
 import concurrent.futures
 import datetime
 import logging
-import os
 import sys
-import traceback
+import timeago
 from concurrent.futures.thread import ThreadPoolExecutor
-from os import scandir
-from os.path import join, isdir
 from queue import Queue
 from threading import Thread
-
-import timeago
+from time import sleep
 
 import syncprojects.config as config
 from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
-
-from time import sleep
 
 __version__ = '1.6'
 
@@ -37,7 +33,6 @@ BANNER = """
 ███████║   ██║   ██║ ╚████║╚██████╗██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║   ███████║
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝
 \"{}\"""".format(CODENAME)
-
 
 
 def get_local_neural_dsp_amps():
@@ -192,7 +187,7 @@ def sync(project):
             except FileNotFoundError:
                 logger.debug(f"Didn't get hash for {song}")
                 src_hash = ""
-            local_hash_cache[song] = src_hash
+            local_hash_cache[join(config.SOURCE, song)] = src_hash
     project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
     remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
     logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
