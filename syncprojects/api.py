@@ -1,11 +1,11 @@
-import datetime
 import getpass
+
+import datetime
 import logging
+import requests
 import sys
 import webbrowser
 from queue import Queue
-
-import requests
 from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
@@ -100,7 +100,7 @@ class SyncAPI:
         self.logger.debug(f"Submitting {'' if lock else 'UN'}LOCK request for {project['name']} with config {json}")
         return self._request(f"projects/{project['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
 
-    def lock(self, project: dict, force: bool = False, reason: str = "Sync", until: float = None):
+    def lock(self, project: dict, force: bool = False, reason: str = "sync", until: float = None):
         return self._lock_request(project, True, force, reason, until)
 
     def unlock(self, project: dict, force: bool = False):
