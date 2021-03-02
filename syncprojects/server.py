@@ -42,7 +42,7 @@ def sync(data):
 
 @app.route('/api/ping', methods=['GET'])
 @verify_data
-def sync(_):
+def ping(_):
     return {'result': 'pong'}
 
 

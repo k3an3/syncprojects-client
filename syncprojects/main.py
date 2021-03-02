@@ -246,9 +246,9 @@ class Sync:
     def handle_service(self):
         logger.debug("Starting syncprojects-client service")
         self.headless = True
-        while msg := self.api_cient.queue.get():
+        while msg := self.api_client.queue.get():
             {
-                'auth': self.api_cient.handle_auth_msg,
+                'auth': self.api_client.handle_auth_msg,
                 'sync': self.sync_multiple_projects,
             }[msg['msg_type']](msg['data'])
 
