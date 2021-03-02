@@ -7,25 +7,24 @@ import concurrent.futures
 import datetime
 import logging
 import sys
-import timeago
 from concurrent.futures.thread import ThreadPoolExecutor
 from queue import Queue
 from threading import Thread
 from time import sleep
 
 from syncprojects import config as config
-from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree
+from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out, lock, unlock
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-__version__ = '1.6'
+__version__ = '1.7'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
     clean_up, update, api_unblock, \
     check_daw_running, parse_args, logger, hash_file
 
-CODENAME = "IT'S IN THE CLOUD"
+CODENAME = "IT'S MORE IN THE CLOUD"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝
@@ -125,174 +124,165 @@ def is_updated(dir_name, group, remote_hs):
         return "remote"
 
 
-def check_out(project, api_client, hours=8):
-    until = (datetime.datetime.now() + datetime.timedelta(hours=hours)).timestamp()
-    lock(project, api_client, "checkout", until)
+class Sync:
+    def __init__(self, api_client: SyncAPI, headless: bool = False):
+        self.api_client = api_client
+        self.headless = headless
 
+    def print(self, *args, **kwargs):
+        if not self.headless:
+            print(*args, **kwargs)
 
-def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):
-    locked = api_client.lock(project, reason=reason, until=duration)
-    logger.debug(f"Got lock response {locked}")
-    if 'id' in locked:
-        return locked['id']
-    if locked['status'] == 'locked':
-        if not locked.get('until'):
-            logger.warning(f"{project['name']}: A sync is still running or did not complete successfully.")
-            if not locked['locked_by'] == "self":
-                logger.warning(
-                    f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})... maybe talk to them before overriding?")
-            choices = ("Try again", "override", "exit")
-            choice = None
-            while choice not in choices:
-                choice = get_input_choice(choices)
-            if choice == "exit":
-                logger.info("Bailing!")
-                raise SystemExit
-            elif choice == "override":
-                api_client.lock(project, force=True)
-            elif choice == "Try Again":
-                lock(project, api_client, reason, duration)
-        elif not locked['locked_by'] == "self":
-            checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
-            if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
-                logger.info(
-                    f"The project is currently checked out by {locked['locked_by']} for "
-                    f"{timeago.format(checked_out_until, datetime.datetime.now())} hours "
-                    f"or until it's checked in.")
-                logger.info("Bailing!")
-                raise SystemExit
-            else:
-                logger.debug("Expiring lock as time has passed. Server should have cleaned this up.")
-        else:
-            logger.debug("Hit lock() fallthrough case!")
+    def sync(self, project):
+        logger.info(f"Syncing project {project['name']}...")
+        logger.debug(f"{local_hs.open()=}")
+        wants = check_wants()
+        remote_stores = {}
+        songs = [song.get('directory_name') or song['name'] for song in project['songs']]
+        if not songs:
+            logger.info("No songs, skipping")
+            return
+        logger.debug(f"Got songs list {songs}")
+        project = project['name']
 
-
-def unlock(project, api_client):
-    unlocked = api_client.unlock(project)
-    if unlocked.get("result") == "success":
-        logger.debug("Successful unlock")
-    elif unlocked['status'] == 'locked':
-        logger.warning(f"WARNING: The studio could not be unlocked: {unlocked}")
-    elif unlocked['status'] == 'unlocked':
-        logger.warning(f"WARNING: The studio was already unlocked: {unlocked}")
-
-
-def sync(project):
-    logger.info(f"Syncing project {project['name']}...")
-    logger.debug(f"{local_hs.open()=}")
-    wants = check_wants()
-    remote_stores = {}
-    songs = [song.get('directory_name') or song['name'] for song in project['songs']]
-    if not songs:
-        logger.info("No songs, skipping")
-        return
-    logger.debug(f"Got songs list {songs}")
-    project = project['name']
-
-    logger.info("Checking local files for changes...")
-    with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-        futures = {executor.submit(hash_directory, join(config.SOURCE, s)): s for s in songs}
-        # concurrency bug with cx_freeze here
-        for result in concurrent.futures.as_completed(futures):
-            song = futures[result]
-            try:
-                src_hash = result.result()
-            except FileNotFoundError:
-                logger.debug(f"Didn't get hash for {song}")
-                src_hash = ""
-            local_hash_cache[join(config.SOURCE, song)] = src_hash
-    project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
-    remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
-    logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
-    logger.debug(f"{local_hash_cache=}")
-    logger.debug(f"{remote_hash_cache=}")
-    try:
-        # Database already opened, contents cached
-        remote_hs = remote_stores[remote_store_name]
-        logger.debug("Cache hit; remote database already opened.")
-    except KeyError:
-        remote_hs = HashStore(remote_store_name)
-        # Database not opened yet, need to read from disk
-        logger.debug(f"{remote_hs.open()=}")
-        remote_stores[remote_store_name] = remote_hs
-
-    for song in songs:
-        print(print_hr())
-        logger.info("Syncing {}...".format(song))
-        not_local = False
-        if not isdir(join(config.SOURCE, song)):
-            logger.info("{} does not exist locally.".format(song))
-            not_local = True
-        up = is_updated(song, project, remote_hs)
-        if not_local:
-            up == "remote"
-            handle_new_song(song, remote_hs)
-        if song in wants:
-            logger.warning(f"Overriding because {wants['user']} requested this song!!!!")
-            sleep(0.9)
-            up = "local"
-        if up == "mismatch":
-            print_latest_change(join(project_dest, song))
-            logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
-            up = get_input_choice(("local", "remote", "skip"))
-        if up == "remote":
-            src = project_dest
-            dst = config.SOURCE
-            print_latest_change(join(project_dest, song))
-        elif up == "local":
-            src = config.SOURCE
-            dst = project_dest
-            changelog(song)
-        else:
-            logger.info(f"No change for {song}")
-            continue
-        local_hs.update(song, remote_hash_cache[join(src, song)])
-        try:
-            logger.info("Now copying {} from {} ({}) to {} ({})".format(song, up, src,
-                                                                        "remote" if up == "local" else "local",
-                                                                        dst))
-            if up == "remote":
-                if not get_input_choice(("Confirm", "skip")) == "confirm":
-                    continue
-            else:
+        logger.info("Checking local files for changes...")
+        with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+            futures = {executor.submit(hash_directory, join(config.SOURCE, s)): s for s in songs}
+            # concurrency bug with cx_freeze here
+            for result in concurrent.futures.as_completed(futures):
+                song = futures[result]
                 try:
-                    remote_hs.update(song, remote_hash_cache[join(src, song)])
-                except Exception as e:
-                    logger.error(fmt_error("sync:update_remote_hashes", e))
-                    if not config.LEGACY_MODE:
-                        logger.critical("Failed to update remote hashes!")
-                        raise e
-            copy(song, src, dst)
-        except Exception as e:
-            logger.error(f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
-                         f"from the database.")
-            sleep(2)
-        else:
-            logger.info(f"Successfully synced {song}")
-    print(print_hr())
-    print(print_hr('='))
-
-
-def sync_all_projects(projects, api_client):
-    start = datetime.datetime.now()
-    print(print_hr('='))
-    for project in projects:
+                    src_hash = result.result()
+                except FileNotFoundError:
+                    logger.debug(f"Didn't get hash for {song}")
+                    src_hash = ""
+                local_hash_cache[join(config.SOURCE, song)] = src_hash
+        project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
+        remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
+        logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
+        logger.debug(f"{local_hash_cache=}")
+        logger.debug(f"{remote_hash_cache=}")
         try:
-            if not project['sync_enabled']:
-                logger.debug(f"Project {project['name']} sync disabled, skipping...")
-                continue
+            # Database already opened, contents cached
+            remote_hs = remote_stores[remote_store_name]
+            logger.debug("Cache hit; remote database already opened.")
         except KeyError:
-            pass
-        lock(project, api_client)
-        sync(project)
-        unlock(project, api_client)
-    print(print_hr('='))
-    sync_amps()
-    print(print_hr('='))
-    logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
+            remote_hs = HashStore(remote_store_name)
+            # Database not opened yet, need to read from disk
+            logger.debug(f"{remote_hs.open()=}")
+            remote_stores[remote_store_name] = remote_hs
+
+        for song in songs:
+            self.print(print_hr())
+            logger.info("Syncing {}...".format(song))
+            not_local = False
+            if not isdir(join(config.SOURCE, song)):
+                logger.info("{} does not exist locally.".format(song))
+                not_local = True
+            up = is_updated(song, project, remote_hs)
+            if not_local:
+                up == "remote"
+                handle_new_song(song, remote_hs)
+            if song in wants:
+                logger.warning(f"Overriding because {wants['user']} requested this song!!!!")
+                sleep(0.9)
+                up = "local"
+            if up == "mismatch":
+                print_latest_change(join(project_dest, song))
+                logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
+                up = get_input_choice(("local", "remote", "skip"))
+            if up == "remote":
+                src = project_dest
+                dst = config.SOURCE
+                print_latest_change(join(project_dest, song))
+            elif up == "local":
+                src = config.SOURCE
+                dst = project_dest
+                changelog(song)
+            else:
+                logger.info(f"No change for {song}")
+                continue
+            local_hs.update(song, remote_hash_cache[join(src, song)])
+            try:
+                logger.info("Now copying {} from {} ({}) to {} ({})".format(song, up, src,
+                                                                            "remote" if up == "local" else "local",
+                                                                            dst))
+                if up == "remote":
+                    if not get_input_choice(("Confirm", "skip")) == "confirm":
+                        continue
+                else:
+                    try:
+                        remote_hs.update(song, remote_hash_cache[join(src, song)])
+                    except Exception as e:
+                        logger.error(fmt_error("sync:update_remote_hashes", e))
+                        if not config.LEGACY_MODE:
+                            logger.critical("Failed to update remote hashes!")
+                            raise e
+                copy(song, src, dst)
+            except Exception as e:
+                logger.error(f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
+                             f"from the database.")
+                sleep(2)
+            else:
+                logger.info(f"Successfully synced {song}")
+        self.print(print_hr())
+        self.print(print_hr('='))
+
+    def sync_multiple_projects(self, projects):
+        for project in projects:
+            if 'songs' not in project:
+                # This request came from the API, we don't have the project data yet
+                project = self.api_client.get_project(project)
+            try:
+                if not project['sync_enabled']:
+                    logger.debug(f"Project {project['name']} sync disabled, skipping...")
+                    continue
+            except KeyError:
+                pass
+            lock(project, self.api_client)
+            self.sync(project)
+            unlock(project, self.api_client)
+
+    def handle_service(self):
+        logger.debug("Starting syncprojects-client service")
+        self.headless = True
+        while msg := self.api_cient.queue.get():
+            {
+                'auth': self.api_cient.handle_auth_msg,
+                'sync': self.sync_multiple_projects,
+            }[msg['msg_type']](msg['data'])
+
+    def handle_tui(self):
+        logger.debug("Starting sync TUI")
+        check_daw_running()
+        if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
+            api_unblock()
+
+        projects = self.api_client.get_all_projects()
+        start = datetime.datetime.now()
+        print(print_hr('='))
+        self.sync_multiple_projects(projects)
+        print(print_hr('='))
+        sync_amps()
+        print(print_hr('='))
+        logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
+
+        logger.info(
+            "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
+            "edits, as to avoid conflicts.")
+        if get_input_choice(("yes", "No")) == "yes":
+            # TODO: don't check out all projects
+            for project in projects:
+                check_out(project, self.api_client)
+            logger.info("Alright, it's all yours. This window will stay open. Please remember to check in when you "
+                        "are done.")
+            input("[enter] to check in")
+            self.sync_multiple_projects(projects)
+        if not len(sys.argv) > 1:
+            prompt_to_exit()
 
 
-def main():
+def main(args):
     error = []
     queue = Queue()
 
@@ -322,26 +312,11 @@ def main():
             logger.error(','.join(error))
             prompt_to_exit()
 
-        check_daw_running()
-        if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
-            api_unblock()
-
-        projects = api_client.get_projects()
-        sync_all_projects(projects, api_client)
-
-        logger.info(
-            "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
-            "edits, as to avoid conflicts.")
-        if get_input_choice(("yes", "No")) == "yes":
-            # TODO: don't check out all projects
-            for project in projects:
-                check_out(project, api_client)
-            logger.info("Alright, it's all yours. This window will stay open. Please remember to check in when you "
-                        "are done.")
-            input("[enter] to check in")
-            sync_all_projects(projects, api_client)
-        if not len(sys.argv) > 1:
-            prompt_to_exit()
+        sync = Sync(api_client)
+        if args.service:
+            sync.handle_service()
+        else:
+            sync.handle_tui()
     except Exception as e:
         logger.critical(f"Fatal error! Provide the help desk (support@syncprojects.app) with the following "
                         f"information:\n{str(e)} {str(traceback.format_exc())}")
@@ -371,5 +346,4 @@ if __name__ == '__main__':
 
     print(BANNER)
     logger.info("[v{}]".format(__version__))
-    main()
-
+    main(args)

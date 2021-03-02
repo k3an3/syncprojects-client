@@ -7,6 +7,7 @@ import sys
 import webbrowser
 from queue import Queue
 from requests import HTTPError
+from typing import Dict
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
@@ -85,8 +86,11 @@ class SyncAPI:
             f"Multiple requests failed, most recent response code {r.status_code} and msg {r.text}. Exiting...")
         sys.exit(1)
 
-    def get_projects(self):
+    def get_all_projects(self):
         return self._request("projects/")["results"]
+
+    def get_project(self, project_id: int):
+        return self._request(f"projects/{project_id}/")
 
     def _lock_request(self, project: dict, lock: bool = False, force: bool = True, reason: str = "",
                       until: datetime.datetime = None):
@@ -121,12 +125,17 @@ class SyncAPI:
         appdata["access"] = resp["access"]
         self.logger.debug("Saved credentials updated after refresh.")
 
-    def web_login(self):
-        webbrowser.open(SYNCPROJECTS_URL + "sync/client_login/")
-        self.logger.info("Waiting for successful login...")
-        config = self.queue.get()
+    def handle_auth_msg(self, config: Dict):
         self.refresh_token = config['refresh']
         self.access_token = config['access']
         appdata.update(config)
-        self.logger.debug("Saved credentials updated from Flask server")
+        self.logger.debug("Saved credentials updated from API")
+
+    def web_login(self):
+        webbrowser.open(SYNCPROJECTS_URL + "sync/client_login/")
+        self.logger.info("Waiting for successful login...")
+        while config := self.queue.get():
+            if config['msg_type'] == 'auth':
+                self.handle_auth_msg(config['data'])
+                break
         return True

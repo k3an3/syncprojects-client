@@ -72,7 +72,7 @@ def get_datadir(app: str) -> pathlib.Path:
         return home / "Library/Application Support" / app
 
 
-def get_verified_data(f):
+def verify_data(f):
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
         try:

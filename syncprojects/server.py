@@ -1,9 +1,8 @@
 import logging
-
-from flask import Flask, request, cli
+from flask import Flask, request, cli, abort
 
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
-from syncprojects.utils import get_verified_data
+from syncprojects.utils import verify_data
 
 app = Flask(__name__)
 logger = logging.getLogger('syncprojects.server')
@@ -13,15 +12,38 @@ if not DEBUG:
     app.logger.disabled = True
     cli.show_server_banner = lambda *_: None
 
+SUCCESS = {'result': 'success'}
+
+
+def queue_put(data):
+    app.config['queue'].put(data)
+
 
 @app.route('/api/auth', methods=['GET', 'POST'])
-@get_verified_data
+@verify_data
 def auth(data):
-    app.config['queue'].put(data)
+    queue_put({'msg_type': 'auth', 'data': data})
     if request.method == "POST":
-        return '', 204
+        return SUCCESS
     else:
         return 'Login success. You may now close this tab.'
+
+
+@app.route('/api/sync', methods=['POST'])
+@verify_data
+def sync(data):
+    try:
+        projects = data['projects']
+    except KeyError:
+        abort(400)
+    queue_put({'msg_type': 'sync', 'data': {'projects': projects}})
+    return SUCCESS
+
+
+@app.route('/api/ping', methods=['GET'])
+@verify_data
+def sync(_):
+    return {'result': 'pong'}
 
 
 @app.after_request

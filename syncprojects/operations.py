@@ -1,16 +1,18 @@
+from os import listdir
+from os.path import join, isfile, islink, isdir
+
+import datetime
 import json
 import logging
 import subprocess
+import timeago
 from concurrent.futures.thread import ThreadPoolExecutor
-from os import listdir
-from os.path import join, isfile, islink, isdir
 from pathlib import Path
-
 from progress.bar import IncrementalBar
 
 from syncprojects import config as config
 from syncprojects.utils import print_hr, current_user, format_time, validate_changelog, prompt_to_exit, handle_link, \
-    get_patched_progress
+    get_patched_progress, get_input_choice
 
 logger = logging.getLogger('syncprojects.operations')
 
@@ -125,3 +127,55 @@ def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
     if progress:
         bar.finish()
     return outputs
+
+
+def check_out(project, api_client, hours=8):
+    until = (datetime.datetime.now() + datetime.timedelta(hours=hours)).timestamp()
+    lock(project, api_client, "checkout", until)
+
+
+def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):
+    locked = api_client.lock(project, reason=reason, until=duration)
+    logger.debug(f"Got lock response {locked}")
+    if 'id' in locked:
+        return locked['id']
+    if locked['status'] == 'locked':
+        if not locked.get('until'):
+            logger.warning(f"{project['name']}: A sync is still running or did not complete successfully.")
+            if not locked['locked_by'] == "self":
+                logger.warning(
+                    f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})... maybe talk to them before overriding?")
+            choices = ("Try again", "override", "exit")
+            choice = None
+            while choice not in choices:
+                choice = get_input_choice(choices)
+            if choice == "exit":
+                logger.info("Bailing!")
+                raise SystemExit
+            elif choice == "override":
+                api_client.lock(project, force=True)
+            elif choice == "Try Again":
+                lock(project, api_client, reason, duration)
+        elif not locked['locked_by'] == "self":
+            checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
+            if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
+                logger.info(
+                    f"The project is currently checked out by {locked['locked_by']} for "
+                    f"{timeago.format(checked_out_until, datetime.datetime.now())} hours "
+                    f"or until it's checked in.")
+                logger.info("Bailing!")
+                raise SystemExit
+            else:
+                logger.debug("Expiring lock as time has passed. Server should have cleaned this up.")
+        else:
+            logger.debug("Hit lock() fallthrough case!")
+
+
+def unlock(project, api_client):
+    unlocked = api_client.unlock(project)
+    if unlocked.get("result") == "success":
+        logger.debug("Successful unlock")
+    elif unlocked['status'] == 'locked':
+        logger.warning(f"WARNING: The studio could not be unlocked: {unlocked}")
+    elif unlocked['status'] == 'unlocked':
+        logger.warning(f"WARNING: The studio was already unlocked: {unlocked}")
