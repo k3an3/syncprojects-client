@@ -10,6 +10,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
+venv/
 build/
 develop-eggs/
 dist/
@@ -59,5 +60,5 @@ docs/_build/
 target/
 
 # Project
-config.py
 .idea/
+local_config.py
