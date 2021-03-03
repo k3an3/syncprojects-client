@@ -13,6 +13,7 @@ if not DEBUG:
     cli.show_server_banner = lambda *_: None
 
 SUCCESS = {'result': 'success'}
+BAD_DATA = {'result': 'error'}, 400
 
 
 def queue_put(data):
@@ -32,11 +33,12 @@ def auth(data):
 @app.route('/api/sync', methods=['POST'])
 @verify_data
 def sync(data):
-    try:
-        projects = data['projects']
-    except KeyError:
-        abort(400)
-    queue_put({'msg_type': 'sync', 'data': {'projects': projects}})
+    if 'projects' in data:
+        queue_put({'msg_type': 'sync', 'data': {'projects': data['projects']}})
+    elif 'songs' in data:
+        queue_put({'msg_type': 'sync', 'data': {'songs': data['songs']}})
+    else:
+        return BAD_DATA
     return SUCCESS
 
 

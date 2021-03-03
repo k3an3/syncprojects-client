@@ -228,20 +228,23 @@ class Sync:
         self.print(print_hr())
         self.print(print_hr('='))
 
-    def sync_multiple_projects(self, projects):
-        for project in projects:
-            if 'songs' not in project:
-                # This request came from the API, we don't have the project data yet
-                project = self.api_client.get_project(project)
-            try:
-                if not project['sync_enabled']:
-                    logger.debug(f"Project {project['name']} sync disabled, skipping...")
-                    continue
-            except KeyError:
-                pass
-            lock(project, self.api_client)
-            self.sync(project)
-            unlock(project, self.api_client)
+    def sync_multiple(self, data):
+        if 'projects' in data:
+            for project in data['projects']:
+                if 'songs' not in project:
+                    # This request came from the API, we don't have the project data yet
+                    project = self.api_client.get_project(project)
+                try:
+                    if not project['sync_enabled']:
+                        logger.debug(f"Project {project['name']} sync disabled, skipping...")
+                        continue
+                except KeyError:
+                    pass
+                lock(project, self.api_client)
+                self.sync(project)
+                unlock(project, self.api_client)
+        elif 'songs' in data:
+            # Thoughts on this: to avoid lock issues, we first lock the entire project, which will also ensure nobody else is syncing. Then, while project is still locked, set the individual song to locked and unlock the rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
 
     def handle_service(self):
         logger.debug("Starting syncprojects-client service")
@@ -249,7 +252,7 @@ class Sync:
         while msg := self.api_client.queue.get():
             {
                 'auth': self.api_client.handle_auth_msg,
-                'sync': self.sync_multiple_projects,
+                'sync': self.sync_multiple,
             }[msg['msg_type']](msg['data'])
 
     def handle_tui(self):
@@ -261,7 +264,7 @@ class Sync:
         projects = self.api_client.get_all_projects()
         start = datetime.datetime.now()
         print(print_hr('='))
-        self.sync_multiple_projects(projects)
+        self.sync_multiple(projects)
         print(print_hr('='))
         sync_amps()
         print(print_hr('='))
@@ -277,7 +280,7 @@ class Sync:
             logger.info("Alright, it's all yours. This window will stay open. Please remember to check in when you "
                         "are done.")
             input("[enter] to check in")
-            self.sync_multiple_projects(projects)
+            self.sync_multiple(projects)
         if not len(sys.argv) > 1:
             prompt_to_exit()
 
