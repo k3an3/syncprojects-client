@@ -1,24 +1,24 @@
+import datetime
+import functools
 import getpass
+import logging
+import pathlib
+import re
+import subprocess
 import traceback
+from argparse import ArgumentParser
 from glob import glob
 from os import readlink, symlink
 from os.path import join, isfile, abspath, dirname, basename
-
-import datetime
-import functools
-import jwt
-import logging
-import pathlib
-import psutil
-import re
-import requests
-import subprocess
-import sys
-from argparse import ArgumentParser
-from flask import request, abort
-from jwt import DecodeError, ExpiredSignatureError
 from pathlib import Path
 from shutil import copyfile
+
+import jwt
+import psutil
+import requests
+import sys
+from flask import request, abort
+from jwt import DecodeError, ExpiredSignatureError
 
 import syncprojects.config as config
 
@@ -346,8 +346,9 @@ def check_daw_running():
 
 
 def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument('--service', action='store_true')
+    from syncprojects.main import __version__
+    parser = ArgumentParser(description=f"Syncprojects-client v{__version__}", help="By default, a background service "
+                                                                                    "is started.")
     parser.add_argument('--tui', action='store_true')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--sync', action='store_true')

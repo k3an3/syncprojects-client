@@ -1,13 +1,14 @@
-from os import listdir
-from os.path import join, isfile, islink, isdir
-
 import datetime
 import json
 import logging
 import subprocess
-import timeago
 from concurrent.futures.thread import ThreadPoolExecutor
+from os import listdir
+from os.path import join, isfile, islink, isdir
 from pathlib import Path
+from typing import Dict
+
+import timeago
 from progress.bar import IncrementalBar
 
 from syncprojects import config as config
@@ -132,6 +133,29 @@ def copy_tree(src, dst, preserve_mode=1, preserve_times=1,
 def check_out(project, api_client, hours=8):
     until = (datetime.datetime.now() + datetime.timedelta(hours=hours)).timestamp()
     lock(project, api_client, "checkout", until)
+
+
+def get_lock_status(locked: Dict):
+    if 'id' in locked:
+        return locked['id']
+    if locked['status'] == 'locked':
+        # A null until means this is a sync/song checkout, not a project checkout
+        # at least for now
+        if not locked.get('until'):
+            if not locked['locked_by'] == "self":
+                logger.debug(
+                    f"Locked by {locked['locked_by']} since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})")
+        elif not locked['locked_by'] == "self":
+            checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
+            if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
+                logger.debug(
+                    f"Currently checked out by {locked['locked_by']} for"
+                    f"{timeago.format(checked_out_until, datetime.datetime.now())}"
+                    f"or until it's checked in.")
+            else:
+                logger.warning("Expiring lock, as expire time has passed. Server should have cleaned this up.")
+        else:
+            logger.debug("Hit lock() fallthrough case!")
 
 
 def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):

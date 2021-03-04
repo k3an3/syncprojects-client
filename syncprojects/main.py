@@ -1,19 +1,21 @@
-import traceback
-from glob import glob
-from os import scandir
-from os.path import join, isdir, isfile
-
 import concurrent.futures
 import datetime
 import logging
-import sys
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from os import scandir
+from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
+from typing import Dict
+
+import sys
 from time import sleep
 
 from syncprojects import config as config
-from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out, lock, unlock
+from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out, unlock, \
+    get_lock_status
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
@@ -133,14 +135,15 @@ class Sync:
         if not self.headless:
             print(*args, **kwargs)
 
-    def sync(self, project):
+    # TODO: return something relevant
+    def sync(self, project: Dict) -> Dict:
         logger.info(f"Syncing project {project['name']}...")
         logger.debug(f"{local_hs.open()=}")
         wants = check_wants()
         remote_stores = {}
         songs = [song.get('directory_name') or song['name'] for song in project['songs']]
         if not songs:
-            logger.info("No songs, skipping")
+            logger.warning("No songs, skipping")
             return
         logger.debug(f"Got songs list {songs}")
         project = project['name']
@@ -229,6 +232,7 @@ class Sync:
         self.print(print_hr('='))
 
     def sync_multiple(self, data):
+        results = []
         if 'projects' in data:
             for project in data['projects']:
                 if 'songs' not in project:
@@ -240,20 +244,45 @@ class Sync:
                         continue
                 except KeyError:
                     pass
-                lock(project, self.api_client)
-                self.sync(project)
-                unlock(project, self.api_client)
+                if get_lock_status(lock := self.api_client.lock(project)):
+                    sync = self.sync(project)
+                    self.api_client.unlock(project)
+                    # TODO: should these be the entire project dict or just id?
+                    results.append({'project': project['id'], 'result': sync})
+                else:
+                    results.append({'project': project['id'], 'result': lock})
         elif 'songs' in data:
-            # Thoughts on this: to avoid lock issues, we first lock the entire project, which will also ensure nobody else is syncing. Then, while project is still locked, set the individual song to locked and unlock the rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
+            # Thoughts on this: to avoid conflicts, we first lock the entire project, which will also ensure nobody
+            # else is syncing. Then, while project is still locked, set the individual song to locked and unlock the
+            # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
+            for song in data['songs']:
+                project = self.api_client.get_project(song['project'])
+                if get_lock_status(lock := self.api_client.lock(project)):
+                    # Not efficient... if there are multiple songs under the same project for some reason,
+                    # really shouldn't check out the same project multiple times... use case TBD
+                    project['songs'] = song
+                    sync = self.sync([project])
+                    results.append({'song': song, 'result': sync})
+                else:
+                    results.append({'song': song, 'result': lock})
+                unlock(project, self.api_client)
+
+    def handle_queue_result(self, result):
+        # TODO: push to backend? Django channels?
+        pass
+
+    def start_project(self):
+        pass
 
     def handle_service(self):
         logger.debug("Starting syncprojects-client service")
         self.headless = True
         while msg := self.api_client.queue.get():
-            {
-                'auth': self.api_client.handle_auth_msg,
-                'sync': self.sync_multiple,
-            }[msg['msg_type']](msg['data'])
+            self.handle_queue_result({
+                                         'auth': self.api_client.handle_auth_msg,
+                                         'sync': self.sync_multiple,
+                                         'start_project': self.start_project,
+                                     }[msg['msg_type']](msg['data']))
 
     def handle_tui(self):
         logger.debug("Starting sync TUI")
@@ -285,7 +314,7 @@ class Sync:
             prompt_to_exit()
 
 
-def main(args):
+def main():
     error = []
     queue = Queue()
 
@@ -349,4 +378,4 @@ if __name__ == '__main__':
 
     print(BANNER)
     logger.info("[v{}]".format(__version__))
-    main(args)
+    main()
