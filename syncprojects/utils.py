@@ -8,7 +8,7 @@ import subprocess
 import traceback
 from argparse import ArgumentParser
 from glob import glob
-from os import readlink, symlink
+from os import readlink, symlink, startfile
 from os.path import join, isfile, abspath, dirname, basename
 from pathlib import Path
 from shutil import copyfile
@@ -70,6 +70,12 @@ def get_datadir(app: str) -> pathlib.Path:
         return home / ".local/share" / app
     elif sys.platform == "darwin":
         return home / "Library/Application Support" / app
+
+
+def open_default_app(path: str):
+    if sys.platform == "win32":
+        startfile(path)
+    return subprocess.Popen(['open', path])
 
 
 def verify_data(f):
@@ -347,9 +353,22 @@ def check_daw_running():
 
 def parse_args():
     from syncprojects.main import __version__
-    parser = ArgumentParser(description=f"Syncprojects-client v{__version__}", help="By default, a background service "
-                                                                                    "is started.")
+    parser = ArgumentParser(description=f"Syncprojects-client v{__version__}\nBy default, a background service "
+                                        "is started.")
     parser.add_argument('--tui', action='store_true')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--sync', action='store_true')
     return parser.parse_args()
+
+
+def find_daw_exe(search: bool = False) -> str:
+    from syncprojects.storage import appdata
+    try:
+        return appdata['daw_exe_path']
+    except KeyError:
+        pass
+    if search:
+        try:
+            return process_running(config.DAW_PROCESS_REGEX).exe()
+        except AttributeError:
+            return None

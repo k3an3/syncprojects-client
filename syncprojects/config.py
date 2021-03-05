@@ -53,9 +53,10 @@ AMP_PRESET_DIR = "X:\\SomeDir\\Amp Settings"
 CHANGELOG_HEADER_WIDTH = 50
 MAX_WORKERS = 25
 NOTEPAD = which("notepad")
-DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 PROJECT_GLOB = "*.cpr"
 BINARY_CLEAN_GLOB = "syncprojects*.exe"
+DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
+DAW_EXE_SEARCH_PATH = "C:\\Program Files\\Steinberg"
 
 PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsgFcJbSX6zfOhx/MImB2

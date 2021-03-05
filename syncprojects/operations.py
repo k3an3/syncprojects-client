@@ -12,6 +12,7 @@ import timeago
 from progress.bar import IncrementalBar
 
 from syncprojects import config as config
+from syncprojects.api import SyncAPI
 from syncprojects.utils import print_hr, current_user, format_time, validate_changelog, prompt_to_exit, handle_link, \
     get_patched_progress, get_input_choice
 
@@ -195,7 +196,7 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
             logger.debug("Hit lock() fallthrough case!")
 
 
-def unlock(project, api_client):
+def unlock(project: Dict, api_client: SyncAPI) -> None:
     unlocked = api_client.unlock(project)
     if unlocked.get("result") == "success":
         logger.debug("Successful unlock")

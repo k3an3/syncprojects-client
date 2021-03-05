@@ -14,7 +14,7 @@ import sys
 from time import sleep
 
 from syncprojects import config as config
-from syncprojects.commands import AuthHandler, SyncMultipleHandler, StartProjectHandler
+from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler
 from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
@@ -142,7 +142,8 @@ class SyncManager:
         self.logger.debug(f"{local_hs.open()=}")
         wants = check_wants()
         remote_stores = {}
-        songs = [song.get('directory_name') or song['name'] for song in project['songs'] if song['sync_enabled']]
+        songs = [song.get('directory_name') or song['name'] for song in project['songs'] if
+                 song['sync_enabled'] and not song['is_locked']]
         if not songs:
             self.logger.warning("No songs, skipping")
             return
@@ -237,12 +238,11 @@ class SyncManager:
         self.logger.debug("Starting syncprojects-client service")
         self.headless = True
         while msg := self.api_client.recv_queue.get():
-            self.handle_queue_result(
-                {
-                    'auth': AuthHandler,
-                    'sync': SyncMultipleHandler,
-                    'start_project': StartProjectHandler,
-                }[msg['msg_type']](self.api_client).handle(msg['task_id'], msg['data']))
+            {
+                'auth': AuthHandler,
+                'sync': SyncMultipleHandler,
+                'workon': WorkOnHandler,
+            }[msg['msg_type']](msg['task_id'], self.api_client, self).handle(msg['data'])
 
     def run_tui(self):
         self.logger.debug("Starting sync TUI")

@@ -68,11 +68,11 @@ def ping(_):
     return {'result': 'pong', 'task_id': queue_put('ping')}
 
 
-@app.route('/api/project_start', methods=['POST'])
+@app.route('/api/workon', methods=['POST'])
 @verify_data
-def start_project(data):
+def workon(data):
     if 'project' in data:
-        return response_started(queue_put('start_project', data))
+        return response_started(queue_put('workon', data))
     return RESP_BAD_DATA
 
 

@@ -94,8 +94,8 @@ class SyncAPI:
     def get_project(self, project_id: int):
         return self._request(f"projects/{project_id}/")
 
-    def _lock_request(self, project: dict, lock: bool = False, force: bool = True, reason: str = "",
-                      until: datetime.datetime = None):
+    def _lock_request(self, obj: dict, lock: bool = False, force: bool = True, reason: str = "",
+                      until: datetime.datetime = None, mode: str = 'project'):
         json = {}
         if force:
             json['force'] = force
@@ -103,8 +103,14 @@ class SyncAPI:
             json['reason'] = reason
         if until:
             json['until'] = until.timestamp()
-        self.logger.debug(f"Submitting {'' if lock else 'UN'}LOCK request for {project['name']} with config {json}")
-        return self._request(f"projects/{project['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
+        self.logger.debug(f"Submitting {'' if lock else 'UN'}LOCK request for {obj['name']} with config {json}")
+        if mode == 'project':
+            return self._request(f"projects/{obj['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
+        elif mode == 'song':
+            json['song'] == obj['id']
+            return self._request(f"projects/{obj['project']}/lock/", method='PUT' if lock else 'DELETE', json=json)
+        else:
+            raise NotImplementedError()
 
     def lock(self, project: dict, force: bool = False, reason: str = "sync", until: float = None):
         return self._lock_request(project, True, force, reason, until)

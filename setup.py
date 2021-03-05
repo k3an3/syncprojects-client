@@ -1,13 +1,19 @@
+import sys
+
 try:
     from cx_Freeze import setup, Executable
 except ImportError:
     print("Not using cx_Freeze.")
     from setuptools import setup
 
+base = None
+if sys.platform == "win32":
+    base = "Win32GUI"  # Tells the build script to hide the console.
+
 
 def gen_executables():
     try:
-        return [Executable("syncprojects/main.py", icon="benny.ico")]
+        return [Executable("syncprojects/main.py", icon="benny.ico", base=base)]
     except NameError:
         return []
 
