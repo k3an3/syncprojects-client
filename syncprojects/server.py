@@ -1,5 +1,7 @@
 import logging
+from queue import Empty
 from typing import Dict
+from uuid import uuid4
 
 from flask import Flask, request, cli
 
@@ -14,20 +16,36 @@ if not DEBUG:
     app.logger.disabled = True
     cli.show_server_banner = lambda *_: None
 
-SUCCESS = {'result': 'success'}
-BAD_DATA = {'result': 'error'}, 400
+RESP_BAD_DATA = {'result': 'error'}, 400
 
 
-def queue_put(name, data: Dict = {}):
-    app.config['queue'].put({'msg_type': name, 'data': data})
+def queue_put(name, data: Dict = {}) -> str:
+    task_id = gen_task_id()
+    app.config['main_queue'].put({'msg_type': name, 'task_id': task_id, 'data': data})
+    return task_id
+
+
+def queue_get() -> Dict:
+    try:
+        return app.config['server_queue'].get_nowait()
+    except Empty:
+        return {}
+
+
+def gen_task_id() -> str:
+    return str(uuid4())
+
+
+def response_started(task_id: str) -> Dict:
+    return {'result': 'started', 'task_id': task_id}
 
 
 @app.route('/api/auth', methods=['GET', 'POST'])
 @verify_data
 def auth(data):
-    queue_put('auth', data)
+    task = queue_put('auth', data)
     if request.method == "POST":
-        return SUCCESS
+        return response_started(task)
     else:
         return 'Login success. You may now close this tab.'
 
@@ -36,28 +54,26 @@ def auth(data):
 @verify_data
 def sync(data):
     if 'projects' in data:
-        queue_put('sync', {'projects': data['projects']})
+        task = queue_put('sync', {'projects': data['projects']})
     elif 'songs' in data:
-        queue_put('sync', {'songs': data['songs']})
+        task = queue_put('sync', {'songs': data['songs']})
     else:
-        return BAD_DATA
-    return SUCCESS
+        return RESP_BAD_DATA
+    return response_started(task)
 
 
 @app.route('/api/ping', methods=['GET'])
 @verify_data
 def ping(_):
-    queue_put('ping')
-    return {'result': 'pong'}
+    return {'result': 'pong', 'task_id': queue_put('ping')}
 
 
 @app.route('/api/project_start', methods=['POST'])
 @verify_data
 def start_project(data):
     if 'project' in data:
-        queue_put('start_project', data)
-        return SUCCESS
-    return BAD_DATA
+        return response_started(queue_put('start_project', data))
+    return RESP_BAD_DATA
 
 
 @app.after_request

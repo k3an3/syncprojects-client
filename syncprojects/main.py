@@ -14,8 +14,8 @@ import sys
 from time import sleep
 
 from syncprojects import config as config
-from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out, unlock, \
-    get_lock_status
+from syncprojects.commands import AuthHandler, SyncMultipleHandler, StartProjectHandler
+from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
@@ -126,10 +126,11 @@ def is_updated(dir_name, group, remote_hs):
         return "remote"
 
 
-class Sync:
+class SyncManager:
     def __init__(self, api_client: SyncAPI, headless: bool = False):
         self.api_client = api_client
         self.headless = headless
+        self.logger = logging.getLogger('syncprojects.main.SyncManager')
 
     def print(self, *args, **kwargs):
         if not self.headless:
@@ -137,18 +138,18 @@ class Sync:
 
     # TODO: return something relevant
     def sync(self, project: Dict) -> Dict:
-        logger.info(f"Syncing project {project['name']}...")
-        logger.debug(f"{local_hs.open()=}")
+        self.logger.info(f"Syncing project {project['name']}...")
+        self.logger.debug(f"{local_hs.open()=}")
         wants = check_wants()
         remote_stores = {}
-        songs = [song.get('directory_name') or song['name'] for song in project['songs']]
+        songs = [song.get('directory_name') or song['name'] for song in project['songs'] if song['sync_enabled']]
         if not songs:
-            logger.warning("No songs, skipping")
+            self.logger.warning("No songs, skipping")
             return
-        logger.debug(f"Got songs list {songs}")
+        self.logger.debug(f"Got songs list {songs}")
         project = project['name']
 
-        logger.info("Checking local files for changes...")
+        self.logger.info("Checking local files for changes...")
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = {executor.submit(hash_directory, join(config.SOURCE, s)): s for s in songs}
             # concurrency bug with cx_freeze here
@@ -157,42 +158,42 @@ class Sync:
                 try:
                     src_hash = result.result()
                 except FileNotFoundError:
-                    logger.debug(f"Didn't get hash for {song}")
+                    self.logger.debug(f"Didn't get hash for {song}")
                     src_hash = ""
                 local_hash_cache[join(config.SOURCE, song)] = src_hash
         project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
         remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
-        logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
-        logger.debug(f"{local_hash_cache=}")
-        logger.debug(f"{remote_hash_cache=}")
+        self.logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
+        self.logger.debug(f"{local_hash_cache=}")
+        self.logger.debug(f"{remote_hash_cache=}")
         try:
             # Database already opened, contents cached
             remote_hs = remote_stores[remote_store_name]
-            logger.debug("Cache hit; remote database already opened.")
+            self.logger.debug("Cache hit; remote database already opened.")
         except KeyError:
             remote_hs = HashStore(remote_store_name)
             # Database not opened yet, need to read from disk
-            logger.debug(f"{remote_hs.open()=}")
+            self.logger.debug(f"{remote_hs.open()=}")
             remote_stores[remote_store_name] = remote_hs
 
         for song in songs:
             self.print(print_hr())
-            logger.info("Syncing {}...".format(song))
+            self.logger.info("Syncing {}...".format(song))
             not_local = False
             if not isdir(join(config.SOURCE, song)):
-                logger.info("{} does not exist locally.".format(song))
+                self.logger.info("{} does not exist locally.".format(song))
                 not_local = True
             up = is_updated(song, project, remote_hs)
             if not_local:
                 up == "remote"
                 handle_new_song(song, remote_hs)
             if song in wants:
-                logger.warning(f"Overriding because {wants['user']} requested this song!!!!")
+                self.logger.warning(f"Overriding because {wants['user']} requested this song!!!!")
                 sleep(0.9)
                 up = "local"
             if up == "mismatch":
                 print_latest_change(join(project_dest, song))
-                logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
+                self.logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
                 up = get_input_choice(("local", "remote", "skip"))
             if up == "remote":
                 src = project_dest
@@ -203,13 +204,13 @@ class Sync:
                 dst = project_dest
                 changelog(song)
             else:
-                logger.info(f"No change for {song}")
+                self.logger.info(f"No change for {song}")
                 continue
             local_hs.update(song, remote_hash_cache[join(src, song)])
             try:
-                logger.info("Now copying {} from {} ({}) to {} ({})".format(song, up, src,
-                                                                            "remote" if up == "local" else "local",
-                                                                            dst))
+                self.logger.info("Now copying {} from {} ({}) to {} ({})".format(song, up, src,
+                                                                                 "remote" if up == "local" else "local",
+                                                                                 dst))
                 if up == "remote":
                     if not get_input_choice(("Confirm", "skip")) == "confirm":
                         continue
@@ -217,75 +218,34 @@ class Sync:
                     try:
                         remote_hs.update(song, remote_hash_cache[join(src, song)])
                     except Exception as e:
-                        logger.error(fmt_error("sync:update_remote_hashes", e))
+                        self.logger.error(fmt_error("sync:update_remote_hashes", e))
                         if not config.LEGACY_MODE:
-                            logger.critical("Failed to update remote hashes!")
+                            self.logger.critical("Failed to update remote hashes!")
                             raise e
                 copy(song, src, dst)
             except Exception as e:
-                logger.error(f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
-                             f"from the database.")
+                self.logger.error(
+                    f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
+                    f"from the database.")
                 sleep(2)
             else:
-                logger.info(f"Successfully synced {song}")
+                self.logger.info(f"Successfully synced {song}")
         self.print(print_hr())
         self.print(print_hr('='))
 
-    def sync_multiple(self, data):
-        results = []
-        if 'projects' in data:
-            for project in data['projects']:
-                if 'songs' not in project:
-                    # This request came from the API, we don't have the project data yet
-                    project = self.api_client.get_project(project)
-                try:
-                    if not project['sync_enabled']:
-                        logger.debug(f"Project {project['name']} sync disabled, skipping...")
-                        continue
-                except KeyError:
-                    pass
-                if get_lock_status(lock := self.api_client.lock(project)):
-                    sync = self.sync(project)
-                    self.api_client.unlock(project)
-                    # TODO: should these be the entire project dict or just id?
-                    results.append({'project': project['id'], 'result': sync})
-                else:
-                    results.append({'project': project['id'], 'result': lock})
-        elif 'songs' in data:
-            # Thoughts on this: to avoid conflicts, we first lock the entire project, which will also ensure nobody
-            # else is syncing. Then, while project is still locked, set the individual song to locked and unlock the
-            # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
-            for song in data['songs']:
-                project = self.api_client.get_project(song['project'])
-                if get_lock_status(lock := self.api_client.lock(project)):
-                    # Not efficient... if there are multiple songs under the same project for some reason,
-                    # really shouldn't check out the same project multiple times... use case TBD
-                    project['songs'] = song
-                    sync = self.sync([project])
-                    results.append({'song': song, 'result': sync})
-                else:
-                    results.append({'song': song, 'result': lock})
-                unlock(project, self.api_client)
-
-    def handle_queue_result(self, result):
-        # TODO: push to backend? Django channels?
-        pass
-
-    def start_project(self):
-        pass
-
-    def handle_service(self):
-        logger.debug("Starting syncprojects-client service")
+    def run_service(self):
+        self.logger.debug("Starting syncprojects-client service")
         self.headless = True
-        while msg := self.api_client.queue.get():
-            self.handle_queue_result({
-                                         'auth': self.api_client.handle_auth_msg,
-                                         'sync': self.sync_multiple,
-                                         'start_project': self.start_project,
-                                     }[msg['msg_type']](msg['data']))
+        while msg := self.api_client.recv_queue.get():
+            self.handle_queue_result(
+                {
+                    'auth': AuthHandler,
+                    'sync': SyncMultipleHandler,
+                    'start_project': StartProjectHandler,
+                }[msg['msg_type']](self.api_client).handle(msg['task_id'], msg['data']))
 
-    def handle_tui(self):
-        logger.debug("Starting sync TUI")
+    def run_tui(self):
+        self.logger.debug("Starting sync TUI")
         check_daw_running()
         if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
             api_unblock()
@@ -297,17 +257,18 @@ class Sync:
         print(print_hr('='))
         sync_amps()
         print(print_hr('='))
-        logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
+        self.logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
-        logger.info(
+        self.logger.info(
             "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
             "edits, as to avoid conflicts.")
         if get_input_choice(("yes", "No")) == "yes":
             # TODO: don't check out all projects
             for project in projects:
                 check_out(project, self.api_client)
-            logger.info("Alright, it's all yours. This window will stay open. Please remember to check in when you "
-                        "are done.")
+            self.logger.info(
+                "Alright, it's all yours. This window will stay open. Please remember to check in when you "
+                "are done.")
             input("[enter] to check in")
             self.sync_multiple(projects)
         if not len(sys.argv) > 1:
@@ -316,13 +277,16 @@ class Sync:
 
 def main():
     error = []
-    queue = Queue()
+    main_queue = Queue()
+    server_queue = Queue()
 
     # init API client
-    api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), queue)
+    api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), main_queue,
+                         server_queue)
 
     # Start local Flask server
-    app.config['queue'] = queue
+    app.config['main_queue'] = main_queue
+    app.config['server_queue'] = server_queue
     web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
     web_thread.start()
 
@@ -344,11 +308,11 @@ def main():
             logger.error(','.join(error))
             prompt_to_exit()
 
-        sync = Sync(api_client)
-        if args.service:
-            sync.handle_service()
+        sync = SyncManager(api_client)
+        if parsed_args.service:
+            sync.run_service()
         else:
-            sync.handle_tui()
+            sync.run_tui()
     except Exception as e:
         logger.critical(f"Fatal error! Provide the help desk (support@syncprojects.app) with the following "
                         f"information:\n{str(e)} {str(traceback.format_exc())}")
@@ -356,11 +320,11 @@ def main():
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    if args.debug:
+    parsed_args = parse_args()
+    if parsed_args.debug:
         config.DEBUG = True
     # Set up logging
-    logger = logging.getLogger('syncprojects')
+    logger = logging.getLogger('syncprojects.main')
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     if config.DEBUG:

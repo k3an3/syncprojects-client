@@ -1,13 +1,13 @@
-import getpass
-
 import datetime
+import getpass
 import logging
-import requests
-import sys
 import webbrowser
 from queue import Queue
-from requests import HTTPError
 from typing import Dict
+
+import requests
+import sys
+from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
@@ -42,12 +42,14 @@ def login_prompt(sync_api) -> bool:
 
 
 class SyncAPI:
-    def __init__(self, refresh_token: str, access_token: str = "", username: str = "", queue: Queue = None):
+    def __init__(self, refresh_token: str, access_token: str = "", username: str = "", recv_queue: Queue = None,
+                 send_queue: Queue = None):
         self.refresh_token = refresh_token
         self.access_token = access_token
         self._username = username
         self.logger = logging.getLogger('syncprojects.api.SyncAPI')
-        self.queue = queue
+        self.recv_queue = recv_queue
+        self.send_queue = send_queue
 
     @property
     def username(self) -> str:
@@ -134,7 +136,7 @@ class SyncAPI:
     def web_login(self):
         webbrowser.open(SYNCPROJECTS_URL + "sync/client_login/")
         self.logger.info("Waiting for successful login...")
-        while config := self.queue.get():
+        while config := self.recv_queue.get():
             if config['msg_type'] == 'auth':
                 self.handle_auth_msg(config['data'])
                 break
