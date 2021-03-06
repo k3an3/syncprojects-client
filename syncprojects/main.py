@@ -1,20 +1,20 @@
-import concurrent.futures
-import datetime
-import logging
 import traceback
-from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
 from os import scandir
 from os.path import join, isdir, isfile
+
+import concurrent.futures
+import datetime
+import logging
+import sys
+from concurrent.futures.thread import ThreadPoolExecutor
 from queue import Queue
 from threading import Thread
+from time import sleep
 from typing import Dict
 
-import sys
-from time import sleep
-
 from syncprojects import config as config
-from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler
+from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler
 from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
@@ -242,6 +242,7 @@ class SyncManager:
                 'auth': AuthHandler,
                 'sync': SyncMultipleHandler,
                 'workon': WorkOnHandler,
+                'workdone': WorkDoneHandler,
             }[msg['msg_type']](msg['task_id'], self.api_client, self).handle(msg['data'])
 
     def run_tui(self):

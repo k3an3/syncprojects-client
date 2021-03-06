@@ -1,11 +1,13 @@
+from os.path import join
+
 import logging
 from abc import ABC, abstractmethod
-from os.path import join
 from typing import Dict
 
 from syncprojects.api import SyncAPI
 from syncprojects.operations import get_lock_status
 from syncprojects.storage import appdata
+from syncprojects.utils import open_default_app
 
 logger = logging.getLogger('syncprojects.commands')
 
@@ -42,7 +44,7 @@ class CommandHandler(ABC):
                 self.logger.debug("Got exclusive lock of song, unlocking project")
                 self.api_client.unlock(project)
                 project['songs'] = song
-                sync = self.sync_manager.sync([project])
+                sync = self.sync_manager.sync(project)
                 if unlock:
                     self.logger.debug("Unlocking song")
                     self.api_client.unlock(song)
@@ -108,7 +110,6 @@ class SyncMultipleHandler(CommandHandler):
 class WorkOnHandler(CommandHandler):
     def handle(self, data: Dict):
         song = data['song']
-        project = self.api_client.get_project(song['project'])
         """
         if not (exe := find_daw_exe()):
             # If we don't get the path to the DAW executable right away, we'll prompt the user to open their DAW just
@@ -119,3 +120,12 @@ class WorkOnHandler(CommandHandler):
         # Keep song checked out afterwards
         self.lock_and_sync_song(song, unlock=False)
         open_default_app(join(appdata['source'], song.get('directory_name') or song['name']))
+
+
+class WorkDoneHandler(CommandHandler):
+    def handle(self, data: Dict):
+        song = data['song']
+        project = self.api_client.get_project(song['project'])
+        project['songs'] = song
+        sync = self.sync_manager.sync(project)
+        self.send_queue({'status': 'complete', 'sync': sync})
