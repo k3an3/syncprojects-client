@@ -1,24 +1,24 @@
-import datetime
-import functools
 import getpass
-import logging
-import pathlib
-import re
-import subprocess
 import traceback
-from argparse import ArgumentParser
 from glob import glob
 from os import readlink, symlink, startfile
 from os.path import join, isfile, abspath, dirname, basename
-from pathlib import Path
-from shutil import copyfile
 
+import datetime
+import functools
 import jwt
+import logging
+import pathlib
 import psutil
+import re
 import requests
+import subprocess
 import sys
+from argparse import ArgumentParser
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
+from pathlib import Path
+from shutil import copyfile
 
 import syncprojects.config as config
 
@@ -82,6 +82,8 @@ def verify_data(f):
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
         try:
+            if request.referrer != config.SYNCPROJECTS_URL:
+                abort(403)
             if request.method == "POST":
                 data = request.get_json()['data']
             else:
