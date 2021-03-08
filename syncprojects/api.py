@@ -1,11 +1,11 @@
-import getpass
-
 import datetime
+import getpass
 import logging
-import requests
-import sys
 import webbrowser
 from queue import Queue
+
+import requests
+import sys
 from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
@@ -64,14 +64,14 @@ class SyncAPI:
     def has_tokens(self) -> bool:
         return self.refresh_token and self.access_token
 
-    def _request(self, url: str, method: str = 'GET', params: dict = {}, json: dict = {}, headers: dict = {},
+    def _request(self, path: str, method: str = 'GET', params: dict = {}, json: dict = {}, headers: dict = {},
                  auth: bool = True, refresh: bool = True):
         attempts = 0
         while attempts < 2:
             if auth and self.access_token:
                 headers['Authorization'] = f"Bearer {self.access_token}"
             # Try using access token, fall back to refreshing, then re-login
-            r = requests.request(method=method, url=API_BASE_URL + url, params=params, json=json, headers=headers)
+            r = requests.request(method=method, url=API_BASE_URL + path, params=params, json=json, headers=headers)
             if r.status_code == 200:
                 return r.json()
             elif r.status_code == 401:
@@ -130,3 +130,6 @@ class SyncAPI:
         appdata.update(config)
         self.logger.debug("Saved credentials updated from Flask server")
         return True
+
+    def get_updates(self):
+        return self._request("updates/")['results']

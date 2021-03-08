@@ -1,16 +1,17 @@
-import traceback
-from glob import glob
-from os import scandir
-from os.path import join, isdir, isfile
-
 import concurrent.futures
 import datetime
 import logging
-import sys
-import timeago
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from os import scandir
+from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
+
+import sys
+import timeago
+from packaging.version import parse
 from time import sleep
 
 from syncprojects import config as config
@@ -292,6 +293,12 @@ def sync_all_projects(projects, api_client):
     logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
+def check_update(api_client: SyncAPI) -> str:
+    latest_version = api_client.get_updates()[-1]
+    if parse(__version__) < parse(latest_version['version']):
+        return latest_version
+
+
 def main():
     error = []
     queue = Queue()
@@ -311,7 +318,8 @@ def main():
 
     try:
         clean_up()
-        if config.UPDATE_PATH_GLOB and update():
+        if new_version := check_update(api_client):
+            update(new_version)
             raise SystemExit
         if not isdir(config.SOURCE):
             error.append(f"Error! Source path \"{config.SOURCE}\" not found.")
