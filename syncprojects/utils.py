@@ -252,8 +252,10 @@ def update(new_version: Dict):
     updater = fetch_update(new_version['updater'])
     logger.debug(f"Fetching package from {new_version['package']}")
     package = fetch_update(new_version['package'])
-    logger.debug(f"Starting updater: `{updater} {package} -d`")
-    subprocess.Popen([updater, package, "-d"])
+    from syncprojects.storage import appdata
+    logpath = appdata['telemetry_file']
+    logger.debug(f"Starting updater: `{updater} {package} {logpath} -d`")
+    subprocess.Popen([updater, package, logpath, "-d"])
 
 
 def hash_file(file_path, hash_algo=None, block_size=4096):
