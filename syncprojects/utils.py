@@ -1,27 +1,25 @@
-import getpass
-import traceback
-from glob import glob
-from os import readlink, symlink
-from os.path import join, isfile, abspath, dirname, basename
-
 import datetime
 import functools
+import getpass
+import logging
+import pathlib
+import re
+import subprocess
+import traceback
+from argparse import ArgumentParser
+from glob import glob
+from os import readlink, symlink
+from os.path import join, isfile, abspath, dirname
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Dict
 
 import jwt
-import logging
-import pathlib
 import psutil
-import re
 import requests
-import subprocess
 import sys
-from argparse import ArgumentParser
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
-from pathlib import Path
-from shutil import copyfile
 
 import syncprojects.config as config
 
@@ -252,28 +250,10 @@ def fetch_update(url: str) -> str:
 def update(new_version: Dict):
     logger.debug(f"Fetching updater from {new_version['updater']}")
     updater = fetch_update(new_version['updater'])
-    """
-    local_file = abspath(sys.argv[0])
-    logger.info("Checking for updates...")
-    if not isfile(local_file):
-        logger.info("Failed to resolve local file for update. Skipping...")
-        return
-    try:
-        remote_file = glob(config.UPDATE_PATH_GLOB)[::-1][0]
-    except IndexError:
-        logger.info("Update file not found. Skipping...")
-        return
-
-    remote_hash = hash_file(remote_file)
-    local_hash = hash_file(local_file)
-    logger.debug(f"{local_file=} {local_hash=} {remote_file=} {remote_hash=}")
-    if not local_hash == remote_hash:
-        logger.info(f"Updating to {basename(remote_file)} from {local_file}")
-        new_path = join(dirname(local_file), "syncprojects-{}.exe".format(int(datetime.datetime.now().timestamp())))
-        copyfile(remote_file, new_path)
-        move_file_on_reboot(new_path, join(dirname(local_file), 'syncprojects-latest.exe'))
-        return subprocess.run([join(dirname(local_file), new_path)])
-    """
+    logger.debug(f"Fetching package from {new_version['package']}")
+    package = fetch_update(new_version['package'])
+    logger.debug(f"Starting updater: `{updater} {package} -d`")
+    subprocess.Popen([updater, package, "-d"])
 
 
 def hash_file(file_path, hash_algo=None, block_size=4096):
