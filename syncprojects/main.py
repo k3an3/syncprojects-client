@@ -319,8 +319,12 @@ def main():
     try:
         clean_up()
         if new_version := check_update(api_client):
+            logger.info(f"New update found! {new_version['version']}")
             update(new_version)
             raise SystemExit
+        else:
+            logger.info("No new updates.")
+
         if not isdir(config.SOURCE):
             error.append(f"Error! Source path \"{config.SOURCE}\" not found.")
         for directory in (config.DEFAULT_DEST, *config.DEST_MAPPING.values()):

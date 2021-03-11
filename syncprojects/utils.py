@@ -6,6 +6,9 @@ from os.path import join, isfile, abspath, dirname, basename
 
 import datetime
 import functools
+from tempfile import NamedTemporaryFile
+from typing import Dict
+
 import jwt
 import logging
 import pathlib
@@ -237,7 +240,19 @@ def clean_up():
         logger.error(fmt_error("cleanup", e))
 
 
-def update():
+def fetch_update(url: str) -> str:
+    ntf = NamedTemporaryFile(delete=False)
+    resp = requests.get(url)
+    resp.raise_for_status()
+    ntf.write(resp.content)
+    ntf.close()
+    return ntf.name
+
+
+def update(new_version: Dict):
+    logger.debug(f"Fetching updater from {new_version['updater']}")
+    updater = fetch_update(new_version['updater'])
+    """
     local_file = abspath(sys.argv[0])
     logger.info("Checking for updates...")
     if not isfile(local_file):
@@ -258,6 +273,7 @@ def update():
         copyfile(remote_file, new_path)
         move_file_on_reboot(new_path, join(dirname(local_file), 'syncprojects-latest.exe'))
         return subprocess.run([join(dirname(local_file), new_path)])
+    """
 
 
 def hash_file(file_path, hash_algo=None, block_size=4096):
