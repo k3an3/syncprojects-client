@@ -12,6 +12,7 @@ requirements = [
         'progress==1.5',
         'flask==1.1.2',
         'pyjwt[crypto]==2.0.1',
+        'pylint',
         'pyshortcuts==1.8.0',
         'cx_Freeze==6.5.3',
         'sqlitedict==1.7.0',
