@@ -27,10 +27,13 @@ def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
 
 
 def queue_get() -> Dict:
-    try:
-        return app.config['server_queue'].get_nowait()
-    except Empty:
-        return {}
+    results = []
+    while True:
+        try:
+            results.append(app.config['server_queue'].get_nowait())
+        except Empty:
+            break
+    return results
 
 
 def gen_task_id() -> str:
@@ -51,6 +54,11 @@ def auth(data):
         return 'Login success. You may now close this tab.'
 
 
+@app.route('/api/results')
+def results():
+    return {'results': queue_get()}
+
+
 @app.route('/api/sync', methods=['POST'])
 @verify_data
 def sync(data):
@@ -64,8 +72,7 @@ def sync(data):
 
 
 @app.route('/api/ping', methods=['GET'])
-@verify_data
-def ping(_):
+def ping():
     return {'result': 'pong', 'task_id': queue_put('ping', dry_run=True)}
 
 

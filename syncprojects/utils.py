@@ -87,10 +87,8 @@ def verify_data(f):
                 abort(403)
             if request.method == "POST":
                 data = request.get_json()['data']
-            elif 'data' in request.args:
-                data = request.args['data']
             else:
-                return f(None, *args, **kwargs)
+                data = request.args['data']
             return f(jwt.decode(data, config.PUBLIC_KEY, algorithms=["RS256"]), *args, **kwargs)
         except (ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
             if config.DEBUG:
