@@ -1,5 +1,6 @@
 import json
 import logging
+from os.path import isfile
 
 from sqlitedict import SqliteDict
 
@@ -17,7 +18,10 @@ def get_appdata():
         config_created = True
     except FileExistsError:
         logger.debug(f"Datadir already exists at {config_dir}")
-    loaded_config = SqliteDict(str(config_dir / "config.sqlite"))
+    config_file = str(config_dir / "config.sqlite")
+    if not isfile(config_file):
+        config_created = True
+    loaded_config = SqliteDict(config_file)
     if config_created:
         logger.info("Performing migration to new config storage...")
         migrate_old_settings(loaded_config)
