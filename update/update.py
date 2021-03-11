@@ -12,13 +12,15 @@ import requests
 import sys
 from pyshortcuts import make_shortcut
 
+PACKAGE = None
+LOGPATH = None
 try:
     from local_update import PACKAGE, LOGPATH
 except ImportError:
-    PACKAGE = None
-    LOGPATH = None
+    pass
 
 APP_NAME = "syncprojects"
+EXE_NAME = "main"
 ICON_FILE = "benny.ico"
 WINDOWS_STARTUP = """@echo off
 start cmd /c \"{path} && exit 0\"
@@ -84,14 +86,16 @@ def install_program(archive):
 
 
 def start_program():
-    execl(get_install_location() / f"{APP_NAME}.exe")
+    cmd = f"{get_install_location() / EXE_NAME}.exe"
+    logger.debug(f"Run command: `{cmd}`")
+    execl(cmd, cmd)
 
 
 def create_shortcut():
-    make_shortcut(get_install_location() / f"{APP_NAME}.exe",
+    make_shortcut(str(get_install_location() / f"{EXE_NAME}.exe"),
                   name=APP_NAME.title(),
                   description=f"{APP_NAME} desktop client",
-                  icon=get_install_location() / ICON_FILE,
+                  icon=str(get_install_location() / ICON_FILE),
                   terminal=True,
                   executable=None)
 
@@ -107,32 +111,39 @@ def fetch_update(url: str) -> str:
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('update_archive')
-    parser.add_argument('logpath', required=False)
+    parser.add_argument('update_archive', nargs='?', default=PACKAGE)
+    parser.add_argument('logpath', nargs='?', default=LOGPATH)
     parser.add_argument('-d', '--delete-archive', action='store_true')
+    parser.add_argument('-k', '--kill-parent', action='store_true')
     # parser.add_argument('old_pid', type=int)
     args = parser.parse_args()
+    if not args.update_archive:
+        parser.print_usage()
+        sys.exit(0)
 
     logger = logging.getLogger('syncprojects-update')
     logger.setLevel(logging.DEBUG)
-    if args.logfile() or LOGPATH:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    logger.addHandler(ch)
+    if args.logpath:
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.FileHandler(join(args.logpath or LOGPATH, f"{APP_NAME}-update.log"))
-        fh.setLevel(logging.DEBUGargs.update_archive.startswith("http"))
+        fh = logging.FileHandler(join(args.logpath, f"{APP_NAME}-update.log"))
+        fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
-        logger.info(f"Logging debug output to {args.logpath or LOGPATH}-update.log")
-    if not kill_old_process():
-        logger.critical("Couldn't kill old process. Update failed!")
-        sys.exit(-1)
+        logger.info(f"Logging debug output to {args.logpath}-update.log")
+    if args.kill_parent:
+        if not kill_old_process():
+            logger.critical("Couldn't kill old process. Update failed!")
+            sys.exit(-1)
 
-    update = args.update_archive or PACKAGE
-    if update.startswith('http'):
+    if args.update_archive.startswith('http'):
         logger.info("Fetching update from URL...")
-        archive_path = fetch_update(update)
+        archive_path = fetch_update(args.update_archive)
     else:
         logger.info("Update is local archive")
-        archive_path = update
+        archive_path = args.update_archive
 
     try:
         install_program(archive_path)
@@ -140,8 +151,12 @@ if __name__ == "__main__":
         logger.critical(f"Failed to install update! {e}\n{traceback.print_exc()}")
         sys.exit(-1)
     if sys.platform == "win32":
-        logger.debug("Installing to start menu...")
+        logger.info("Installing to start menu and desktop...")
+        create_shortcut()
 
     if args.delete_archive:
         logger.debug("Unlinking archive file...")
         unlink(archive_path)
+
+    logger.info("Starting new program...")
+    start_program()

@@ -1,7 +1,3 @@
-import random
-
-from time import sleep
-
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝
@@ -20,7 +16,5 @@ syncprojects from your start menu or desktop.
 
 Thank you for using syncprojects!"""
 
-for letter in MSG:
-    print(letter, end='')
-    sleep(0.09 * random.randint(0, 100) / 100)
+print(MSG)
 input()

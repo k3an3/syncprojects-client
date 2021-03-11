@@ -8,6 +8,7 @@ from os import scandir
 from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
+from typing import Dict
 
 import sys
 import timeago
@@ -288,8 +289,11 @@ def sync_all_projects(projects, api_client):
     logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
 
-def check_update(api_client: SyncAPI) -> str:
-    latest_version = api_client.get_updates()[-1]
+def check_update(api_client: SyncAPI) -> Dict:
+    try:
+        latest_version = api_client.get_updates()[-1]
+    except IndexError:
+        return None
     if parse(__version__) < parse(latest_version['version']):
         return latest_version
 
@@ -378,4 +382,3 @@ if __name__ == '__main__':
     print(BANNER)
     logger.info("[v{}]".format(__version__))
     main()
-

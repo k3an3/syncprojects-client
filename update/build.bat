@@ -1,2 +1,2 @@
-pyinstaller -F unsupported_warning.py
 pyinstaller -F update.py
+pyinstaller -F unsupported_warning.py
