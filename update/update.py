@@ -12,6 +12,12 @@ import requests
 import sys
 from pyshortcuts import make_shortcut
 
+try:
+    from local_update import PACKAGE, LOGPATH
+except ImportError:
+    PACKAGE = None
+    LOGPATH = None
+
 APP_NAME = "syncprojects"
 ICON_FILE = "benny.ico"
 WINDOWS_STARTUP = """@echo off
@@ -109,23 +115,24 @@ if __name__ == "__main__":
 
     logger = logging.getLogger('syncprojects-update')
     logger.setLevel(logging.DEBUG)
-    if args.logfile():
+    if args.logfile() or LOGPATH:
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.FileHandler(join(args.logpath, f"{APP_NAME}-update.log"))
-        fh.setLevel(logging.DEBUG)
+        fh = logging.FileHandler(join(args.logpath or LOGPATH, f"{APP_NAME}-update.log"))
+        fh.setLevel(logging.DEBUGargs.update_archive.startswith("http"))
         fh.setFormatter(formatter)
         logger.addHandler(fh)
-        logger.info(f"Logging debug output to {args.logpath}-update.log")
+        logger.info(f"Logging debug output to {args.logpath or LOGPATH}-update.log")
     if not kill_old_process():
         logger.critical("Couldn't kill old process. Update failed!")
         sys.exit(-1)
 
-    if args.update_archive.startswith("http"):
+    update = args.update_archive or PACKAGE
+    if update.startswith('http'):
         logger.info("Fetching update from URL...")
-        archive_path = fetch_update(args.update_archive)
+        archive_path = fetch_update(update)
     else:
         logger.info("Update is local archive")
-        archive_path = args.update_archive
+        archive_path = update
 
     try:
         install_program(archive_path)
