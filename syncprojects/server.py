@@ -19,9 +19,10 @@ if not DEBUG:
 RESP_BAD_DATA = {'result': 'error'}, 400
 
 
-def queue_put(name, data: Dict = {}) -> str:
+def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
     task_id = gen_task_id()
-    app.config['main_queue'].put({'msg_type': name, 'task_id': task_id, 'data': data})
+    if not dry_run:
+        app.config['main_queue'].put({'msg_type': name, 'task_id': task_id, 'data': data})
     return task_id
 
 
@@ -65,7 +66,7 @@ def sync(data):
 @app.route('/api/ping', methods=['GET'])
 @verify_data
 def ping(_):
-    return {'result': 'pong', 'task_id': queue_put('ping')}
+    return {'result': 'pong', 'task_id': queue_put('ping', dry_run=True)}
 
 
 @app.route('/api/workon', methods=['POST'])
