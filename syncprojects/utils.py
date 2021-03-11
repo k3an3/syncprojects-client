@@ -8,7 +8,6 @@ import subprocess
 import traceback
 from argparse import ArgumentParser
 from os import readlink, symlink
-from os import startfile
 from os.path import join, isfile
 from tempfile import NamedTemporaryFile
 from typing import Dict
@@ -74,6 +73,8 @@ def get_datadir(app: str) -> pathlib.Path:
 
 def open_default_app(path: str):
     if sys.platform == "win32":
+        # pylint: disable=no-name-in-module
+        from os import startfile
         startfile(path)
     return subprocess.Popen(['open', path])
 
@@ -271,8 +272,8 @@ def mount_persistent_drive():
     from syncprojects.storage import appdata
     try:
         subprocess.run(
-            ["net", "use", appdata.get('smb_drive', config.SMB_DRIVE),
-             f"\\\\{appdata.get('smb_server', config.SMB_SERVER)}\\{appdata.get('smb_share', config.SMB_SHARE)}",
+            ["net", "use", appdata['smb_drive'],
+             f"\\\\{appdata['smb_server']}\\{appdata['smb_share']}",
              "/persistent:Yes"],
             check=True)
     except subprocess.CalledProcessError as e:

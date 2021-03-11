@@ -2,8 +2,7 @@ import concurrent.futures
 import datetime
 import logging
 import traceback
-
-import sys
+import uuid
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
 from os import scandir
@@ -13,10 +12,8 @@ from threading import Thread
 from typing import Dict
 
 import sys
-import timeago
 from packaging.version import parse
 from time import sleep
-from typing import Dict
 
 from syncprojects import config as config
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler
@@ -156,7 +153,7 @@ class SyncManager:
 
         self.logger.info("Checking local files for changes...")
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-            futures = {executor.submit(hash_directory, join(config.SOURCE, s)): s for s in songs}
+            futures = {executor.submit(hash_directory, join(appdata['source'], s)): s for s in songs}
             # concurrency bug with cx_freeze here
             for result in concurrent.futures.as_completed(futures):
                 song = futures[result]
@@ -165,9 +162,9 @@ class SyncManager:
                 except FileNotFoundError:
                     self.logger.debug(f"Didn't get hash for {song}")
                     src_hash = ""
-                local_hash_cache[join(config.SOURCE, song)] = src_hash
-        project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
-        remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
+                local_hash_cache[join(appdata['source'], song)] = src_hash
+        project_dest = appdata['dest_mapping'].get(project, appdata['default_dest'])
+        remote_store_name = join(project_dest, appdata['remote_hash_store'])
         self.logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
         self.logger.debug(f"{local_hash_cache=}")
         self.logger.debug(f"{remote_hash_cache=}")
@@ -185,7 +182,7 @@ class SyncManager:
             self.print(print_hr())
             self.logger.info("Syncing {}...".format(song))
             not_local = False
-            if not isdir(join(config.SOURCE, song)):
+            if not isdir(join(appdata['source'], song)):
                 self.logger.info("{} does not exist locally.".format(song))
                 not_local = True
             up = is_updated(song, project, remote_hs)
@@ -198,10 +195,10 @@ class SyncManager:
                 up = get_input_choice(("local", "remote", "skip"))
             if up == "remote":
                 src = project_dest
-                dst = config.SOURCE
+                dst = appdata['source']
                 print_latest_change(join(project_dest, song))
             elif up == "local":
-                src = config.SOURCE
+                src = appdata['source']
                 dst = project_dest
                 changelog(song)
             else:
@@ -220,7 +217,7 @@ class SyncManager:
                         remote_hs.update(song, remote_hash_cache[join(src, song)])
                     except Exception as e:
                         self.logger.error(fmt_error("sync:update_remote_hashes", e))
-                        if not config.LEGACY_MODE:
+                        if not appdata['legacy_mode']:
                             self.logger.critical("Failed to update remote hashes!")
                             raise e
                 copy(song, src, dst)
@@ -248,13 +245,13 @@ class SyncManager:
     def run_tui(self):
         self.logger.debug("Starting sync TUI")
         check_daw_running()
-        if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
+        if appdata['firewall_api_url'] and appdata['firewall_api_key']:
             api_unblock()
 
         projects = self.api_client.get_all_projects()
         start = datetime.datetime.now()
         print(print_hr('='))
-        self.sync_multiple(projects)
+        SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle(projects)
         print(print_hr('='))
         sync_amps()
         print(print_hr('='))
@@ -271,7 +268,8 @@ class SyncManager:
                 "Alright, it's all yours. This window will stay open. Please remember to check in when you "
                 "are done.")
             input("[enter] to check in")
-            self.sync_multiple(projects)
+            projects = self.api_client.get_all_projects()
+            SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle(projects)
         if not len(sys.argv) > 1:
             prompt_to_exit()
 

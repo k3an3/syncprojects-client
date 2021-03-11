@@ -1,8 +1,9 @@
 import logging
-from flask import Flask, request, cli
 from queue import Empty
 from typing import Dict
 from uuid import uuid4
+
+from flask import Flask, request, cli
 
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
 from syncprojects.utils import verify_data
@@ -69,7 +70,7 @@ def ping(_):
 
 @app.route('/api/workon', methods=['POST'])
 @verify_data
-def workon(data):
+def work_on(data):
     if 'project' in data:
         return response_started(queue_put('workon', data))
     return RESP_BAD_DATA
@@ -77,7 +78,7 @@ def workon(data):
 
 @app.route('/api/workdone', methods=['POST'])
 @verify_data
-def workon(data):
+def work_done(data):
     if 'project' in data:
         return response_started(queue_put('workdone', data))
     return RESP_BAD_DATA
