@@ -1,29 +1,34 @@
-import traceback
-from glob import glob
-from os import scandir
-from os.path import join, isdir, isfile
-
 import concurrent.futures
 import datetime
 import logging
+import traceback
+
 import sys
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from os import scandir
+from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
+from typing import Dict
+
+import sys
+import timeago
+from packaging.version import parse
 from time import sleep
 from typing import Dict
 
 from syncprojects import config as config
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler
-from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree, check_out
+from syncprojects.operations import copy, changelog, handle_new_song, copy_tree, check_out
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-__version__ = '1.7'
+__version__ = '2.0'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
-    clean_up, update, api_unblock, \
+    update, api_unblock, \
     check_daw_running, parse_args, logger, hash_file
 
 CODENAME = "IT'S MORE IN THE CLOUD"
@@ -38,7 +43,7 @@ BANNER = """
 
 
 def get_local_neural_dsp_amps():
-    with scandir(config.NEURAL_DSP_PATH) as entries:
+    with scandir(appdata['neural_dsp_path']) as entries:
         for entry in entries:
             if entry.is_dir() and entry.name != "Impulse Responses":
                 yield entry.name
@@ -46,8 +51,8 @@ def get_local_neural_dsp_amps():
 
 def push_amp_settings(amp):
     try:
-        copy_tree(join(config.NEURAL_DSP_PATH, amp, "User"),
-                  join(config.AMP_PRESET_DIR, amp, current_user()),
+        copy_tree(join(appdata['neural_dsp_path'], amp, "User"),
+                  join(appdata['amp_preset_sync_dir'], amp, current_user()),
                   single_depth=True,
                   update=True,
                   progress=False)
@@ -57,11 +62,11 @@ def push_amp_settings(amp):
 
 
 def pull_amp_settings(amp):
-    with scandir(join(config.AMP_PRESET_DIR, amp)) as entries:
+    with scandir(join(appdata['amp_preset_sync_dir'], amp)) as entries:
         for entry in entries:
             if entry.name != current_user():
                 copy_tree(entry.path,
-                          join(config.NEURAL_DSP_PATH, amp, "User", entry.name),
+                          join(appdata['neural_dsp_path'], amp, "User", entry.name),
                           update=True,
                           progress=False)
 
@@ -78,7 +83,7 @@ def sync_amps():
     print()
 
 
-local_hs = HashStore(config.LOCAL_HASH_STORE)
+local_hs = HashStore(appdata['local_hash_store'])
 remote_hash_cache = {}
 local_hash_cache = {}
 
@@ -97,12 +102,12 @@ def hash_directory(dir_name):
 
 def is_updated(dir_name, group, remote_hs):
     # Can't refactor move with the hash caches here
-    dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
-    src_hash = local_hash_cache[join(config.SOURCE, dir_name)]
+    dest = appdata['dest_mapping'].get(group, appdata['default_dest'])
+    src_hash = local_hash_cache[join(appdata['source'], dir_name)]
     logger.debug(f"local_hash is {src_hash}")
     dst_hash = remote_hs.get(dir_name)
     remote_hash_cache[join(dest, dir_name)] = dst_hash
-    if config.LEGACY_MODE or not dst_hash:
+    if appdata['legacy_mode'] or not dst_hash:
         logger.info("Checking with the slow/old method just in case we missed it...")
         try:
             dst_hash = hash_directory(join(dest, dir_name))
@@ -140,7 +145,6 @@ class SyncManager:
     def sync(self, project: Dict) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")
         self.logger.debug(f"{local_hs.open()=}")
-        wants = check_wants()
         remote_stores = {}
         songs = [song.get('directory_name') or song['name'] for song in project['songs'] if
                  song['sync_enabled'] and not song['is_locked']]
@@ -188,10 +192,6 @@ class SyncManager:
             if not_local:
                 up == "remote"
                 handle_new_song(song, remote_hs)
-            if song in wants:
-                self.logger.warning(f"Overriding because {wants['user']} requested this song!!!!")
-                sleep(0.9)
-                up = "local"
             if up == "mismatch":
                 print_latest_change(join(project_dest, song))
                 self.logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
@@ -276,6 +276,15 @@ class SyncManager:
             prompt_to_exit()
 
 
+def check_update(api_client: SyncAPI) -> Dict:
+    try:
+        latest_version = api_client.get_updates()[-1]
+    except IndexError:
+        return None
+    if parse(__version__) < parse(latest_version['version']):
+        return latest_version
+
+
 def main():
     error = []
     main_queue = Queue()
@@ -297,12 +306,16 @@ def main():
             prompt_to_exit()
 
     try:
-        clean_up()
-        if config.UPDATE_PATH_GLOB and update():
+        if new_version := check_update(api_client):
+            logger.info(f"New update found! {new_version['version']}")
+            update(new_version)
             raise SystemExit
-        if not isdir(config.SOURCE):
-            error.append(f"Error! Source path \"{config.SOURCE}\" not found.")
-        for directory in (config.DEFAULT_DEST, *config.DEST_MAPPING.values()):
+        else:
+            logger.info("No new updates.")
+
+        if not isdir(appdata['source']):
+            error.append(f"Error! Source path \"{appdata['source']}\" not found.")
+        for directory in (appdata['default_dest'], *appdata['dest_mapping'].values()):
             if not (config.DEBUG or isdir(directory)):
                 error.append(f"Error! Destination path {directory} not found.")
         if error:

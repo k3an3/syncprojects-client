@@ -1,24 +1,24 @@
-import getpass
-import traceback
-from glob import glob
-from os import readlink, symlink, startfile
-from os.path import join, isfile, abspath, dirname, basename
-
 import datetime
 import functools
-import jwt
+import getpass
 import logging
 import pathlib
-import psutil
 import re
-import requests
 import subprocess
-import sys
+import traceback
 from argparse import ArgumentParser
+from os import readlink, symlink
+from os import startfile
+from os.path import join, isfile
+from tempfile import NamedTemporaryFile
+from typing import Dict
+
+import jwt
+import psutil
+import requests
+import sys
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
-from pathlib import Path
-from shutil import copyfile
 
 import syncprojects.config as config
 
@@ -232,40 +232,26 @@ def print_latest_change(directory_path):
         print("~~~")
 
 
-def clean_up():
-    try:
-        current_file = abspath(sys.argv[0])
-        for file in glob(join(dirname(current_file), config.BINARY_CLEAN_GLOB)):
-            try:
-                logger.debug(f"Unlinking {file}.")
-                Path(file).unlink()
-            except:
-                logger.debug(f"Couldn't unlink {file}.")
-    except Exception as e:
-        logger.error(fmt_error("cleanup", e))
 
 
-def update():
-    local_file = abspath(sys.argv[0])
-    logger.info("Checking for updates...")
-    if not isfile(local_file):
-        logger.info("Failed to resolve local file for update. Skipping...")
-        return
-    try:
-        remote_file = glob(config.UPDATE_PATH_GLOB)[::-1][0]
-    except IndexError:
-        logger.info("Update file not found. Skipping...")
-        return
+def fetch_update(url: str) -> str:
+    ntf = NamedTemporaryFile(delete=False)
+    resp = requests.get(url)
+    resp.raise_for_status()
+    ntf.write(resp.content)
+    ntf.close()
+    return ntf.name
 
-    remote_hash = hash_file(remote_file)
-    local_hash = hash_file(local_file)
-    logger.debug(f"{local_file=} {local_hash=} {remote_file=} {remote_hash=}")
-    if not local_hash == remote_hash:
-        logger.info(f"Updating to {basename(remote_file)} from {local_file}")
-        new_path = join(dirname(local_file), "syncprojects-{}.exe".format(int(datetime.datetime.now().timestamp())))
-        copyfile(remote_file, new_path)
-        move_file_on_reboot(new_path, join(dirname(local_file), 'syncprojects-latest.exe'))
-        return subprocess.run([join(dirname(local_file), new_path)])
+
+def update(new_version: Dict):
+    logger.debug(f"Fetching updater from {new_version['updater']}")
+    updater = fetch_update(new_version['updater'])
+    logger.debug(f"Fetching package from {new_version['package']}")
+    package = fetch_update(new_version['package'])
+    from syncprojects.storage import appdata
+    logpath = appdata['telemetry_file']
+    logger.debug(f"Starting updater: `{updater} {package} {logpath} -d`")
+    subprocess.Popen([updater, package, logpath, "-d"])
 
 
 def hash_file(file_path, hash_algo=None, block_size=4096):
@@ -282,9 +268,12 @@ def hash_file(file_path, hash_algo=None, block_size=4096):
 
 
 def mount_persistent_drive():
+    from syncprojects.storage import appdata
     try:
         subprocess.run(
-            ["net", "use", config.SMB_DRIVE, f"\\\\{config.SMB_SERVER}\\{config.SMB_SHARE}", "/persistent:Yes"],
+            ["net", "use", appdata.get('smb_drive', config.SMB_DRIVE),
+             f"\\\\{appdata.get('smb_server', config.SMB_SERVER)}\\{appdata.get('smb_share', config.SMB_SHARE)}",
+             "/persistent:Yes"],
             check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Drive mount failed! {e.output.decode()}")
@@ -293,9 +282,10 @@ def mount_persistent_drive():
 def api_unblock():
     logger.info("Requesting firewall exception... ")
     try:
-        r = requests.post(config.FIREWALL_API_URL + "firewall/unblock",
-                          headers={'X-Auth-Token': config.FIREWALL_API_KEY},
-                          data={'device': config.FIREWALL_NAME})
+        from syncprojects.storage import appdata
+        r = requests.post(appdata['firewall_api_url'] + "firewall/unblock",
+                          headers={'X-Auth-Token': appdata['firewall_api_key']},
+                          data={'device': appdata['firewall_name']})
     except Exception as e:
         logger.error(fmt_error("api_unblock", e))
         logger.warning("failed! Hopefully the sync still works...")

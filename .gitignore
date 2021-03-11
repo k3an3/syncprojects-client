@@ -62,3 +62,5 @@ target/
 # Project
 .idea/
 local_config.py
+local_update.py
+release/
