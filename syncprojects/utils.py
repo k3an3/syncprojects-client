@@ -5,6 +5,7 @@ import logging
 import pathlib
 import re
 import subprocess
+import sys
 import traceback
 from argparse import ArgumentParser
 from os import readlink, symlink
@@ -15,7 +16,6 @@ from typing import Dict
 import jwt
 import psutil
 import requests
-import sys
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError
 
@@ -231,8 +231,6 @@ def print_latest_change(directory_path):
         print("Latest changes:\n~~~")
         print(''.join(lines[start:end]))
         print("~~~")
-
-
 
 
 def fetch_update(url: str) -> str:

@@ -1,7 +1,6 @@
-from os.path import join
-
 import logging
 from abc import ABC, abstractmethod
+from os.path import join
 from typing import Dict
 
 from syncprojects.api import SyncAPI
@@ -13,9 +12,7 @@ logger = logging.getLogger('syncprojects.commands')
 
 
 class CommandHandler(ABC):
-    from syncprojects.main import SyncManager
-
-    def __init__(self, task_id: str, api_client: SyncAPI, sync_manager: SyncManager):
+    def __init__(self, task_id: str, api_client: SyncAPI, sync_manager):
         self.task_id = task_id
         self.api_client = api_client
         self.sync_manager = sync_manager

@@ -1,6 +1,7 @@
 import concurrent.futures
 import datetime
 import logging
+import sys
 import traceback
 import uuid
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -9,11 +10,10 @@ from os import scandir
 from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
+from time import sleep
 from typing import Dict
 
-import sys
 from packaging.version import parse
-from time import sleep
 
 from syncprojects import config as config
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler
@@ -80,68 +80,63 @@ def sync_amps():
     print()
 
 
-local_hs = HashStore(appdata['local_hash_store'])
-remote_hash_cache = {}
-local_hash_cache = {}
-
-
-def hash_directory(dir_name):
-    hash_algo = config.DEFAULT_HASH_ALGO()
-    if isdir(dir_name):
-        for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
-            if isfile(file_name):
-                logger.debug(f"Hashing {file_name}")
-                hash_file(file_name, hash_algo)
-        hash_digest = hash_algo.hexdigest()
-        remote_hash_cache[dir_name] = hash_digest
-        return hash_digest
-
-
-def is_updated(dir_name, group, remote_hs):
-    # Can't refactor move with the hash caches here
-    dest = appdata['dest_mapping'].get(group, appdata['default_dest'])
-    src_hash = local_hash_cache[join(appdata['source'], dir_name)]
-    logger.debug(f"local_hash is {src_hash}")
-    dst_hash = remote_hs.get(dir_name)
-    remote_hash_cache[join(dest, dir_name)] = dst_hash
-    if appdata['legacy_mode'] or not dst_hash:
-        logger.info("Checking with the slow/old method just in case we missed it...")
-        try:
-            dst_hash = hash_directory(join(dest, dir_name))
-        except FileNotFoundError:
-            dst_hash = ""
-    logger.debug(f"remote_hash is {dst_hash}")
-    known_hash = local_hs.get(dir_name)
-    if not known_hash:
-        logger.debug(f"didn't exist in database: {dir_name=}")
-        logger.info("Not in database; adding...")
-        new_hash = src_hash or dst_hash
-        local_hs.update(dir_name, new_hash)
-        known_hash = new_hash
-    else:
-        logger.debug(f"known_hash is {known_hash}")
-    if not src_hash == known_hash and not dst_hash == known_hash:
-        return "mismatch"
-    elif src_hash and (not dst_hash or not src_hash == known_hash):
-        return "local"
-    elif dst_hash and (not src_hash or not dst_hash == known_hash):
-        return "remote"
-
-
 class SyncManager:
     def __init__(self, api_client: SyncAPI, headless: bool = False):
         self.api_client = api_client
         self.headless = headless
         self.logger = logging.getLogger('syncprojects.main.SyncManager')
+        self.local_hs = HashStore(appdata['local_hash_store'])
+        self.remote_hash_cache = {}
+        self.local_hash_cache = {}
 
     def print(self, *args, **kwargs):
         if not self.headless:
             print(*args, **kwargs)
 
+    def hash_directory(self, dir_name):
+        hash_algo = config.DEFAULT_HASH_ALGO()
+        if isdir(dir_name):
+            for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
+                if isfile(file_name):
+                    logger.debug(f"Hashing {file_name}")
+                    hash_file(file_name, hash_algo)
+            hash_digest = hash_algo.hexdigest()
+            self.remote_hash_cache[dir_name] = hash_digest
+            return hash_digest
+
+    def is_updated(self, dir_name, group, remote_hs):
+        dest = appdata['dest_mapping'].get(group, appdata['default_dest'])
+        src_hash = self.local_hash_cache[join(appdata['source'], dir_name)]
+        logger.debug(f"local_hash is {src_hash}")
+        dst_hash = remote_hs.get(dir_name)
+        self.remote_hash_cache[join(dest, dir_name)] = dst_hash
+        if appdata['legacy_mode'] or not dst_hash:
+            logger.info("Checking with the slow/old method just in case we missed it...")
+            try:
+                dst_hash = self.hash_directory(join(dest, dir_name))
+            except FileNotFoundError:
+                dst_hash = ""
+        logger.debug(f"remote_hash is {dst_hash}")
+        known_hash = self.local_hs.get(dir_name)
+        if not known_hash:
+            logger.debug(f"didn't exist in database: {dir_name=}")
+            logger.info("Not in database; adding...")
+            new_hash = src_hash or dst_hash
+            self.local_hs.update(dir_name, new_hash)
+            known_hash = new_hash
+        else:
+            logger.debug(f"known_hash is {known_hash}")
+        if not src_hash == known_hash and not dst_hash == known_hash:
+            return "mismatch"
+        elif src_hash and (not dst_hash or not src_hash == known_hash):
+            return "local"
+        elif dst_hash and (not src_hash or not dst_hash == known_hash):
+            return "remote"
+
     # TODO: return something relevant
     def sync(self, project: Dict) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")
-        self.logger.debug(f"{local_hs.open()=}")
+        self.logger.debug(f"{self.local_hs.open()=}")
         remote_stores = {}
         songs = [song.get('directory_name') or song['name'] for song in project['songs'] if
                  song['sync_enabled'] and not song['is_locked']]
@@ -153,7 +148,7 @@ class SyncManager:
 
         self.logger.info("Checking local files for changes...")
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-            futures = {executor.submit(hash_directory, join(appdata['source'], s)): s for s in songs}
+            futures = {executor.submit(self.hash_directory, join(appdata['source'], s)): s for s in songs}
             # concurrency bug with cx_freeze here
             for result in concurrent.futures.as_completed(futures):
                 song = futures[result]
@@ -162,12 +157,12 @@ class SyncManager:
                 except FileNotFoundError:
                     self.logger.debug(f"Didn't get hash for {song}")
                     src_hash = ""
-                local_hash_cache[join(appdata['source'], song)] = src_hash
+                self.local_hash_cache[join(appdata['source'], song)] = src_hash
         project_dest = appdata['dest_mapping'].get(project, appdata['default_dest'])
         remote_store_name = join(project_dest, appdata['remote_hash_store'])
         self.logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
-        self.logger.debug(f"{local_hash_cache=}")
-        self.logger.debug(f"{remote_hash_cache=}")
+        self.logger.debug(f"{self.local_hash_cache=}")
+        self.logger.debug(f"{self.remote_hash_cache=}")
         try:
             # Database already opened, contents cached
             remote_hs = remote_stores[remote_store_name]
@@ -185,7 +180,7 @@ class SyncManager:
             if not isdir(join(appdata['source'], song)):
                 self.logger.info("{} does not exist locally.".format(song))
                 not_local = True
-            up = is_updated(song, project, remote_hs)
+            up = self.is_updated(song, project, remote_hs)
             if not_local:
                 up == "remote"
                 handle_new_song(song, remote_hs)
@@ -204,7 +199,7 @@ class SyncManager:
             else:
                 self.logger.info(f"No change for {song}")
                 continue
-            local_hs.update(song, remote_hash_cache[join(src, song)])
+            self.local_hs.update(song, self.remote_hash_cache[join(src, song)])
             try:
                 self.logger.info("Now copying {} from {} ({}) to {} ({})".format(song, up, src,
                                                                                  "remote" if up == "local" else "local",
@@ -214,7 +209,7 @@ class SyncManager:
                         continue
                 else:
                     try:
-                        remote_hs.update(song, remote_hash_cache[join(src, song)])
+                        remote_hs.update(song, self.remote_hash_cache[join(src, song)])
                     except Exception as e:
                         self.logger.error(fmt_error("sync:update_remote_hashes", e))
                         if not appdata['legacy_mode']:
