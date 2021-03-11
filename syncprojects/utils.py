@@ -7,10 +7,8 @@ import re
 import subprocess
 import traceback
 from argparse import ArgumentParser
-from glob import glob
 from os import readlink, symlink
-from os.path import join, isfile, abspath, dirname
-from pathlib import Path
+from os.path import join, isfile
 from tempfile import NamedTemporaryFile
 from typing import Dict
 
@@ -225,17 +223,6 @@ def print_latest_change(directory_path):
         print("~~~")
 
 
-def clean_up():
-    try:
-        current_file = abspath(sys.argv[0])
-        for file in glob(join(dirname(current_file), config.BINARY_CLEAN_GLOB)):
-            try:
-                logger.debug(f"Unlinking {file}.")
-                Path(file).unlink()
-            except:
-                logger.debug(f"Couldn't unlink {file}.")
-    except Exception as e:
-        logger.error(fmt_error("cleanup", e))
 
 
 def fetch_update(url: str) -> str:
@@ -272,9 +259,12 @@ def hash_file(file_path, hash_algo=None, block_size=4096):
 
 
 def mount_persistent_drive():
+    from syncprojects.storage import appdata
     try:
         subprocess.run(
-            ["net", "use", config.SMB_DRIVE, f"\\\\{config.SMB_SERVER}\\{config.SMB_SHARE}", "/persistent:Yes"],
+            ["net", "use", appdata.get('smb_drive', config.SMB_DRIVE),
+             f"\\\\{appdata.get('smb_server', config.SMB_SERVER)}\\{appdata.get('smb_share', config.SMB_SHARE)}",
+             "/persistent:Yes"],
             check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Drive mount failed! {e.output.decode()}")
@@ -283,9 +273,10 @@ def mount_persistent_drive():
 def api_unblock():
     logger.info("Requesting firewall exception... ")
     try:
-        r = requests.post(config.FIREWALL_API_URL + "firewall/unblock",
-                          headers={'X-Auth-Token': config.FIREWALL_API_KEY},
-                          data={'device': config.FIREWALL_NAME})
+        from syncprojects.storage import appdata
+        r = requests.post(appdata['firewall_api_url'] + "firewall/unblock",
+                          headers={'X-Auth-Token': appdata['firewall_api_key']},
+                          data={'device': appdata['firewall_name']})
     except Exception as e:
         logger.error(fmt_error("api_unblock", e))
         logger.warning("failed! Hopefully the sync still works...")

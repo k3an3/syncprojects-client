@@ -1,10 +1,9 @@
-import json
+import logging
 import logging
 import subprocess
 from concurrent.futures.thread import ThreadPoolExecutor
 from os import listdir
 from os.path import join, isfile, islink, isdir
-from pathlib import Path
 
 from progress.bar import IncrementalBar
 
@@ -20,7 +19,8 @@ def copy(dir_name, src, dst, update=True):
 
 
 def changelog(directory):
-    changelog_file = join(config.SOURCE, directory, "changelog.txt")
+    from syncprojects.storage import appdata
+    changelog_file = join(appdata['source'], directory, "changelog.txt")
     if not isfile(changelog_file):
         logger.info("Creating changelog...")
         divider = print_hr("*", config.CHANGELOG_HEADER_WIDTH)
@@ -42,27 +42,6 @@ def changelog(directory):
         logger.warning("Error! Improper formatting in changelog. Please correct it:\n")
         logger.warning(err)
         subprocess.run([config.NOTEPAD, changelog_file])
-
-
-def check_wants():
-    wants_file = join(config.DEFAULT_DEST, 'remote.wants')
-    if isfile(wants_file):
-        try:
-            logger.debug("Loading wants file...")
-            with open(wants_file) as f:
-                wants = json.load(f)
-                logger.debug(f"Wants file contains: {wants}")
-                if wants.get('user') != current_user():
-                    logger.debug("Wants are not from current user, fetching")
-                    Path(wants_file).unlink()
-                    return wants['projects']
-                else:
-                    logger.debug("Wants are from current user, not fetching...")
-        except Exception as e:
-            logger.debug("Exception in wants:" + str(e))
-    else:
-        logger.debug("Didn't find wants file. Skipping...")
-    return []
 
 
 def handle_new_song(song_name, remote_hs):

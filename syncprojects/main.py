@@ -15,7 +15,7 @@ from packaging.version import parse
 from time import sleep
 
 from syncprojects import config as config
-from syncprojects.operations import copy, changelog, check_wants, handle_new_song, copy_tree
+from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
@@ -23,7 +23,7 @@ __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
-    clean_up, update, api_unblock, \
+    update, api_unblock, \
     check_daw_running, parse_args, logger, hash_file
 
 CODENAME = "IT'S IN THE CLOUD"
@@ -38,7 +38,7 @@ BANNER = """
 
 
 def get_local_neural_dsp_amps():
-    with scandir(config.NEURAL_DSP_PATH) as entries:
+    with scandir(appdata['neural_dsp_path']) as entries:
         for entry in entries:
             if entry.is_dir() and entry.name != "Impulse Responses":
                 yield entry.name
@@ -46,8 +46,8 @@ def get_local_neural_dsp_amps():
 
 def push_amp_settings(amp):
     try:
-        copy_tree(join(config.NEURAL_DSP_PATH, amp, "User"),
-                  join(config.AMP_PRESET_DIR, amp, current_user()),
+        copy_tree(join(appdata['neural_dsp_path'], amp, "User"),
+                  join(appdata['amp_preset_sync_dir'], amp, current_user()),
                   single_depth=True,
                   update=True,
                   progress=False)
@@ -57,11 +57,11 @@ def push_amp_settings(amp):
 
 
 def pull_amp_settings(amp):
-    with scandir(join(config.AMP_PRESET_DIR, amp)) as entries:
+    with scandir(join(appdata['amp_preset_sync_dir'], amp)) as entries:
         for entry in entries:
             if entry.name != current_user():
                 copy_tree(entry.path,
-                          join(config.NEURAL_DSP_PATH, amp, "User", entry.name),
+                          join(appdata['neural_dsp_path'], amp, "User", entry.name),
                           update=True,
                           progress=False)
 
@@ -78,7 +78,7 @@ def sync_amps():
     print()
 
 
-local_hs = HashStore(config.LOCAL_HASH_STORE)
+local_hs = HashStore(appdata['local_hash_store'])
 remote_hash_cache = {}
 local_hash_cache = {}
 
@@ -97,12 +97,12 @@ def hash_directory(dir_name):
 
 def is_updated(dir_name, group, remote_hs):
     # Can't refactor move with the hash caches here
-    dest = config.DEST_MAPPING.get(group, config.DEFAULT_DEST)
-    src_hash = local_hash_cache[join(config.SOURCE, dir_name)]
+    dest = appdata['dest_mapping'].get(group, appdata['default_dest'])
+    src_hash = local_hash_cache[join(appdata['source'], dir_name)]
     logger.debug(f"local_hash is {src_hash}")
     dst_hash = remote_hs.get(dir_name)
     remote_hash_cache[join(dest, dir_name)] = dst_hash
-    if config.LEGACY_MODE or not dst_hash:
+    if appdata['legacy_mode'] or not dst_hash:
         logger.info("Checking with the slow/old method just in case we missed it...")
         try:
             dst_hash = hash_directory(join(dest, dir_name))
@@ -181,7 +181,6 @@ def unlock(project, api_client):
 def sync(project):
     logger.info(f"Syncing project {project['name']}...")
     logger.debug(f"{local_hs.open()=}")
-    wants = check_wants()
     remote_stores = {}
     songs = [song.get('directory_name') or song['name'] for song in project['songs']]
     if not songs:
@@ -192,7 +191,7 @@ def sync(project):
 
     logger.info("Checking local files for changes...")
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-        futures = {executor.submit(hash_directory, join(config.SOURCE, s)): s for s in songs}
+        futures = {executor.submit(hash_directory, join(appdata['source'], s)): s for s in songs}
         # concurrency bug with cx_freeze here
         for result in concurrent.futures.as_completed(futures):
             song = futures[result]
@@ -201,9 +200,9 @@ def sync(project):
             except FileNotFoundError:
                 logger.debug(f"Didn't get hash for {song}")
                 src_hash = ""
-            local_hash_cache[join(config.SOURCE, song)] = src_hash
-    project_dest = config.DEST_MAPPING.get(project, config.DEFAULT_DEST)
-    remote_store_name = join(project_dest, config.REMOTE_HASH_STORE)
+            local_hash_cache[join(appdata['source'], song)] = src_hash
+    project_dest = appdata['dest_mapping'].get(project, appdata['default_dest'])
+    remote_store_name = join(project_dest, appdata['remote_hash_store'])
     logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
     logger.debug(f"{local_hash_cache=}")
     logger.debug(f"{remote_hash_cache=}")
@@ -221,27 +220,23 @@ def sync(project):
         print(print_hr())
         logger.info("Syncing {}...".format(song))
         not_local = False
-        if not isdir(join(config.SOURCE, song)):
+        if not isdir(join(appdata['source'], song)):
             logger.info("{} does not exist locally.".format(song))
             not_local = True
         up = is_updated(song, project, remote_hs)
         if not_local:
             up == "remote"
             handle_new_song(song, remote_hs)
-        if song in wants:
-            logger.warning(f"Overriding because {wants['user']} requested this song!!!!")
-            sleep(0.9)
-            up = "local"
         if up == "mismatch":
             print_latest_change(join(project_dest, song))
             logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
             up = get_input_choice(("local", "remote", "skip"))
         if up == "remote":
             src = project_dest
-            dst = config.SOURCE
+            dst = appdata['source']
             print_latest_change(join(project_dest, song))
         elif up == "local":
-            src = config.SOURCE
+            src = appdata['source']
             dst = project_dest
             changelog(song)
         else:
@@ -260,7 +255,7 @@ def sync(project):
                     remote_hs.update(song, remote_hash_cache[join(src, song)])
                 except Exception as e:
                     logger.error(fmt_error("sync:update_remote_hashes", e))
-                    if not config.LEGACY_MODE:
+                    if not appdata['legacy_mode']:
                         logger.critical("Failed to update remote hashes!")
                         raise e
             copy(song, src, dst)
@@ -317,7 +312,6 @@ def main():
             prompt_to_exit()
 
     try:
-        clean_up()
         if new_version := check_update(api_client):
             logger.info(f"New update found! {new_version['version']}")
             update(new_version)
@@ -325,9 +319,9 @@ def main():
         else:
             logger.info("No new updates.")
 
-        if not isdir(config.SOURCE):
-            error.append(f"Error! Source path \"{config.SOURCE}\" not found.")
-        for directory in (config.DEFAULT_DEST, *config.DEST_MAPPING.values()):
+        if not isdir(appdata['source']):
+            error.append(f"Error! Source path \"{appdata['source']}\" not found.")
+        for directory in (appdata['default_dest'], *appdata['dest_mapping'].values()):
             if not (config.DEBUG or isdir(directory)):
                 error.append(f"Error! Destination path {directory} not found.")
         if error:
@@ -335,7 +329,7 @@ def main():
             prompt_to_exit()
 
         check_daw_running()
-        if config.FIREWALL_API_URL and config.FIREWALL_API_KEY:
+        if appdata['firewall_api_url'] and appdata['firewall_api_key']:
             api_unblock()
 
         projects = api_client.get_projects()
