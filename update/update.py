@@ -124,7 +124,7 @@ if __name__ == "__main__":
     logger = logging.getLogger('syncprojects-update')
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(logging.INFO)
     logger.addHandler(ch)
     if args.logpath:
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -132,7 +132,7 @@ if __name__ == "__main__":
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
-        logger.info(f"Logging debug output to {args.logpath}-update.log")
+        logger.info(f"Logging debug output to {args.logpath}/{APP_NAME}-update.log")
     if args.kill_parent:
         if not kill_old_process():
             logger.critical("Couldn't kill old process. Update failed!")
