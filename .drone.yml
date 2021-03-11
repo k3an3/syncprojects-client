@@ -1,0 +1,11 @@
+---
+kind: pipeline
+type: docker
+name: default
+
+steps:
+- name: Test
+  image: python:3.8.0-buster
+  commands:
+  - pip3 install .
+  - pylint -E syncprojects
