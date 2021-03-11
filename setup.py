@@ -1,8 +1,25 @@
+import sys
 try:
     from cx_Freeze import setup, Executable
 except ImportError:
     print("Not using cx_Freeze.")
     from setuptools import setup
+
+requirements = [
+        'requests==2.24.0',
+        'psutil==5.7.2',
+        'packaging==20.9',
+        'progress==1.5',
+        'flask==1.1.2',
+        'pyjwt[crypto]==2.0.1',
+        'pyshortcuts==1.8.0',
+        'cx_Freeze==6.5.3',
+        'sqlitedict==1.7.0',
+        'timeago==1.0.15',
+    ]
+
+if sys.platform == "win32":
+    requirements.append('pywin32==228')
 
 
 def gen_executables():
@@ -35,18 +52,6 @@ setup(
             'include_files': ['benny.ico'],
         }
     },
-    install_requires=[
-        'requests==2.24.0',
-        'psutil==5.7.2',
-        'pywin32==228',
-        'packaging==20.9',
-        'progress==1.5',
-        'flask==1.1.2',
-        'pyjwt[crypto]==2.0.1',
-        'pyshortcuts==1.8.0',
-        'cx_Freeze==6.5.3',
-        'sqlitedict==1.7.0',
-        'timeago==1.0.15',
-    ],
-    executables=gen_executables()
+    install_requires=requirements,
+    executables=gen_executables(),
 )
