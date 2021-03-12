@@ -17,7 +17,7 @@ import jwt
 import psutil
 import requests
 from flask import request, abort
-from jwt import DecodeError, ExpiredSignatureError
+from jwt import DecodeError, ExpiredSignatureError, InvalidSignatureError
 
 import syncprojects.config as config
 
@@ -90,7 +90,7 @@ def verify_data(f):
             else:
                 data = request.args['data']
             return f(jwt.decode(data, config.PUBLIC_KEY, algorithms=["RS256"]), *args, **kwargs)
-        except (ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
+        except (InvalidSignatureError, ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
             if config.DEBUG:
                 raise e
             abort(403)

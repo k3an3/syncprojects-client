@@ -246,7 +246,7 @@ class SyncManager:
         projects = self.api_client.get_all_projects()
         start = datetime.datetime.now()
         print(print_hr('='))
-        SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle(projects)
+        SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
         print(print_hr('='))
         sync_amps()
         print(print_hr('='))
@@ -264,7 +264,7 @@ class SyncManager:
                 "are done.")
             input("[enter] to check in")
             projects = self.api_client.get_all_projects()
-            SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle(projects)
+            SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
         if not len(sys.argv) > 1:
             prompt_to_exit()
 
@@ -309,17 +309,17 @@ def main():
         if not isdir(appdata['source']):
             error.append(f"Error! Source path \"{appdata['source']}\" not found.")
         for directory in (appdata['default_dest'], *appdata['dest_mapping'].values()):
-            if not (config.DEBUG or isdir(directory)):
+            if not isdir(directory):
                 error.append(f"Error! Destination path {directory} not found.")
         if error:
             logger.error(','.join(error))
             prompt_to_exit()
 
         sync = SyncManager(api_client)
-        if parsed_args.service:
-            sync.run_service()
-        else:
+        if parsed_args.tui:
             sync.run_tui()
+        else:
+            sync.run_service()
     except Exception as e:
         logger.critical(f"Fatal error! Provide the help desk (support@syncprojects.app) with the following "
                         f"information:\n{str(e)} {str(traceback.format_exc())}")
