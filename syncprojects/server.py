@@ -19,7 +19,7 @@ if not DEBUG:
 def auth(data):
     app.config['queue'].put(data)
     if request.method == "POST":
-        return '', 204
+        return {'result': 'started', 'task_id': None}
     else:
         return 'Login success. You may now close this tab.'
 
