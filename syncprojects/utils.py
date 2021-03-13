@@ -223,8 +223,6 @@ def print_latest_change(directory_path):
         print("~~~")
 
 
-
-
 def fetch_update(url: str) -> str:
     ntf = NamedTemporaryFile(delete=False)
     resp = requests.get(url)
