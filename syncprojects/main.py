@@ -1,7 +1,6 @@
 import concurrent.futures
 import datetime
 import logging
-import sys
 import traceback
 import uuid
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -10,10 +9,11 @@ from os import scandir
 from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
-from time import sleep
 from typing import Dict
 
+import sys
 from packaging.version import parse
+from time import sleep
 
 from syncprojects import config as config
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler
@@ -230,12 +230,20 @@ class SyncManager:
         self.logger.debug("Starting syncprojects-client service")
         self.headless = True
         while msg := self.api_client.recv_queue.get():
-            {
-                'auth': AuthHandler,
-                'sync': SyncMultipleHandler,
-                'workon': WorkOnHandler,
-                'workdone': WorkDoneHandler,
-            }[msg['msg_type']](msg['task_id'], self.api_client, self).handle(msg['data'])
+            try:
+                {
+                    'auth': AuthHandler,
+                    'sync': SyncMultipleHandler,
+                    'workon': WorkOnHandler,
+                    'workdone': WorkDoneHandler,
+                }[msg['msg_type']](msg['task_id'], self.api_client, self).handle(msg['data'])
+            except Exception as e:
+                self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")
+                # TODO: a little out of style
+                # How do we clean up locks and stuff
+                self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
+                if config.DEBUG:
+                    raise e
 
     def run_tui(self):
         self.logger.debug("Starting sync TUI")

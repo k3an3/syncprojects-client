@@ -32,7 +32,7 @@ class CommandHandler(ABC):
         # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
         project = self.api_client.get_project(song['project'])
         self.logger.debug(f"Requesting lock of project {project['name']}")
-        if get_lock_status(project_lock := self.api_client.lock(project)):
+        if not project['is_locked'] and get_lock_status(project_lock := self.api_client.lock(project)):
             self.logger.debug("Got exclusive lock of project")
             # Not efficient... if there are multiple songs under the same project for some reason,
             # really shouldn't check out the same project multiple times... use case TBD
@@ -77,7 +77,7 @@ class SyncMultipleHandler(CommandHandler):
         if 'projects' in data:
             self.logger.debug("Got request to sync projects")
             for project in data['projects']:
-                if 'songs' not in project:
+                if not isinstance(project, dict):
                     # This request came from the API, we don't have the project data yet
                     project = self.api_client.get_project(project)
                 try:
@@ -87,7 +87,7 @@ class SyncMultipleHandler(CommandHandler):
                 except KeyError:
                     pass
                 if get_lock_status(lock := self.api_client.lock(project)):
-                    self.logger.debug("Project is unlocked; starting sync.")
+                    self.logger.debug(f"Unlocked project {project['name']}; starting sync.")
                     sync = self.sync_manager.sync(project)
                     self.api_client.unlock(project)
                     # TODO: should these be the entire project dict or just id?
