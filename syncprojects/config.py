@@ -58,6 +58,7 @@ BINARY_CLEAN_GLOB = "syncprojects*.exe"
 DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 DAW_EXE_SEARCH_PATH = "C:\\Program Files\\Steinberg"
 
+# Development key
 PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsgFcJbSX6zfOhx/MImB2
 RY3vN1bXKN2dqz15B8os4yO9AdQIKPcNagWXeA/gbY+3YXuS6bexBcZe+B4jltoS

@@ -234,7 +234,7 @@ def print_latest_change(directory_path):
 
 
 def fetch_update(url: str) -> str:
-    ntf = NamedTemporaryFile(delete=False)
+    ntf = NamedTemporaryFile(delete=False
     resp = requests.get(url)
     resp.raise_for_status()
     ntf.write(resp.content)
