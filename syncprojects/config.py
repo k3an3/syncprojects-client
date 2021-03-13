@@ -42,7 +42,6 @@ LOG_LEVEL = 0
 DEFAULT_HASH_ALGO = md5
 # Use hashing over SMB instead of quicker, manifest hashfile
 LEGACY_MODE = False
-# File to keep track of last sync
 NEURAL_DSP_PATH = "C:\\ProgramData\\Neural DSP"
 AMP_PRESET_DIR = "X:\\SomeDir\\Amp Settings"
 

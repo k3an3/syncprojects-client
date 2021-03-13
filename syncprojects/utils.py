@@ -5,7 +5,6 @@ import logging
 import pathlib
 import re
 import subprocess
-import sys
 import traceback
 from argparse import ArgumentParser
 from os import readlink, symlink
@@ -16,6 +15,7 @@ from typing import Dict
 import jwt
 import psutil
 import requests
+import sys
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError, InvalidSignatureError
 
@@ -190,11 +190,10 @@ def move_file_on_reboot(src, dst):
         logger.error(fmt_error("pending file move", e))
 
 
-# TODO: prompt server instead
 def get_input_choice(options):
     formatted_options = '[{}]: '.format('/'.join(["[{}]{}".format(o[0], o[1:]) for o in options]))
     while True:
-        logger.info(formatted_options)
+        logger.warning(formatted_options)
         s = input()
         # match partial option
         for sel in options:
@@ -234,7 +233,7 @@ def print_latest_change(directory_path):
 
 
 def fetch_update(url: str) -> str:
-    ntf = NamedTemporaryFile(delete=False
+    ntf = NamedTemporaryFile(delete=False)
     resp = requests.get(url)
     resp.raise_for_status()
     ntf.write(resp.content)
