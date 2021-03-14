@@ -31,8 +31,9 @@ class CommandHandler(ABC):
         # else is syncing. Then, while project is still locked, set the individual song to locked and unlock the
         # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
         project = self.api_client.get_project(song['project'])
+        song = next(s for s in project['songs'] if s['id'] == song['song'])
         self.logger.debug(f"Requesting lock of project {project['name']}")
-        if not project['is_locked'] and get_lock_status(project_lock := self.api_client.lock(project)):
+        if get_lock_status(project_lock := self.api_client.lock(project)):
             self.logger.debug("Got exclusive lock of project")
             # Not efficient... if there are multiple songs under the same project for some reason,
             # really shouldn't check out the same project multiple times... use case TBD
@@ -40,7 +41,7 @@ class CommandHandler(ABC):
             if get_lock_status(song_lock := self.api_client.lock(song)):
                 self.logger.debug("Got exclusive lock of song, unlocking project")
                 self.api_client.unlock(project)
-                project['songs'] = song
+                project['songs'] = [song]
                 sync = self.sync_manager.sync(project)
                 if unlock:
                     self.logger.debug("Unlocking song")
@@ -50,6 +51,7 @@ class CommandHandler(ABC):
                 self.send_queue({'status': 'progress', 'completed': sync})
             else:
                 # TODO: does this contain enough info about song?
+                self.api_client.unlock(project)
                 self.send_queue({'status': 'error', 'lock': song_lock, 'component': 'song'})
         else:
             # TODO: does this contain enough info about project?

@@ -1,8 +1,7 @@
 import concurrent.futures
-import datetime
 import logging
+import os
 import traceback
-import uuid
 from concurrent.futures.thread import ThreadPoolExecutor
 from glob import glob
 from os import scandir
@@ -11,22 +10,19 @@ from queue import Queue
 from threading import Thread
 from typing import Dict
 
-import sys
 from packaging.version import parse
-from time import sleep
 
 from syncprojects import config as config
-from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler
-from syncprojects.operations import copy, changelog, handle_new_song, copy_tree, check_out
+from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
 __version__ = '2.0'
 
 from syncprojects.api import SyncAPI, login_prompt
+from syncprojects.sync import SyncManager, RandomNoOpSyncManager
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
-    update, api_unblock, \
-    check_daw_running, parse_args, logger, hash_file
+    update, parse_args, logger, hash_file
 
 CODENAME = "IT'S MORE IN THE CLOUD"
 BANNER = """
@@ -80,7 +76,7 @@ def sync_amps():
     print()
 
 
-class SyncManager:
+class CopyFileSyncManager(SyncManager):
     def __init__(self, api_client: SyncAPI, headless: bool = False):
         self.api_client = api_client
         self.headless = headless
@@ -142,7 +138,7 @@ class SyncManager:
                  song['sync_enabled'] and not song['is_locked']]
         if not songs:
             self.logger.warning("No songs, skipping")
-            return
+            return {'status': 'done', 'songs': None}
         self.logger.debug(f"Got songs list {songs}")
         project = project['name']
 
@@ -173,6 +169,7 @@ class SyncManager:
             self.logger.debug(f"{remote_hs.open()=}")
             remote_stores[remote_store_name] = remote_hs
 
+        result = {'status': 'done', 'songs': {}}
         for song in songs:
             self.print(print_hr())
             self.logger.info("Syncing {}...".format(song))
@@ -217,64 +214,16 @@ class SyncManager:
                             raise e
                 copy(song, src, dst)
             except Exception as e:
+                result['songs'][song] = {'result': 'error', 'msg': str(e)}
                 self.logger.error(
                     f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
                     f"from the database.")
-                sleep(2)
             else:
+                result['songs'][song] = {'result': 'success', 'action': up}
                 self.logger.info(f"Successfully synced {song}")
         self.print(print_hr())
         self.print(print_hr('='))
-
-    def run_service(self):
-        self.logger.debug("Starting syncprojects-client service")
-        self.headless = True
-        while msg := self.api_client.recv_queue.get():
-            try:
-                {
-                    'auth': AuthHandler,
-                    'sync': SyncMultipleHandler,
-                    'workon': WorkOnHandler,
-                    'workdone': WorkDoneHandler,
-                }[msg['msg_type']](msg['task_id'], self.api_client, self).handle(msg['data'])
-            except Exception as e:
-                self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")
-                # TODO: a little out of style
-                # How do we clean up locks and stuff
-                self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
-                if config.DEBUG:
-                    raise e
-
-    def run_tui(self):
-        self.logger.debug("Starting sync TUI")
-        check_daw_running()
-        if appdata['firewall_api_url'] and appdata['firewall_api_key']:
-            api_unblock()
-
-        projects = self.api_client.get_all_projects()
-        start = datetime.datetime.now()
-        print(print_hr('='))
-        SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
-        print(print_hr('='))
-        sync_amps()
-        print(print_hr('='))
-        self.logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
-
-        self.logger.info(
-            "Would you like to check out the studio for up to 8 hours? This will prevent other users from making "
-            "edits, as to avoid conflicts.")
-        if get_input_choice(("yes", "No")) == "yes":
-            # TODO: don't check out all projects
-            for project in projects:
-                check_out(project, self.api_client)
-            self.logger.info(
-                "Alright, it's all yours. This window will stay open. Please remember to check in when you "
-                "are done.")
-            input("[enter] to check in")
-            projects = self.api_client.get_all_projects()
-            SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
-        if not len(sys.argv) > 1:
-            prompt_to_exit()
+        return result
 
 
 def check_update(api_client: SyncAPI) -> Dict:
@@ -288,6 +237,7 @@ def check_update(api_client: SyncAPI) -> Dict:
 
 def main():
     error = []
+    test = os.getenv('TEST', '0') == '1'
     main_queue = Queue()
     server_queue = Queue()
 
@@ -314,16 +264,20 @@ def main():
         else:
             logger.info("No new updates.")
 
-        if not isdir(appdata['source']):
+        if not isdir(appdata['source']) and not test:
             error.append(f"Error! Source path \"{appdata['source']}\" not found.")
         for directory in (appdata['default_dest'], *appdata['dest_mapping'].values()):
-            if not isdir(directory):
+            if not isdir(directory) and not test:
                 error.append(f"Error! Destination path {directory} not found.")
         if error:
             logger.error(','.join(error))
             prompt_to_exit()
 
-        sync = SyncManager(api_client)
+        if test:
+            sync = RandomNoOpSyncManager(api_client)
+        else:
+            sync = CopyFileSyncManager(api_client)
+
         if parsed_args.tui:
             sync.run_tui()
         else:

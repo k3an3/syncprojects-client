@@ -27,13 +27,13 @@ def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
 
 
 def queue_get() -> Dict:
-    results = []
+    queue_results = []
     while True:
         try:
-            results.append(app.config['server_queue'].get_nowait())
+            queue_results.append(app.config['server_queue'].get_nowait())
         except Empty:
             break
-    return results
+    return queue_results
 
 
 def gen_task_id() -> str:

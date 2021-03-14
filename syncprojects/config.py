@@ -69,6 +69,8 @@ YQIDAQAB
 -----END PUBLIC KEY-----
 """
 
+SIGNING_PUBLIC_KEY = ""
+
 DEBUG = False
 LOGIN_MODE = "web"  # prompt, web
 SYNCPROJECTS_URL = "https://syncprojects.example.com/"

@@ -362,3 +362,7 @@ def find_daw_exe(search: bool = False) -> str:
             return process_running(config.DAW_PROCESS_REGEX).exe()
         except AttributeError:
             return None
+
+
+def verify_signature(data: str):
+    pass

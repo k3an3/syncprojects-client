@@ -1,12 +1,12 @@
 import datetime
 import getpass
 import logging
+import webbrowser
+from queue import Queue
 from typing import Dict
 
 import requests
 import sys
-import webbrowser
-from queue import Queue
 from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
@@ -95,7 +95,7 @@ class SyncAPI:
         return self._request(f"projects/{project_id}/")
 
     def _lock_request(self, obj: dict, lock: bool = False, force: bool = True, reason: str = "",
-                      until: datetime.datetime = None, mode: str = 'project'):
+                      until: datetime.datetime = None):
         json = {}
         if force:
             json['force'] = force
@@ -104,11 +104,13 @@ class SyncAPI:
         if until:
             json['until'] = until.timestamp()
         self.logger.debug(f"Submitting {'' if lock else 'UN'}LOCK request for {obj['name']} with config {json}")
-        if mode == 'project':
-            return self._request(f"projects/{obj['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
-        elif mode == 'song':
-            json['song'] == obj['id']
+        if 'project' in obj:
+            # obj is song
+            json['song'] = obj['id']
             return self._request(f"projects/{obj['project']}/lock/", method='PUT' if lock else 'DELETE', json=json)
+        elif 'songs' in obj:
+            # obj is project
+            return self._request(f"projects/{obj['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
         else:
             raise NotImplementedError()
 
