@@ -49,7 +49,6 @@ MAX_WORKERS = 25
 NOTEPAD = which("notepad")
 DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 PROJECT_GLOB = "*.cpr"
-BINARY_CLEAN_GLOB = "syncprojects*.exe"
 
 # Development key
 PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----

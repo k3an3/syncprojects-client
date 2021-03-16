@@ -7,7 +7,7 @@ from tkinter.messagebox import showwarning
 class SetupUI:
     def __init__(self):
         self.window = tk.Tk()
-        self.window.title = "Syncprojects-client Setup"
+        self.window.title("Syncprojects-client Setup")
         self.sync_source_button = None
         self.audio_sync_source_button = None
         self.sync_source_dir = None
@@ -71,7 +71,8 @@ class SetupUI:
             self.logger.debug("Quit button pressed. Fields are the same.")
         else:
             self.logger.debug("Quit button pressed. Exiting")
-            self.window.quit()
+            self.window.destroy()
+            # self.window.quit()
 
 
 if __name__ == "__main__":

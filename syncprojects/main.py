@@ -16,11 +16,12 @@ from packaging.version import parse
 from time import sleep
 
 from syncprojects import config as config
+from syncprojects.config import LOCAL_HASH_STORE
 from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-__version__ = '1.6'
+__version__ = '1.6.1'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.ui.first_start import SetupUI
@@ -80,7 +81,7 @@ def sync_amps():
     print()
 
 
-local_hs = HashStore(appdata['local_hash_store'])
+local_hs = HashStore(LOCAL_HASH_STORE)
 remote_hash_cache = {}
 local_hash_cache = {}
 
@@ -303,10 +304,14 @@ def first_time_run():
     setup = SetupUI()
     logger.info("Running first time setup")
     setup.run()
-    appdata['source'] = setup.sync_source_dir
-    appdata['audio_sync_dir'] = setup.audio_sync_source_dir
     logger.info("First time setup complete")
     logger.debug(f"{setup.sync_source_dir=} {setup.audio_sync_source_dir=}")
+    if not setup.sync_source_dir and not setup.audio_sync_source_dir:
+        logger.error("Required settings weren't provided; quitting.")
+        sys.exit(1)
+    appdata['source'] = setup.sync_source_dir
+    appdata['audio_sync_dir'] = setup.audio_sync_source_dir
+    appdata['first_time_setup_complete'] = True
 
 
 def main():
