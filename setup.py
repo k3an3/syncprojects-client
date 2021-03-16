@@ -52,7 +52,7 @@ setup(
     options={
         'build_exe': {
             # Slim down build
-            'excludes': ['tkinter', 'unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
+            'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
             # Won't run correctly without
             'packages': ['jinja2', 'win32file'],
             'include_files': ['benny.ico'],

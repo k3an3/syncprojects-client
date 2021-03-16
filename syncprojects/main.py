@@ -10,19 +10,21 @@ from queue import Queue
 from threading import Thread
 from typing import Dict
 
+import sys
 from packaging.version import parse
 
 from syncprojects import config as config
+from syncprojects.api import SyncAPI, login_prompt
+from syncprojects.config import LOCAL_HASH_STORE
 from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
-
-__version__ = '2.0'
-
-from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.sync import SyncManager, RandomNoOpSyncManager
+from syncprojects.ui.first_start import SetupUI
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
     update, parse_args, logger, hash_file
+
+__version__ = '2.0'
 
 CODENAME = "IT'S MORE IN THE CLOUD"
 BANNER = """
@@ -81,7 +83,7 @@ class CopyFileSyncManager(SyncManager):
         self.api_client = api_client
         self.headless = headless
         self.logger = logging.getLogger('syncprojects.main.SyncManager')
-        self.local_hs = HashStore(appdata['local_hash_store'])
+        self.local_hs = HashStore(LOCAL_HASH_STORE)
         self.remote_hash_cache = {}
         self.local_hash_cache = {}
 
@@ -235,11 +237,29 @@ def check_update(api_client: SyncAPI) -> Dict:
         return latest_version
 
 
+def first_time_run():
+    setup = SetupUI()
+    logger.info("Running first time setup")
+    setup.run()
+    logger.info("First time setup complete")
+    logger.debug(f"{setup.sync_source_dir=} {setup.audio_sync_source_dir=}")
+    if not setup.sync_source_dir and not setup.audio_sync_source_dir:
+        logger.error("Required settings weren't provided; quitting.")
+        sys.exit(1)
+    appdata['source'] = setup.sync_source_dir
+    appdata['audio_sync_dir'] = setup.audio_sync_source_dir
+    appdata['first_time_setup_complete'] = True
+
+
 def main():
     error = []
     test = os.getenv('TEST', '0') == '1'
     main_queue = Queue()
     server_queue = Queue()
+
+    # Check for first time setup needed
+    if not appdata.get('first_time_setup_complete'):
+        first_time_run()
 
     # init API client
     api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), main_queue,
@@ -260,7 +280,7 @@ def main():
         if new_version := check_update(api_client):
             logger.info(f"New update found! {new_version['version']}")
             update(new_version)
-            raise SystemExit
+            sys.exit(0)
         else:
             logger.info("No new updates.")
 
