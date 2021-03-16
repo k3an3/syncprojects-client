@@ -96,7 +96,6 @@ def get_verified_data(f):
 
 def migrate_old_settings(new_config):
     new_config.update({
-        'source': config.SOURCE,
         'default_dest': config.DEFAULT_DEST,
         'local_hash_store': config.LOCAL_HASH_STORE,
         'remote_hash_store': config.REMOTE_HASH_STORE,
@@ -108,7 +107,6 @@ def migrate_old_settings(new_config):
         'firewall_name': config.FIREWALL_NAME,
         'dest_mapping': config.DEST_MAPPING,
         'mutex_path': config.MUTEX_PATH,
-        'update_path_glob': config.UPDATE_PATH_GLOB,
         'telemetry_file': config.TELEMETRY,
         'amp_preset_sync_dir': config.AMP_PRESET_DIR,
         'neural_dsp_path': config.NEURAL_DSP_PATH,

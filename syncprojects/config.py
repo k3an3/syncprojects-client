@@ -8,13 +8,13 @@ from shutil import which
 # User Configuration #
 ######################
 # The directory where you store your Cubase project files.
-SOURCE = "D:\\Music\\Studio"
+SOURCE = ""
 # The path to the network drive containing shared projects.
-DEFAULT_DEST = "X:\\studio"
+DEFAULT_DEST = "X:\\"
 # Where the config file will be stored. On each line of this file
 # should be a directory name that you wish to sync from the "source" directory.
 # Where the hashes should be stored. Do not modify this file!
-LOCAL_HASH_STORE = expanduser("~/Desktop/studio_hashes.txt")
+LOCAL_HASH_STORE = expanduser("~/Documents/studio_hashes.txt")
 REMOTE_HASH_STORE = "hashes"
 SMB_DRIVE = "X:"
 SMB_SERVER = "mydomain.example.com"
@@ -31,13 +31,7 @@ FIREWALL_NAME = "My Firewall"
 DEST_MAPPING = {
     'ASF': 'X:\\SomeDir',
 }
-# "Mutex" that ensures only one instance runs at once.
-MUTEX_PATH = "X:\\SomeDir\\sync.lock"
-# Which text editor to use for editing the changelog.
-# The width of the changelog header in new files.
-UPDATE_PATH_GLOB = ""
 TELEMETRY = ""
-LOG_LEVEL = 0
 # Number of threads
 DEFAULT_HASH_ALGO = md5
 # Use hashing over SMB instead of quicker, manifest hashfile

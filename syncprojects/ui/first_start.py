@@ -1,9 +1,10 @@
+import logging
 import tkinter as tk
 from tkinter.filedialog import askdirectory
 from tkinter.messagebox import showwarning
 
 
-class SetupWindow:
+class SetupUI:
     def __init__(self):
         self.window = tk.Tk()
         self.window.title = "Syncprojects-client Setup"
@@ -11,6 +12,7 @@ class SetupWindow:
         self.audio_sync_source_button = None
         self.sync_source_dir = None
         self.audio_sync_source_dir = None
+        self.logger = logging.getLogger('syncprojects.ui.first_start.SetupUI')
 
     def get_sync_dir(self):
         result = askdirectory(parent=self.window, title="Select the top level sync folder")
@@ -26,6 +28,7 @@ class SetupWindow:
             self.audio_sync_source_dir = result
 
     def run(self):
+        self.logger.debug("Building main window...")
         frame_a = tk.Frame()
         frame_b = tk.Frame()
         frame_c = tk.Frame()
@@ -54,20 +57,24 @@ class SetupWindow:
 
         frame_c.pack()
 
+        self.logger.debug("Entering main loop...")
         self.window.mainloop()
 
     def quit(self):
         if not self.sync_source_dir and not self.audio_sync_source_dir:
             showwarning(master=self.window, title="Missing Information!",
                         message="Please set all fields correctly.")
+            self.logger.debug("Quit button pressed. Fields not completed.")
         elif self.sync_source_dir == self.audio_sync_source_dir:
             showwarning(master=self.window, title="Duplicate Entries!",
                         message="Please ensure the same folder was not chosen for both fields.")
+            self.logger.debug("Quit button pressed. Fields are the same.")
         else:
+            self.logger.debug("Quit button pressed. Exiting")
             self.window.quit()
 
 
 if __name__ == "__main__":
     # testing only
-    ui = SetupWindow()
+    ui = SetupUI()
     ui.run()

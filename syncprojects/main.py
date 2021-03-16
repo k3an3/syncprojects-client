@@ -23,6 +23,7 @@ from syncprojects.storage import appdata, HashStore
 __version__ = '1.6'
 
 from syncprojects.api import SyncAPI, login_prompt
+from syncprojects.ui.first_start import SetupUI
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
     update, api_unblock, \
     check_daw_running, parse_args, logger, hash_file
@@ -298,9 +299,23 @@ def check_update(api_client: SyncAPI) -> Dict:
         return latest_version
 
 
+def first_time_run():
+    setup = SetupUI()
+    logger.info("Running first time setup")
+    setup.run()
+    appdata['source'] = setup.sync_source_dir
+    appdata['audio_sync_dir'] = setup.audio_sync_source_dir
+    logger.info("First time setup complete")
+    logger.debug(f"{setup.sync_source_dir=} {setup.audio_sync_source_dir=}")
+
+
 def main():
     error = []
     queue = Queue()
+
+    # Check for first time setup needed
+    if not appdata.get('first_time_setup_complete'):
+        first_time_run()
 
     # init API client
     api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), queue)
