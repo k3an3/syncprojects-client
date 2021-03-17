@@ -8,7 +8,7 @@ import subprocess
 import traceback
 from argparse import ArgumentParser
 from os import readlink, symlink
-from os.path import join, isfile
+from os.path import join, isfile, dirname
 from tempfile import NamedTemporaryFile
 from typing import Dict
 
@@ -244,7 +244,7 @@ def update(new_version: Dict):
     package = fetch_update(new_version['package'])
     from syncprojects.storage import appdata
     logpath = appdata['telemetry_file']
-    logger.debug(f"Starting updater: `{updater} {package} {logpath} -d`")
+    logger.debug(f"Starting updater: `{updater} {package} {dirname(logpath)} -d`")
     subprocess.Popen([updater, package, logpath, "-d"])
 
 

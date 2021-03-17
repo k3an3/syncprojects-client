@@ -26,7 +26,7 @@ from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_inpu
 
 __version__ = '2.0'
 
-CODENAME = "IT'S MORE IN THE CLOUD"
+CODENAME = "IT'S EVEN MORE IN THE CLOUD"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝
