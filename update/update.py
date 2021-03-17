@@ -128,11 +128,16 @@ if __name__ == "__main__":
     logger.addHandler(ch)
     if args.logpath:
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.FileHandler(join(args.logpath, f"{APP_NAME}-update.log"))
+        try:
+            fh = logging.FileHandler(join(args.logpath, f"{APP_NAME}-update.log"))
+        except FileNotFoundError:
+            logger.error(f"{args.logpath=} invalid; writing to CWD...")
+        fh = logging.FileHandler(f"{APP_NAME}-update.log")
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
         logger.info(f"Logging debug output to {args.logpath}/{APP_NAME}-update.log")
+
     if args.kill_parent:
         if not kill_old_process():
             logger.critical("Couldn't kill old process. Update failed!")

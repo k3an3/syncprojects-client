@@ -21,7 +21,7 @@ from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-__version__ = '1.6.1'
+__version__ = '1.6.2'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.ui.first_start import SetupUI
