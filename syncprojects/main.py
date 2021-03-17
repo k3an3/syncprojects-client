@@ -196,7 +196,7 @@ class CopyFileSyncManager(SyncManager):
                 dst = project_dest
                 changelog(song)
             else:
-                self.logger.info(f"No change for {song}")
+                self.logger.info(f"No action for {song}")
                 continue
             self.local_hs.update(song, self.remote_hash_cache[join(src, song)])
             try:

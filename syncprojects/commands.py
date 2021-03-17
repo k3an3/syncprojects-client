@@ -50,6 +50,8 @@ class CommandHandler(ABC):
                 else:
                     self.logger.debug("Not unlocking song")
                 self.send_queue({'status': 'progress', 'completed': sync})
+                if sync['songs']:
+                    return song
             else:
                 # TODO: does this contain enough info about song?
                 self.api_client.unlock(project)
@@ -57,7 +59,6 @@ class CommandHandler(ABC):
         else:
             # TODO: does this contain enough info about project?
             self.send_queue({'status': 'error', 'lock': project_lock, 'component': 'project'})
-        return song
 
 
 class AuthHandler(CommandHandler):
@@ -119,18 +120,20 @@ class WorkOnHandler(CommandHandler):
             return
         """
         # Keep song checked out afterwards
-        song = self.lock_and_sync_song(song, unlock=False)
-        # TODO: DAW agnostic?
-        # just guessing at which file to open
-        project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
-        try:
-            latest_project_file = max(project_files, key=getctime)
-        except ValueError:
-            self.send_queue({'status': 'error'})
-            return
-        self.logger.debug(f"Resolved project file to {latest_project_file}")
-        open_default_app(latest_project_file)
-        self.send_queue({'status': 'complete'})
+        if song := self.lock_and_sync_song(song, unlock=False):
+            # TODO: DAW agnostic?
+            # just guessing at which file to open
+            project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
+            try:
+                latest_project_file = max(project_files, key=getctime)
+            except ValueError:
+                self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
+                return
+            self.logger.debug(f"Resolved project file to {latest_project_file}")
+            open_default_app(latest_project_file)
+            self.send_queue({'status': 'complete'})
+        else:
+            self.send_queue({'status': 'error', 'msg': 'no sync'})
 
 
 class WorkDoneHandler(CommandHandler):
