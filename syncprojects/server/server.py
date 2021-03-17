@@ -1,11 +1,9 @@
 import logging
-from queue import Empty
-from typing import Dict
-from uuid import uuid4
 
 from flask import Flask, request, cli
 
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
+from syncprojects.server.utils import queue_put, queue_get, response_started
 from syncprojects.utils import verify_data
 
 app = Flask(__name__)
@@ -17,31 +15,6 @@ if not DEBUG:
     cli.show_server_banner = lambda *_: None
 
 RESP_BAD_DATA = {'result': 'error'}, 400
-
-
-def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
-    task_id = gen_task_id()
-    if not dry_run:
-        app.config['main_queue'].put({'msg_type': name, 'task_id': task_id, 'data': data})
-    return task_id
-
-
-def queue_get() -> Dict:
-    queue_results = []
-    while True:
-        try:
-            queue_results.append(app.config['server_queue'].get_nowait())
-        except Empty:
-            break
-    return queue_results
-
-
-def gen_task_id() -> str:
-    return str(uuid4())
-
-
-def response_started(task_id: str) -> Dict:
-    return {'result': 'started', 'task_id': task_id}
 
 
 @app.route('/api/auth', methods=['GET', 'POST'])
@@ -57,6 +30,12 @@ def auth(data):
 @app.route('/api/results')
 def results():
     return {'results': queue_get()}
+
+
+@app.route('/api/update', methods=['POST'])
+@verify_data
+def update_client():
+    return {'result': 'success', 'task_id': queue_put('update')}
 
 
 @app.route('/api/sync', methods=['POST'])

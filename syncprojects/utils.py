@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 from os import readlink, symlink
 from os.path import join, isfile, dirname
 from tempfile import NamedTemporaryFile
+from threading import Thread
 from typing import Dict
 
 import jwt
@@ -18,6 +19,8 @@ import requests
 import sys
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError, InvalidSignatureError
+from packaging.version import parse
+from time import sleep
 
 import syncprojects.config as config
 
@@ -364,3 +367,29 @@ def find_daw_exe(search: bool = False) -> str:
 
 def verify_signature(data: str):
     pass
+
+
+def check_update(api_client) -> Dict:
+    try:
+        latest_version = api_client.get_updates()[-1]
+    except IndexError:
+        return None
+    from syncprojects.main import __version__
+    if parse(__version__) < parse(latest_version['version']):
+        logger.info(f"New update found! {latest_version['version']}")
+        update(latest_version)
+        sys.exit(0)
+    else:
+        logger.info("No new updates.")
+
+
+class UpdateThread(Thread):
+    def __init__(self, api_client):
+        super().__init__(daemon=True)
+        self.api_client = api_client
+
+    def run(self):
+        while True:
+            sleep(config.UPDATE_INTERVAL)
+            logger.debug("Checking for update...")
+            check_update(self.api_client)

@@ -11,18 +11,17 @@ from threading import Thread
 from typing import Dict
 
 import sys
-from packaging.version import parse
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.config import LOCAL_HASH_STORE
 from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
-from syncprojects.server import app
+from syncprojects.server.server import app
 from syncprojects.storage import appdata, HashStore
 from syncprojects.sync import SyncManager, RandomNoOpSyncManager
 from syncprojects.ui.first_start import SetupUI
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
-    update, parse_args, logger, hash_file
+    parse_args, logger, hash_file, check_update, UpdateThread
 
 __version__ = '2.0'
 
@@ -194,9 +193,11 @@ class CopyFileSyncManager(SyncManager):
             elif up == "local":
                 src = appdata['source']
                 dst = project_dest
-                changelog(song)
+                if not self.headless:
+                    changelog(song)
             else:
                 self.logger.info(f"No action for {song}")
+                result['songs'][song] = {'result': 'success', 'action': up}
                 continue
             self.local_hs.update(song, self.remote_hash_cache[join(src, song)])
             try:
@@ -226,15 +227,6 @@ class CopyFileSyncManager(SyncManager):
         self.print(print_hr())
         self.print(print_hr('='))
         return result
-
-
-def check_update(api_client: SyncAPI) -> Dict:
-    try:
-        latest_version = api_client.get_updates()[-1]
-    except IndexError:
-        return None
-    if parse(__version__) < parse(latest_version['version']):
-        return latest_version
 
 
 def first_time_run():
@@ -271,18 +263,17 @@ def main():
     web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
     web_thread.start()
 
+    # Start update thread
+    update_thread = UpdateThread(api_client)
+    update_thread.start()
+
     if not api_client.has_tokens():
         if not login_prompt(api_client):
             logger.error("Couldn't log in with provided credentials.")
             prompt_to_exit()
 
     try:
-        if new_version := check_update(api_client):
-            logger.info(f"New update found! {new_version['version']}")
-            update(new_version)
-            sys.exit(0)
-        else:
-            logger.info("No new updates.")
+        check_update()
 
         if not isdir(appdata['source']) and not test:
             error.append(f"Error! Source path \"{appdata['source']}\" not found.")

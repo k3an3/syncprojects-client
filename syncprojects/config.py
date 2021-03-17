@@ -50,6 +50,7 @@ PROJECT_GLOB = "*.cpr"
 BINARY_CLEAN_GLOB = "syncprojects*.exe"
 DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 DAW_EXE_SEARCH_PATH = "C:\\Program Files\\Steinberg"
+UPDATE_INTERVAL = 3600 * 12
 
 # Development key
 PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----

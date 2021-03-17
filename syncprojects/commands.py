@@ -7,7 +7,7 @@ from typing import Dict
 from syncprojects.api import SyncAPI
 from syncprojects.operations import get_lock_status
 from syncprojects.storage import appdata
-from syncprojects.utils import open_default_app
+from syncprojects.utils import open_default_app, check_update
 
 logger = logging.getLogger('syncprojects.commands')
 
@@ -50,8 +50,7 @@ class CommandHandler(ABC):
                 else:
                     self.logger.debug("Not unlocking song")
                 self.send_queue({'status': 'progress', 'completed': sync})
-                if sync['songs']:
-                    return song
+                return song
             else:
                 # TODO: does this contain enough info about song?
                 self.api_client.unlock(project)
@@ -120,20 +119,18 @@ class WorkOnHandler(CommandHandler):
             return
         """
         # Keep song checked out afterwards
-        if song := self.lock_and_sync_song(song, unlock=False):
-            # TODO: DAW agnostic?
-            # just guessing at which file to open
-            project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
-            try:
-                latest_project_file = max(project_files, key=getctime)
-            except ValueError:
-                self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
-                return
-            self.logger.debug(f"Resolved project file to {latest_project_file}")
-            open_default_app(latest_project_file)
-            self.send_queue({'status': 'complete'})
-        else:
-            self.send_queue({'status': 'error', 'msg': 'no sync'})
+        self.lock_and_sync_song(song, unlock=False)
+        # TODO: DAW agnostic?
+        # just guessing at which file to open
+        project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
+        try:
+            latest_project_file = max(project_files, key=getctime)
+        except ValueError:
+            self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
+            return
+        self.logger.debug(f"Resolved project file to {latest_project_file}")
+        open_default_app(latest_project_file)
+        self.send_queue({'status': 'complete'})
 
 
 class WorkDoneHandler(CommandHandler):
@@ -143,3 +140,8 @@ class WorkDoneHandler(CommandHandler):
         project['songs'] = song
         sync = self.sync_manager.sync(project)
         self.send_queue({'status': 'complete', 'sync': sync})
+
+
+class UpdateHandler(CommandHandler):
+    def handle(self, data: Dict):
+        check_update(self.api_client)
