@@ -1,6 +1,7 @@
+import glob
 import logging
 from abc import ABC, abstractmethod
-from os.path import join
+from os.path import join, getctime
 from typing import Dict
 
 from syncprojects.api import SyncAPI
@@ -26,7 +27,7 @@ class CommandHandler(ABC):
         self.api_client.send_queue.put({'task_id': self.task_id, **response_data})
 
     # TODO: does this really belong here?
-    def lock_and_sync_song(self, song: Dict, unlock: bool = True) -> None:
+    def lock_and_sync_song(self, song: Dict, unlock: bool = True) -> Dict:
         # Thoughts on this: to avoid conflicts, we first lock the entire project, which will also ensure nobody
         # else is syncing. Then, while project is still locked, set the individual song to locked and unlock the
         # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
@@ -38,7 +39,7 @@ class CommandHandler(ABC):
             # Not efficient... if there are multiple songs under the same project for some reason,
             # really shouldn't check out the same project multiple times... use case TBD
             self.logger.debug(f"Requesting lock of project {project['name']} song {song['name']}")
-            if get_lock_status(song_lock := self.api_client.lock(song)):
+            if get_lock_status(song_lock := self.api_client.lock(song, reason="workon")):
                 self.logger.debug("Got exclusive lock of song, unlocking project")
                 self.api_client.unlock(project)
                 project['songs'] = [song]
@@ -56,6 +57,7 @@ class CommandHandler(ABC):
         else:
             # TODO: does this contain enough info about project?
             self.send_queue({'status': 'error', 'lock': project_lock, 'component': 'project'})
+        return song
 
 
 class AuthHandler(CommandHandler):
@@ -117,8 +119,18 @@ class WorkOnHandler(CommandHandler):
             return
         """
         # Keep song checked out afterwards
-        self.lock_and_sync_song(song, unlock=False)
-        open_default_app(join(appdata['source'], song.get('directory_name') or song['name']))
+        song = self.lock_and_sync_song(song, unlock=False)
+        # TODO: DAW agnostic?
+        # just guessing at which file to open
+        project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
+        try:
+            latest_project_file = max(project_files, key=getctime)
+        except ValueError:
+            self.send_queue({'status': 'error'})
+            return
+        self.logger.debug(f"Resolved project file to {latest_project_file}")
+        open_default_app(latest_project_file)
+        self.send_queue({'status': 'complete'})
 
 
 class WorkDoneHandler(CommandHandler):

@@ -75,7 +75,7 @@ def open_default_app(path: str):
     if sys.platform == "win32":
         # pylint: disable=no-name-in-module
         from os import startfile
-        startfile(path)
+        return startfile(path)
     return subprocess.Popen(['open', path])
 
 
@@ -89,7 +89,9 @@ def verify_data(f):
                 data = request.get_json()['data']
             else:
                 data = request.args['data']
-            return f(jwt.decode(data, config.PUBLIC_KEY, algorithms=["RS256"]), *args, **kwargs)
+            decoded = jwt.decode(data, config.PUBLIC_KEY, algorithms=["RS256"])
+            decoded.pop('exp', None)
+            return f(decoded, *args, **kwargs)
         except (InvalidSignatureError, ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
             if config.DEBUG:
                 raise e

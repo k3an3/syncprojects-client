@@ -79,7 +79,7 @@ def ping():
 @app.route('/api/workon', methods=['POST'])
 @verify_data
 def work_on(data):
-    if 'project' in data:
+    if 'song' in data:
         return response_started(queue_put('workon', data))
     return RESP_BAD_DATA
 
@@ -87,7 +87,7 @@ def work_on(data):
 @app.route('/api/workdone', methods=['POST'])
 @verify_data
 def work_done(data):
-    if 'project' in data:
+    if 'song' in data:
         return response_started(queue_put('workdone', data))
     return RESP_BAD_DATA
 
