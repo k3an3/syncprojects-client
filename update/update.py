@@ -5,6 +5,9 @@ from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
 from os.path import isfile, join
 from tempfile import NamedTemporaryFile
+from threading import Thread
+from tkinter import Tk, ttk, BOTH, TOP, Label
+from tkinter.ttk import Frame
 from zipfile import ZipFile
 
 import psutil
@@ -109,6 +112,48 @@ def fetch_update(url: str) -> str:
     return ntf.name
 
 
+def run_ui(root):
+    ft = Frame()
+    label = Label(text=f"Updating {APP_NAME}...")
+    label.pack()
+    progress_bar = ttk.Progressbar(ft, orient='horizontal', mode='indeterminate')
+    progress_bar.pack(expand=True, fill=BOTH, side=TOP)
+    progress_bar.start(10)
+    ft.pack(expand=True, fill=BOTH, side=TOP)
+    root.mainloop()
+
+
+def update(root):
+    if args.kill_parent:
+        if not kill_old_process():
+            logger.critical("Couldn't kill old process. Update failed!")
+            sys.exit(-1)
+
+    if args.update_archive.startswith('http'):
+        logger.info("Fetching update from URL...")
+        archive_path = fetch_update(args.update_archive)
+    else:
+        logger.info("Update is local archive")
+        archive_path = args.update_archive
+
+    try:
+        install_program(archive_path)
+    except Exception as e:
+        logger.critical(f"Failed to install update! {e}\n{traceback.print_exc()}")
+        sys.exit(-1)
+    if sys.platform == "win32":
+        logger.info("Installing to start menu and desktop...")
+        create_shortcut()
+
+    if args.delete_archive:
+        logger.debug("Unlinking archive file...")
+        unlink(archive_path)
+
+    logger.info("Starting new program...")
+    root.destroy()
+    start_program()
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('update_archive', nargs='?', default=PACKAGE)
@@ -138,30 +183,8 @@ if __name__ == "__main__":
         logger.addHandler(fh)
         logger.info(f"Logging debug output to {args.logpath}/{APP_NAME}-update.log")
 
-    if args.kill_parent:
-        if not kill_old_process():
-            logger.critical("Couldn't kill old process. Update failed!")
-            sys.exit(-1)
+    tk = Tk()
+    tk.title(f"{APP_NAME.title()} updater")
 
-    if args.update_archive.startswith('http'):
-        logger.info("Fetching update from URL...")
-        archive_path = fetch_update(args.update_archive)
-    else:
-        logger.info("Update is local archive")
-        archive_path = args.update_archive
-
-    try:
-        install_program(archive_path)
-    except Exception as e:
-        logger.critical(f"Failed to install update! {e}\n{traceback.print_exc()}")
-        sys.exit(-1)
-    if sys.platform == "win32":
-        logger.info("Installing to start menu and desktop...")
-        create_shortcut()
-
-    if args.delete_archive:
-        logger.debug("Unlinking archive file...")
-        unlink(archive_path)
-
-    logger.info("Starting new program...")
-    start_program()
+    update_thread = Thread(target=update, args=(tk,))
+    run_ui(tk)
