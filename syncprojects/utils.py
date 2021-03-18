@@ -387,9 +387,16 @@ class UpdateThread(Thread):
     def __init__(self, api_client):
         super().__init__(daemon=True)
         self.api_client = api_client
+        self.next_check = None
+        self.update_next_check()
+
+    def update_next_check(self):
+        self.next_check = datetime.datetime.now() + datetime.timedelta(seconds=config.UPDATE_INTERVAL)
 
     def run(self):
         while True:
-            sleep(config.UPDATE_INTERVAL)
-            logger.debug("Checking for update...")
-            check_update(self.api_client)
+            if datetime.datetime.now() >= self.next_check:
+                logger.debug("Checking for update...")
+                check_update(self.api_client)
+                self.update_next_check()
+        sleep(3600)
