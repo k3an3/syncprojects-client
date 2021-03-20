@@ -47,10 +47,10 @@ def get_local_neural_dsp_amps():
                 yield entry.name
 
 
-def push_amp_settings(amp):
+def push_amp_settings(amp, project):
     try:
         copy_tree(join(appdata['neural_dsp_path'], amp, "User"),
-                  join(appdata['amp_preset_sync_dir'], amp, current_user()),
+                  join(appdata['smb_drive'], project, 'Amp Settings', amp, current_user()),
                   single_depth=True,
                   update=True,
                   progress=False)
@@ -59,8 +59,8 @@ def push_amp_settings(amp):
         pass
 
 
-def pull_amp_settings(amp):
-    with scandir(join(appdata['amp_preset_sync_dir'], amp)) as entries:
+def pull_amp_settings(amp, project):
+    with scandir(join(appdata['smb_drive'], project, 'Amp Settings', amp)) as entries:
         for entry in entries:
             if entry.name != current_user():
                 copy_tree(entry.path,
@@ -69,14 +69,14 @@ def pull_amp_settings(amp):
                           progress=False)
 
 
-def sync_amps():
+def sync_amps(project):
     # TODO: a mess
     from progress import spinner
     spinner = spinner.Spinner("Syncing Neural DSP presets ")
     for amp in get_local_neural_dsp_amps():
-        push_amp_settings(amp)
+        push_amp_settings(amp, project)
         spinner.next()
-        pull_amp_settings(amp)
+        pull_amp_settings(amp, project)
         spinner.next()
     print()
 
@@ -284,9 +284,9 @@ def sync_all_projects(projects, api_client):
             pass
         lock(project, api_client)
         sync(project)
+        sync_amps(project['name'])
         unlock(project, api_client)
     print(print_hr('='))
-    sync_amps()
     print(print_hr('='))
     logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
