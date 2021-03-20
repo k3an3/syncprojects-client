@@ -1,4 +1,5 @@
 import concurrent.futures
+import datetime
 import logging
 import os
 import traceback
@@ -11,6 +12,9 @@ from threading import Thread
 from typing import Dict
 
 import sys
+import timeago
+from packaging.version import parse
+from time import sleep
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -21,7 +25,7 @@ from syncprojects.storage import appdata, HashStore
 from syncprojects.sync import SyncManager, RandomNoOpSyncManager
 from syncprojects.ui.first_start import SetupUI
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
-    parse_args, logger, hash_file, check_update, UpdateThread
+    parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive
 
 __version__ = '2.0'
 
@@ -43,10 +47,10 @@ def get_local_neural_dsp_amps():
                 yield entry.name
 
 
-def push_amp_settings(amp):
+def push_amp_settings(amp, project):
     try:
         copy_tree(join(appdata['neural_dsp_path'], amp, "User"),
-                  join(appdata['amp_preset_sync_dir'], amp, current_user()),
+                  join(appdata['smb_drive'], project, 'Amp Settings', amp, current_user()),
                   single_depth=True,
                   update=True,
                   progress=False)
@@ -55,8 +59,8 @@ def push_amp_settings(amp):
         pass
 
 
-def pull_amp_settings(amp):
-    with scandir(join(appdata['amp_preset_sync_dir'], amp)) as entries:
+def pull_amp_settings(amp, project):
+    with scandir(join(appdata['smb_drive'], project, 'Amp Settings', amp)) as entries:
         for entry in entries:
             if entry.name != current_user():
                 copy_tree(entry.path,
@@ -65,14 +69,14 @@ def pull_amp_settings(amp):
                           progress=False)
 
 
-def sync_amps():
+def sync_amps(project):
     # TODO: a mess
     from progress import spinner
     spinner = spinner.Spinner("Syncing Neural DSP presets ")
     for amp in get_local_neural_dsp_amps():
-        push_amp_settings(amp)
+        push_amp_settings(amp, project)
         spinner.next()
-        pull_amp_settings(amp)
+        pull_amp_settings(amp, project)
         spinner.next()
     print()
 
@@ -102,7 +106,7 @@ class CopyFileSyncManager(SyncManager):
             return hash_digest
 
     def is_updated(self, dir_name, group, remote_hs):
-        dest = appdata['dest_mapping'].get(group, appdata['default_dest'])
+        dest = join(appdata['smb_drive'], group)
         src_hash = self.local_hash_cache[join(appdata['source'], dir_name)]
         logger.debug(f"local_hash is {src_hash}")
         dst_hash = remote_hs.get(dir_name)
@@ -155,7 +159,7 @@ class CopyFileSyncManager(SyncManager):
                     self.logger.debug(f"Didn't get hash for {song}")
                     src_hash = ""
                 self.local_hash_cache[join(appdata['source'], song)] = src_hash
-        project_dest = appdata['dest_mapping'].get(project, appdata['default_dest'])
+        project_dest = join(appdata['smb_drive'], project)
         remote_store_name = join(project_dest, appdata['remote_hash_store'])
         self.logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
         self.logger.debug(f"{self.local_hash_cache=}")
@@ -244,7 +248,6 @@ def first_time_run():
 
 
 def main():
-    error = []
     test = os.getenv('TEST', '0') == '1'
     main_queue = Queue()
     server_queue = Queue()
@@ -275,13 +278,14 @@ def main():
     try:
         check_update()
 
-        if not isdir(appdata['source']) and not test:
-            error.append(f"Error! Source path \"{appdata['source']}\" not found.")
-        for directory in (appdata['default_dest'], *appdata['dest_mapping'].values()):
-            if not isdir(directory) and not test:
-                error.append(f"Error! Destination path {directory} not found.")
-        if error:
-            logger.error(','.join(error))
+        if not isdir(appdata['source']):
+            logger.critical(f"Error! Source path \"{appdata['source']}\" not found.")
+            prompt_to_exit()
+        if appdata['firewall_api_url'] and appdata['firewall_api_key']:
+            api_unblock()
+        mount_persistent_drive()
+        if not isdir(appdata['smb_drive']) and not test:
+            logger.critical(f"Error! Destination path {appdata['smb_drive']} not found.")
             prompt_to_exit()
 
         if test:

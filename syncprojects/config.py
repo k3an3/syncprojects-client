@@ -10,7 +10,6 @@ from shutil import which
 # The directory where you store your Cubase project files.
 SOURCE = ""
 # The path to the network drive containing shared projects.
-DEFAULT_DEST = "X:\\"
 # Where the config file will be stored. On each line of this file
 # should be a directory name that you wish to sync from the "source" directory.
 # Where the hashes should be stored. Do not modify this file!
@@ -27,10 +26,6 @@ FIREWALL_NAME = "My Firewall"
 ##########################
 # Advanced Configuration #
 ##########################
-# Namespace mappings for different backup drives.
-DEST_MAPPING = {
-    'ASF': 'X:\\SomeDir',
-}
 TELEMETRY = ""
 # Number of threads
 DEFAULT_HASH_ALGO = md5
