@@ -96,7 +96,6 @@ def get_verified_data(f):
 
 def migrate_old_settings(new_config):
     new_config.update({
-        'default_dest': config.DEFAULT_DEST,
         'remote_hash_store': config.REMOTE_HASH_STORE,
         'smb_drive': config.SMB_DRIVE,
         'smb_server': config.SMB_SERVER,
@@ -104,7 +103,6 @@ def migrate_old_settings(new_config):
         'firewall_api_url': config.FIREWALL_API_URL,
         'firewall_api_key': config.FIREWALL_API_KEY,
         'firewall_name': config.FIREWALL_NAME,
-        'dest_mapping': config.DEST_MAPPING,
         'telemetry_file': config.TELEMETRY,
         'amp_preset_sync_dir': config.AMP_PRESET_DIR,
         'neural_dsp_path': config.NEURAL_DSP_PATH,

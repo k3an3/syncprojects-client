@@ -21,7 +21,7 @@ from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-__version__ = '1.6.2'
+__version__ = '1.6.3'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.ui.first_start import SetupUI
@@ -100,7 +100,7 @@ def hash_directory(dir_name):
 
 def is_updated(dir_name, group, remote_hs):
     # Can't refactor move with the hash caches here
-    dest = appdata['dest_mapping'].get(group, appdata['default_dest'])
+    dest = join(appdata['smb_drive'], group)
     src_hash = local_hash_cache[join(appdata['source'], dir_name)]
     logger.debug(f"local_hash is {src_hash}")
     dst_hash = remote_hs.get(dir_name)
@@ -204,7 +204,7 @@ def sync(project):
                 logger.debug(f"Didn't get hash for {song}")
                 src_hash = ""
             local_hash_cache[join(appdata['source'], song)] = src_hash
-    project_dest = appdata['dest_mapping'].get(project, appdata['default_dest'])
+    project_dest = join(appdata['smb_drive'], project)
     remote_store_name = join(project_dest, appdata['remote_hash_store'])
     logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
     logger.debug(f"{local_hash_cache=}")
@@ -344,19 +344,19 @@ def main():
             logger.info("No new updates.")
 
         if not isdir(appdata['source']):
-            error.append(f"Error! Source path \"{appdata['source']}\" not found.")
-        for directory in (appdata['default_dest'], *appdata['dest_mapping'].values()):
-            if not (config.DEBUG or isdir(directory)):
-                error.append(f"Error! Destination path {directory} not found.")
-        if error:
-            logger.error(','.join(error))
-            prompt_to_exit()
+            logger.critical(f"Error! Source path \"{appdata['source']}\" not found.")
 
         check_daw_running()
         if appdata['firewall_api_url'] and appdata['firewall_api_key']:
             api_unblock()
 
         projects = api_client.get_projects()
+        for project in projects:
+            if not (config.DEBUG or isdir(join(appdata['smb_share'], project['name']))):
+                error.append(f"Error! Destination path {project['name']} not found.")
+        if error:
+            logger.critical(','.join(error))
+            prompt_to_exit()
         sync_all_projects(projects, api_client)
 
         logger.info(
