@@ -21,7 +21,7 @@ from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-__version__ = '1.6.3'
+__version__ = '1.6.3.1'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.ui.first_start import SetupUI
@@ -352,10 +352,11 @@ def main():
 
         projects = api_client.get_projects()
         for project in projects:
-            if not (config.DEBUG or isdir(join(appdata['smb_share'], project['name']))):
-                error.append(f"Error! Destination path {project['name']} not found.")
+            proj_dir = join(appdata['smb_drive'], project['name'])
+            if not (config.DEBUG or isdir(proj_dir)):
+                error.append(f"Error! Destination path {proj_dir} not found.")
         if error:
-            logger.critical(','.join(error))
+            logger.critical('\n'.join(error))
             prompt_to_exit()
         sync_all_projects(projects, api_client)
 
