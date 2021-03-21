@@ -21,13 +21,13 @@ from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import app
 from syncprojects.storage import appdata, HashStore
 
-__version__ = '1.6.3.1'
+__version__ = '1.6.4'
 
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.ui.first_start import SetupUI
 from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
     update, api_unblock, \
-    check_daw_running, parse_args, logger, hash_file
+    check_daw_running, parse_args, logger, hash_file, mount_persistent_drive
 
 CODENAME = "IT'S IN THE CLOUD"
 BANNER = """
@@ -349,6 +349,8 @@ def main():
         check_daw_running()
         if appdata['firewall_api_url'] and appdata['firewall_api_key']:
             api_unblock()
+        if not isdir(appdata['smb_drive']):
+            mount_persistent_drive()
 
         projects = api_client.get_projects()
         for project in projects:

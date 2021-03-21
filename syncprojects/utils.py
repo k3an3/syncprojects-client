@@ -259,7 +259,7 @@ def mount_persistent_drive():
              "/persistent:Yes"],
             check=True)
     except subprocess.CalledProcessError as e:
-        logger.error(f"Drive mount failed! {e.output.decode()}")
+        logger.error(f"Drive mount failed! {e}")
 
 
 def api_unblock():
