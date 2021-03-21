@@ -1,17 +1,22 @@
 import json
 import logging
+import pathlib
 from os.path import isfile
 
 from sqlitedict import SqliteDict
 
+from syncprojects import config
 from syncprojects.utils import get_datadir, migrate_old_settings, get_config_path
 
 logger = logging.getLogger('syncprojects.storage')
 
 
 def get_appdata():
-    config_dir = get_datadir("syncprojects")
     config_created = False
+    if config.DEBUG:
+        config_dir = pathlib.Path("..")
+    else:
+        config_dir = get_datadir("syncprojects")
     try:
         logger.debug(f"Creating new datadir in {config_dir}")
         config_dir.mkdir(parents=True)

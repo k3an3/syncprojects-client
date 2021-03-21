@@ -1,5 +1,4 @@
 import concurrent.futures
-import datetime
 import logging
 import os
 import traceback
@@ -12,9 +11,6 @@ from threading import Thread
 from typing import Dict
 
 import sys
-import timeago
-from packaging.version import parse
-from time import sleep
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -276,14 +272,15 @@ def main():
             prompt_to_exit()
 
     try:
-        check_update()
+        check_update(api_client)
 
         if not isdir(appdata['source']):
             logger.critical(f"Error! Source path \"{appdata['source']}\" not found.")
             prompt_to_exit()
         if appdata['firewall_api_url'] and appdata['firewall_api_key']:
             api_unblock()
-        mount_persistent_drive()
+        if not isdir(appdata['smb_drive']):
+            mount_persistent_drive()
         if not isdir(appdata['smb_drive']) and not test:
             logger.critical(f"Error! Destination path {appdata['smb_drive']} not found.")
             prompt_to_exit()
