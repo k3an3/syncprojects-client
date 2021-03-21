@@ -1,13 +1,13 @@
+from os import listdir
+from os.path import join, isfile, islink, isdir
+
 import datetime
 import logging
 import subprocess
-from concurrent.futures.thread import ThreadPoolExecutor
-from os import listdir
-from os.path import join, isfile, islink, isdir
-from typing import Dict
-
 import timeago
+from concurrent.futures.thread import ThreadPoolExecutor
 from progress.bar import IncrementalBar
+from typing import Dict
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI
@@ -123,9 +123,9 @@ def get_lock_status(locked: Dict):
         if not locked.get('until'):
             if not locked['locked_by'] == "self":
                 logger.debug(
-                    f"Locked by {locked['locked_by']} since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})")
+                    f"Locked by {locked['locked_by']} since {locked['since']}")
         elif not locked['locked_by'] == "self":
-            checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
+            checked_out_until = datetime.datetime.fromisoformat(locked['until'])
             if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
                 logger.debug(
                     f"Currently checked out by {locked['locked_by']} for"
@@ -147,7 +147,7 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
             logger.warning(f"{project['name']}: A sync is still running or did not complete successfully.")
             if not locked['locked_by'] == "self":
                 logger.warning(
-                    f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {datetime.datetime.fromtimestamp(float(locked['since'])).isoformat()})... maybe talk to them before overriding?")
+                    f"WARNING: It looks like {locked['locked_by']} is/was trying to sync (since {locked['since']})... maybe talk to them before overriding?")
             choices = ("Try again", "override", "exit")
             choice = None
             while choice not in choices:
@@ -160,7 +160,7 @@ def lock(project, api_client, reason: str = "sync", duration: datetime.datetime 
             elif choice == "Try Again":
                 lock(project, api_client, reason, duration)
         elif not locked['locked_by'] == "self":
-            checked_out_until = datetime.datetime.fromtimestamp(float(locked['until']))
+            checked_out_until = datetime.datetime.fromisoformat(locked['until'])
             if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
                 logger.info(
                     f"The project is currently checked out by {locked['locked_by']} for "

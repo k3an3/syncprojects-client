@@ -1,7 +1,9 @@
 import glob
+from os.path import join, getctime
+
 import logging
 from abc import ABC, abstractmethod
-from os.path import join, getctime
+from requests import HTTPError
 from typing import Dict
 
 from syncprojects.api import SyncAPI
@@ -90,9 +92,15 @@ class SyncMultipleHandler(CommandHandler):
                         continue
                 except KeyError:
                     pass
-                if get_lock_status(lock := self.api_client.lock(project)):
+                try:
+                    lock = self.api_client.lock(project)
+                except HTTPError:
+                    self.send_queue({'status': 'error', 'msg': f'Error checking out {project["name"]}'})
+                    continue
+                if get_lock_status(lock):
                     self.logger.debug(f"Unlocked project {project['name']}; starting sync.")
                     sync = self.sync_manager.sync(project)
+                    self.sync_manager.sync_amps(project["name"])
                     self.api_client.unlock(project)
                     # TODO: should these be the entire project dict or just id?
                     self.send_queue({'status': 'progress', 'completed': sync})

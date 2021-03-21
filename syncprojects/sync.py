@@ -1,7 +1,8 @@
+import traceback
+
 import datetime
 import logging
 import random
-import traceback
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict
@@ -38,7 +39,7 @@ class SyncManager(ABC):
             except Exception as e:
                 self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")
                 # TODO: a little out of style
-                # How do we clean up locks and stuff
+                # How do we clean up locks and stuff?
                 self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
                 if config.DEBUG:
                     raise e
@@ -54,8 +55,6 @@ class SyncManager(ABC):
         print(print_hr('='))
         SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
         print(print_hr('='))
-        from syncprojects.main import sync_amps
-        sync_amps()
         print(print_hr('='))
         self.logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))
 
@@ -73,6 +72,24 @@ class SyncManager(ABC):
             projects = self.api_client.get_all_projects()
             SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
 
+    def sync_amps(self, project: str):
+        for amp in self.get_local_neural_dsp_amps():
+            self.push_amp_settings(amp, project)
+            self.pull_amp_settings(amp, project)
+
+    @abstractmethod
+    def push_amp_settings(self, amp: str, project: str):
+        pass
+
+    @abstractmethod
+    def pull_amp_settings(self, amp: str, project: str):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_local_neural_dsp_amps():
+        pass
+
 
 class RandomNoOpSyncManager(SyncManager):
     """
@@ -88,3 +105,13 @@ class RandomNoOpSyncManager(SyncManager):
             self.logger.info(f"{project=} {song=} {changed=}")
             result['songs'][song] = {'result': 'error' if changed == 'error' else 'success', 'action': changed}
         return result
+
+    def push_amp_settings(self, project: str):
+        pass
+
+    def pull_amp_settings(self, project: str):
+        pass
+
+    @staticmethod
+    def get_local_neural_dsp_amps():
+        return []

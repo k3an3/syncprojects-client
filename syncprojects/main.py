@@ -1,16 +1,15 @@
+import traceback
+from glob import glob
+from os.path import join, isdir, isfile
+
 import concurrent.futures
 import logging
 import os
-import traceback
+import sys
 from concurrent.futures.thread import ThreadPoolExecutor
-from glob import glob
-from os import scandir
-from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
 from typing import Dict
-
-import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -20,8 +19,9 @@ from syncprojects.server.server import app
 from syncprojects.storage import appdata, HashStore
 from syncprojects.sync import SyncManager, RandomNoOpSyncManager
 from syncprojects.ui.first_start import SetupUI
-from syncprojects.utils import current_user, prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
-    parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive
+from syncprojects.utils import prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
+    parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
+    check_already_running
 
 __version__ = '2.0'
 
@@ -34,47 +34,6 @@ BANNER = """
 ███████║   ██║   ██║ ╚████║╚██████╗██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║   ███████║
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝
 \"{}\"""".format(CODENAME)
-
-
-def get_local_neural_dsp_amps():
-    with scandir(appdata['neural_dsp_path']) as entries:
-        for entry in entries:
-            if entry.is_dir() and entry.name != "Impulse Responses":
-                yield entry.name
-
-
-def push_amp_settings(amp, project):
-    try:
-        copy_tree(join(appdata['neural_dsp_path'], amp, "User"),
-                  join(appdata['smb_drive'], project, 'Amp Settings', amp, current_user()),
-                  single_depth=True,
-                  update=True,
-                  progress=False)
-    except FileNotFoundError:
-        logger.debug(traceback.format_exc())
-        pass
-
-
-def pull_amp_settings(amp, project):
-    with scandir(join(appdata['smb_drive'], project, 'Amp Settings', amp)) as entries:
-        for entry in entries:
-            if entry.name != current_user():
-                copy_tree(entry.path,
-                          join(appdata['neural_dsp_path'], amp, "User", entry.name),
-                          update=True,
-                          progress=False)
-
-
-def sync_amps(project):
-    # TODO: a mess
-    from progress import spinner
-    spinner = spinner.Spinner("Syncing Neural DSP presets ")
-    for amp in get_local_neural_dsp_amps():
-        push_amp_settings(amp, project)
-        spinner.next()
-        pull_amp_settings(amp, project)
-        spinner.next()
-    print()
 
 
 class CopyFileSyncManager(SyncManager):
@@ -228,6 +187,33 @@ class CopyFileSyncManager(SyncManager):
         self.print(print_hr('='))
         return result
 
+    def push_amp_settings(self, amp, project):
+        try:
+            copy_tree(join(appdata['neural_dsp_path'], amp, "User"),
+                      join(appdata['smb_drive'], project, 'Amp Settings', amp, current_user()),
+                      single_depth=True,
+                      update=True,
+                      progress=False)
+        except FileNotFoundError:
+            logger.debug(traceback.format_exc())
+            pass
+
+    def pull_amp_settings(self, amp, project):
+        with os.scandir(join(appdata['smb_drive'], project, 'Amp Settings', amp)) as entries:
+            for entry in entries:
+                if entry.name != current_user():
+                    copy_tree(entry.path,
+                              join(appdata['neural_dsp_path'], amp, "User", entry.name),
+                              update=True,
+                              progress=False)
+
+    @staticmethod
+    def get_local_neural_dsp_amps():
+        with os.scandir(appdata['neural_dsp_path']) as entries:
+            for entry in entries:
+                if entry.is_dir() and entry.name != "Impulse Responses":
+                    yield entry.name
+
 
 def first_time_run():
     setup = SetupUI()
@@ -244,6 +230,7 @@ def first_time_run():
 
 
 def main():
+    check_already_running()
     test = os.getenv('TEST', '0') == '1'
     main_queue = Queue()
     server_queue = Queue()

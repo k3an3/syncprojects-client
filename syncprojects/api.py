@@ -1,13 +1,12 @@
-import datetime
 import getpass
+
+import datetime
 import logging
+import requests
 import webbrowser
 from queue import Queue
-from typing import Dict
-
-import requests
-import sys
 from requests import HTTPError
+from typing import Dict
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
@@ -85,8 +84,8 @@ class SyncAPI:
                 self.refresh()
             attempts += 1
         self.logger.error(
-            f"Multiple requests failed, most recent response code {r.status_code} and msg {r.text}. Exiting...")
-        sys.exit(1)
+            f"Multiple requests failed, most recent response code {r.status_code} and msg {r.text}.")
+        r.raise_for_status()
 
     def get_all_projects(self):
         return self._request("projects/")["results"]

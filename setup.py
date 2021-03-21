@@ -54,7 +54,7 @@ setup(
             # Slim down build
             'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
             # Won't run correctly without
-            'packages': ['jinja2', 'win32file'],
+            'packages': ['jinja2', 'win32file', 'sentry_sdk'],
             'include_files': ['benny.ico'],
         }
     },
