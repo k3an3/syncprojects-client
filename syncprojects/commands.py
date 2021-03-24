@@ -1,10 +1,10 @@
 import glob
-from os.path import join, getctime
-
 import logging
 from abc import ABC, abstractmethod
-from requests import HTTPError
+from os.path import join, getctime
 from typing import Dict
+
+from requests import HTTPError
 
 from syncprojects.api import SyncAPI
 from syncprojects.operations import get_lock_status
@@ -51,15 +51,17 @@ class CommandHandler(ABC):
                     self.api_client.unlock(song)
                 else:
                     self.logger.debug("Not unlocking song")
-                self.send_queue({'status': 'progress', 'completed': sync})
+                self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
                 return song
             else:
                 # TODO: does this contain enough info about song?
                 self.api_client.unlock(project)
-                self.send_queue({'status': 'error', 'lock': song_lock, 'component': 'song'})
+                self.send_queue({'status': 'error', 'lock': song_lock, 'msg': f"Song \"{song['name']}\" is locked",
+                                 'component': 'song'})
         else:
             # TODO: does this contain enough info about project?
-            self.send_queue({'status': 'error', 'lock': project_lock, 'component': 'project'})
+            self.send_queue({'status': 'error', 'lock': project_lock, 'msg': f"Project \"{project['name']}\" is locked",
+                             'component': 'project'})
 
 
 class AuthHandler(CommandHandler):
@@ -103,11 +105,11 @@ class SyncMultipleHandler(CommandHandler):
                     self.sync_manager.sync_amps(project["name"])
                     self.api_client.unlock(project)
                     # TODO: should these be the entire project dict or just id?
-                    self.send_queue({'status': 'progress', 'completed': sync})
+                    self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
                 else:
                     self.logger.debug("Project is locked; returning error.")
                     # TODO: does this contain enough info about project?
-                    self.send_queue({'status': 'lock', 'lock': lock})
+                    self.send_queue({'status': 'warn', 'msg': f"Project \"{project['name']}\" is locked"})
             self.send_queue({'status': 'complete'})
         elif 'songs' in data:
             self.logger.debug("Got request to sync songs")
