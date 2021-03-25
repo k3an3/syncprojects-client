@@ -104,12 +104,12 @@ class SyncMultipleHandler(CommandHandler):
                     sync = self.sync_manager.sync(project)
                     self.sync_manager.sync_amps(project["name"])
                     self.api_client.unlock(project)
-                    # TODO: should these be the entire project dict or just id?
                     self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
                 else:
                     self.logger.debug("Project is locked; returning error.")
-                    # TODO: does this contain enough info about project?
-                    self.send_queue({'status': 'warn', 'msg': f"Project \"{project['name']}\" is locked"})
+                    # Lock is only a warning here since other projects can still sync
+                    self.send_queue({'status': 'warn', 'failed': {'project': project['name'], 'lock': lock},
+                                     'msg': f"Project \"{project['name']}\" is locked"})
             self.send_queue({'status': 'complete'})
         elif 'songs' in data:
             self.logger.debug("Got request to sync songs")
