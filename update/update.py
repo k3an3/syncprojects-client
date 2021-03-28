@@ -145,6 +145,9 @@ def update(root):
         logger.info("Installing to start menu and desktop...")
         create_shortcut()
 
+    logger.info("Installing to startup...")
+    install_startup()
+
     if args.delete_archive:
         logger.debug("Unlinking archive file...")
         unlink(archive_path)

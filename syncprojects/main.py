@@ -230,7 +230,8 @@ def first_time_run():
 
 
 def main():
-    check_already_running()
+    if check_already_running():
+        sys.exit(0)
     test = os.getenv('TEST', '0') == '1'
     main_queue = Queue()
     server_queue = Queue()

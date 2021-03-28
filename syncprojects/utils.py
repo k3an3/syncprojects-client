@@ -1,27 +1,28 @@
+import datetime
+import functools
 import getpass
+import logging
+import pathlib
+import re
+import subprocess
 import traceback
+import webbrowser
+from argparse import ArgumentParser
 from json import JSONDecodeError
 from os import readlink, symlink
 from os.path import join, isfile, dirname
+from tempfile import NamedTemporaryFile
+from threading import Thread
+from typing import Dict
 
-import datetime
-import functools
 import jwt
-import logging
-import pathlib
 import psutil
-import re
 import requests
-import subprocess
 import sys
-from argparse import ArgumentParser
 from flask import request, abort
 from jwt import DecodeError, ExpiredSignatureError, InvalidSignatureError
 from packaging.version import parse
-from tempfile import NamedTemporaryFile
-from threading import Thread
 from time import sleep
-from typing import Dict
 
 import syncprojects.config as config
 
@@ -405,11 +406,12 @@ def check_already_running():
     try:
         r = requests.get("http://localhost:5000/api/ping", headers={"Accept": "application/json"})
     except requests.exceptions.ConnectionError:
-        return
+        return False
     try:
         if r.json()['result'] == 'pong':
-            logger.critical("syncprojects-client already running! Exiting...")
-            sys.exit(-1)
+            logger.info("syncprojects-client already running")
+            webbrowser.open(config.SYNCPROJECTS_URL)
+            return True
     except JSONDecodeError:
         pass
     logger.critical("Something else is already using port 5000! Exiting...")
