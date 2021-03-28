@@ -22,7 +22,7 @@ from syncprojects.ui.first_start import SetupUI
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
-    check_already_running
+    check_already_running, open_app_in_browser
 
 __version__ = '2.0'
 
@@ -239,6 +239,13 @@ def main():
     # Check for first time setup needed
     if not appdata.get('first_time_setup_complete'):
         first_time_run()
+        open_app_in_browser()
+
+    # Start local Flask server
+    app.config['main_queue'] = main_queue
+    app.config['server_queue'] = server_queue
+    web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
+    web_thread.start()
 
     # init API client
     api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), main_queue,
@@ -251,12 +258,6 @@ def main():
 
     try:
         check_update(api_client)
-
-        # Start local Flask server
-        app.config['main_queue'] = main_queue
-        app.config['server_queue'] = server_queue
-        web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
-        web_thread.start()
 
         # Start update thread
         update_thread = UpdateThread(api_client)

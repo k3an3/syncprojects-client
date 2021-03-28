@@ -3,8 +3,7 @@ import logging
 from flask import Flask, request, cli
 
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
-from syncprojects.server.utils import queue_put, queue_get, response_started
-from syncprojects.utils import verify_data
+from syncprojects.server.utils import queue_put, queue_get, response_started, verify_data
 
 app = Flask(__name__)
 logger = logging.getLogger('syncprojects.server')
@@ -69,6 +68,12 @@ def work_done(data):
     if 'song' in data:
         return response_started(queue_put('workdone', data))
     return RESP_BAD_DATA
+
+
+@app.route('/api/tasks', methods=['POST'])
+@verify_data
+def get_tasks(_):
+    return response_started(queue_put('tasks'))
 
 
 @app.after_request

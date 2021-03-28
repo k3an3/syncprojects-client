@@ -8,7 +8,7 @@ from typing import Dict
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
-from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler
+from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler
 from syncprojects.operations import check_out
 from syncprojects.storage import appdata
 from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice
@@ -19,6 +19,7 @@ class SyncManager(ABC):
         self.logger = logging.getLogger(f'syncprojects.sync.{self.__class__.__name__}')
         self.api_client = api_client
         self.headless = headless
+        self.tasks = set()
 
     @abstractmethod
     def sync(self, project: Dict) -> Dict:
@@ -35,12 +36,14 @@ class SyncManager(ABC):
                     'sync': SyncMultipleHandler,
                     'workon': WorkOnHandler,
                     'workdone': WorkDoneHandler,
-                }[msg['msg_type']](msg['task_id'], self.api_client, self).handle(msg['data'])
+                    'tasks': GetTasksHandler,
+                }[msg['msg_type']](msg['task_id'], self.api_client, self).exec(msg['data'])
             except Exception as e:
                 self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")
                 # TODO: a little out of style
                 # How do we clean up locks and stuff?
                 self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
+                self.tasks.remove(msg['task_id'])
                 if config.DEBUG:
                     raise e
 

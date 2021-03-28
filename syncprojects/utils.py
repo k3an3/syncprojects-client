@@ -1,5 +1,4 @@
 import datetime
-import functools
 import getpass
 import logging
 import pathlib
@@ -15,12 +14,9 @@ from tempfile import NamedTemporaryFile
 from threading import Thread
 from typing import Dict
 
-import jwt
 import psutil
 import requests
 import sys
-from flask import request, abort
-from jwt import DecodeError, ExpiredSignatureError, InvalidSignatureError
 from packaging.version import parse
 from time import sleep
 
@@ -82,33 +78,6 @@ def open_default_app(path: str):
         from os import startfile
         return startfile(path)
     return subprocess.Popen(['open', path])
-
-
-def verify_data(f):
-    @functools.wraps(f)
-    def wrapped(*args, **kwargs):
-        try:
-            if request.referrer != config.SYNCPROJECTS_URL:
-                abort(403)
-            if request.method == "POST":
-                data = request.get_json()['data']
-            else:
-                data = request.args['data']
-            decoded = jwt.decode(data, config.PUBLIC_KEY, algorithms=["RS256"])
-            decoded.pop('exp', None)
-            return f(decoded, *args, **kwargs)
-        except (InvalidSignatureError, ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:
-            if config.DEBUG:
-                raise e
-            abort(403)
-        except TypeError as e:
-            if config.DEBUG:
-                raise e
-            abort(400)
-
-        return f(*args, **kwargs)
-
-    return wrapped
 
 
 def migrate_old_settings(new_config):
@@ -402,6 +371,10 @@ class UpdateThread(Thread):
         sleep(3600)
 
 
+def open_app_in_browser():
+    webbrowser.open(config.SYNCPROJECTS_URL)
+
+
 def check_already_running():
     try:
         r = requests.get("http://localhost:5000/api/ping", headers={"Accept": "application/json"})
@@ -410,7 +383,7 @@ def check_already_running():
     try:
         if r.json()['result'] == 'pong':
             logger.info("syncprojects-client already running")
-            webbrowser.open(config.SYNCPROJECTS_URL)
+            open_app_in_browser()
             return True
     except JSONDecodeError:
         pass

@@ -136,6 +136,8 @@ class SyncAPI:
         appdata['access'] = resp['access']
         appdata['refresh'] = resp['refresh']
         self.logger.debug("Saved credentials updated after login.")
+        self._username = None
+        return self.username
 
     def refresh(self):
         resp = self._request('token/refresh/', 'POST', json={"refresh": self.refresh_token}, auth=False, refresh=False)
@@ -143,11 +145,13 @@ class SyncAPI:
         appdata["access"] = resp["access"]
         self.logger.debug("Saved credentials updated after refresh.")
 
-    def handle_auth_msg(self, config: Dict):
+    def handle_auth_msg(self, config: Dict) -> str:
         self.refresh_token = config['refresh']
         self.access_token = config['access']
         appdata.update(config)
         self.logger.debug("Saved credentials updated from API")
+        self._username = None
+        return self.username
 
     def web_login(self):
         webbrowser.open(SYNCPROJECTS_URL + "sync/client_login/")

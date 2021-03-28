@@ -34,9 +34,31 @@ class CommandHandler(ABC):
         self.logger = TaskIDLogWrapper(logging.getLogger(f'syncprojects.commands.{self.__class__.__name__}'),
                                        self.task_id)
 
+    def __repr__(self):
+        return self.task_id
+
     @abstractmethod
     def handle(self, data: Dict):
+        """
+        Method to actually handle processing of the data.
+        This method should not usually be called directly;
+        use exec() instead.
+        :param data:
+        :return:
+        """
         pass
+
+    def exec(self, data: Dict):
+        """
+        Public-facing method to handle adding the current task to the tracker,
+        and removing it upon success. It is the caller's job to clean that up
+        if there is an error during execution.
+        :param data:
+        :return:
+        """
+        self.sync_manager.tasks.add(self.task_id)
+        self.handle(data)
+        self.sync_manager.tasks.remove(self.task_id)
 
     def send_queue(self, response_data: Dict) -> None:
         self.api_client.send_queue.put({'task_id': self.task_id, **response_data})
@@ -168,3 +190,10 @@ class WorkDoneHandler(CommandHandler):
 class UpdateHandler(CommandHandler):
     def handle(self, data: Dict):
         check_update(self.api_client)
+
+
+class GetTasksHandler(CommandHandler):
+    def handle(self, data: Dict):
+        tasks = self.sync_manager.tasks.copy()
+        tasks.remove(self.task_id)
+        self.send_queue({'status': 'tasks', 'tasks': list(tasks)})
