@@ -1,15 +1,17 @@
-import getpass
-
 import datetime
+import getpass
 import logging
-import requests
 import webbrowser
 from queue import Queue
-from requests import HTTPError
 from typing import Dict
+
+import requests
+import sys
+from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
+from syncprojects.ui.message import MessageBoxUI
 
 API_BASE_URL = SYNCPROJECTS_URL + "api/v1/"
 logger = logging.getLogger('syncprojects.api')
@@ -73,7 +75,12 @@ class SyncAPI:
             if auth and self.access_token:
                 headers['Authorization'] = f"Bearer {self.access_token}"
             # Try using access token, fall back to refreshing, then re-login
-            r = requests.request(method=method, url=API_BASE_URL + path, params=params, json=json, headers=headers)
+            try:
+                r = requests.request(method=method, url=API_BASE_URL + path, params=params, json=json, headers=headers)
+            except requests.exceptions.ConnectionError:
+                MessageBoxUI.error("Failed to connect to the Syncprojects API! Check your internet connection and try "
+                                   "again, or contact support if the error persists.\n\nExiting...")
+                sys.exit(1)
             if r.status_code == 200:
                 return r.json()
             elif r.status_code == 401:
@@ -85,7 +92,9 @@ class SyncAPI:
             attempts += 1
         self.logger.error(
             f"Multiple requests failed, most recent response code {r.status_code} and msg {r.text}.")
-        r.raise_for_status()
+        MessageBoxUI.error("Error communicating with Syncprojects API! A server error occured, or you could not be "
+                           "identified. Try again, or contact support if the error persists.\n\nExiting...")
+        sys.exit(1)
 
     def get_all_projects(self):
         return self._request("projects/")["results"]

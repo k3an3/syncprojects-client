@@ -14,12 +14,25 @@ from syncprojects.utils import open_default_app, check_update
 logger = logging.getLogger('syncprojects.commands')
 
 
+class TaskIDLogWrapper:
+    def __init__(self, configured_logger, task_id: str):
+        self.logger = configured_logger
+        self.task_id = task_id
+
+    def __getattr__(self, item):
+        def function(msg, *args, **kwargs):
+            return getattr(self.logger, item)(f"[{self.task_id}] {msg}", *args, **kwargs)
+
+        return function
+
+
 class CommandHandler(ABC):
     def __init__(self, task_id: str, api_client: SyncAPI, sync_manager):
         self.task_id = task_id
         self.api_client = api_client
         self.sync_manager = sync_manager
-        self.logger = logging.getLogger(f'syncprojects.commands.{self.__class__.__name__}')
+        self.logger = TaskIDLogWrapper(logging.getLogger(f'syncprojects.commands.{self.__class__.__name__}'),
+                                       self.task_id)
 
     @abstractmethod
     def handle(self, data: Dict):

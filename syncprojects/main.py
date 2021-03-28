@@ -1,15 +1,15 @@
-import traceback
-from glob import glob
-from os.path import join, isdir, isfile
-
 import concurrent.futures
 import logging
 import os
-import sys
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
 from typing import Dict
+
+import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -19,6 +19,7 @@ from syncprojects.server.server import app
 from syncprojects.storage import appdata, HashStore
 from syncprojects.sync import SyncManager, RandomNoOpSyncManager
 from syncprojects.ui.first_start import SetupUI
+from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running
@@ -152,8 +153,7 @@ class CopyFileSyncManager(SyncManager):
             elif up == "local":
                 src = appdata['source']
                 dst = project_dest
-                if not self.headless:
-                    changelog(song)
+                changelog(song)
             else:
                 self.logger.info(f"No action for {song}")
                 result['songs'][song] = {'result': 'success', 'action': up}
@@ -243,16 +243,6 @@ def main():
     api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), main_queue,
                          server_queue)
 
-    # Start local Flask server
-    app.config['main_queue'] = main_queue
-    app.config['server_queue'] = server_queue
-    web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
-    web_thread.start()
-
-    # Start update thread
-    update_thread = UpdateThread(api_client)
-    update_thread.start()
-
     if not api_client.has_tokens():
         if not login_prompt(api_client):
             logger.error("Couldn't log in with provided credentials.")
@@ -260,6 +250,16 @@ def main():
 
     try:
         check_update(api_client)
+
+        # Start local Flask server
+        app.config['main_queue'] = main_queue
+        app.config['server_queue'] = server_queue
+        web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
+        web_thread.start()
+
+        # Start update thread
+        update_thread = UpdateThread(api_client)
+        update_thread.start()
 
         if not isdir(appdata['source']):
             logger.critical(f"Error! Source path \"{appdata['source']}\" not found.")
@@ -282,9 +282,8 @@ def main():
         else:
             sync.run_service()
     except Exception as e:
-        logger.critical(f"Fatal error! Provide the help desk (support@syncprojects.app) with the following "
-                        f"information:\n{str(e)} {str(traceback.format_exc())}")
-        prompt_to_exit()
+        logger.critical(f"Fatal error!\n{str(e)} {str(traceback.format_exc())}")
+        MessageBoxUI.error("Syncprojects encountered a fatal error and must exit. Please contact support.")
 
 
 if __name__ == '__main__':
