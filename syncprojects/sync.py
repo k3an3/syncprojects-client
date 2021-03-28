@@ -1,8 +1,7 @@
-import traceback
-
 import datetime
 import logging
 import random
+import traceback
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict
@@ -29,6 +28,7 @@ class SyncManager(ABC):
         self.logger.debug("Starting syncprojects-client service")
         self.headless = True
         while msg := self.api_client.recv_queue.get():
+            self.logger.debug(f"Received {msg['task_id']=} {msg['msg_type']} {msg['data']=}")
             try:
                 {
                     'auth': AuthHandler,
