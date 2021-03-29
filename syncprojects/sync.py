@@ -44,6 +44,11 @@ class SyncManager(ABC):
                 # How do we clean up locks and stuff?
                 self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
                 self.tasks.remove(msg['task_id'])
+                try:
+                    import sentry_sdk
+                    sentry_sdk.capture_exception(e)
+                except ImportError:
+                    pass
                 if config.DEBUG:
                     raise e
 

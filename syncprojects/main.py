@@ -24,7 +24,7 @@ from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_c
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running, open_app_in_browser
 
-__version__ = '2.0'
+__version__ = '2.0.1'
 
 CODENAME = "IT'S EVEN MORE IN THE CLOUD"
 BANNER = """

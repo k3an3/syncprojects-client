@@ -68,7 +68,7 @@ def install_startup(force: bool = False):
     path = get_startup_file()
     if force or not isfile(path):
         with open(path, "w") as f:
-            f.write(WINDOWS_STARTUP)
+            f.write(WINDOWS_STARTUP.format(path=f"{get_install_location() / EXE_NAME}.exe"))
 
 
 def kill_old_process():
@@ -145,7 +145,7 @@ def update(root):
             sys.exit(-1)
 
         logger.info("Installing to startup...")
-        install_startup()
+        install_startup(True)
 
         if args.delete_archive:
             logger.debug("Unlinking archive file...")
