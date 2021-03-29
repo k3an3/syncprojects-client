@@ -7,6 +7,7 @@ from os.path import isfile, join
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
+from tkinter.messagebox import showerror
 from tkinter.ttk import Frame
 from zipfile import ZipFile
 
@@ -124,37 +125,39 @@ def run_ui(root):
 
 
 def update(root):
-    if args.kill_parent:
-        if not kill_old_process():
-            logger.critical("Couldn't kill old process. Update failed!")
+    try:
+        if args.kill_parent:
+            if not kill_old_process():
+                logger.critical("Couldn't kill old process. Update failed!")
+                sys.exit(-1)
+
+        if args.update_archive.startswith('http'):
+            logger.info("Fetching update from URL...")
+            archive_path = fetch_update(args.update_archive)
+        else:
+            logger.info("Update is local archive")
+            archive_path = args.update_archive
+
+        try:
+            install_program(archive_path)
+        except Exception as e:
+            logger.critical(f"Failed to install update! {e}\n{traceback.print_exc()}")
             sys.exit(-1)
 
-    if args.update_archive.startswith('http'):
-        logger.info("Fetching update from URL...")
-        archive_path = fetch_update(args.update_archive)
-    else:
-        logger.info("Update is local archive")
-        archive_path = args.update_archive
+        logger.info("Installing to startup...")
+        install_startup()
 
-    try:
-        install_program(archive_path)
-    except Exception as e:
-        logger.critical(f"Failed to install update! {e}\n{traceback.print_exc()}")
+        if args.delete_archive:
+            logger.debug("Unlinking archive file...")
+            unlink(archive_path)
+
+    except Exception:
+        showerror(master=root, title="Syncprojects Install Error", message="Critical error during installation!"
+                                                                           "\nContact support.")
+        traceback.print_exc()
         sys.exit(-1)
-    if sys.platform == "win32":
-        logger.info("Installing to start menu and desktop...")
-        create_shortcut()
-
-    logger.info("Installing to startup...")
-    install_startup()
-
-    if args.delete_archive:
-        logger.debug("Unlinking archive file...")
-        unlink(archive_path)
-
-    logger.info("Starting new program...")
-    root.destroy()
-    start_program()
+    finally:
+        root.destroy()
 
 
 if __name__ == "__main__":
@@ -189,5 +192,12 @@ if __name__ == "__main__":
     tk = Tk()
     tk.title(f"{APP_NAME.title()} updater")
 
-    update_thread = Thread(target=update, args=(tk,))
+    create_shortcut()
+    update_thread = Thread(target=update, args=(tk,), daemon=True)
+    update_thread.start()
     run_ui(tk)
+    if sys.platform == "win32":
+        logger.info("Installing to start menu and desktop...")
+        create_shortcut()
+    logger.info("Starting new program...")
+    start_program()

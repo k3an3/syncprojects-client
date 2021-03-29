@@ -21,6 +21,7 @@ from packaging.version import parse
 from time import sleep
 
 import syncprojects.config as config
+from syncprojects.ui.message import MessageBoxUI
 
 logger = logging.getLogger('syncprojects.utils')
 
@@ -381,6 +382,8 @@ def check_already_running():
     try:
         if r.json()['result'] == 'pong':
             logger.info("syncprojects-client already running")
+            MessageBoxUI.info(title="Syncprojects", message="Syncprojects-client is already running. Opening the app "
+                                                            "in your browser...")
             open_app_in_browser()
             return True
     except JSONDecodeError:

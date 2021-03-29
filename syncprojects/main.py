@@ -38,13 +38,11 @@ BANNER = """
 
 
 class CopyFileSyncManager(SyncManager):
-    def __init__(self, api_client: SyncAPI, headless: bool = False):
-        self.api_client = api_client
-        self.headless = headless
-        self.logger = logging.getLogger('syncprojects.main.SyncManager')
+    def __init__(self, *args, **kwargs):
         self.local_hs = HashStore(LOCAL_HASH_STORE)
         self.remote_hash_cache = {}
         self.local_hash_cache = {}
+        super().__init__(*args, **kwargs)
 
     def print(self, *args, **kwargs):
         if not self.headless:
@@ -103,16 +101,18 @@ class CopyFileSyncManager(SyncManager):
 
         self.logger.info("Checking local files for changes...")
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-            futures = {executor.submit(self.hash_directory, join(appdata['source'], s['name'])): s['name'] for s in
-                       songs}
-            for result in concurrent.futures.as_completed(futures):
-                song = futures[result]
+            futures = {
+                executor.submit(self.hash_directory, join(appdata['source'], s.get('directory_name') or s['name'])): s
+                for s in
+                songs}
+            for results in concurrent.futures.as_completed(futures):
+                song = futures[results]
                 try:
-                    src_hash = result.result()
+                    src_hash = results.result()
                 except FileNotFoundError:
-                    self.logger.debug(f"Didn't get hash for {song}")
+                    self.logger.debug(f"Didn't get hash for {song['name']}")
                     src_hash = ""
-                self.local_hash_cache[join(appdata['source'], song)] = src_hash
+                self.local_hash_cache[join(appdata['source'], song.get('directory_name') or song['name'])] = src_hash
         project_dest = join(appdata['smb_drive'], project)
         remote_store_name = join(project_dest, appdata['remote_hash_store'])
         self.logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
@@ -128,13 +128,13 @@ class CopyFileSyncManager(SyncManager):
             self.logger.debug(f"{remote_hs.open()=}")
             remote_stores[remote_store_name] = remote_hs
 
-        result = {'status': 'done', 'songs': {}}
+        results = {'status': 'done', 'songs': []}
         for song in songs:
             if not song['sync_enabled']:
-                result['songs'][song] = {'result': 'success', 'action': 'disabled'}
+                results['songs'].append({'song': song['name'], 'result': 'success', 'action': 'disabled'})
                 continue
             elif song['is_locked']:
-                result['songs'][song] = {'result': 'error', 'action': 'locked'}
+                results['songs'].append({'song': song['name'], 'result': 'error', 'action': 'locked'})
                 continue
             song = song.get('directory_name') or song['name']
             self.print(print_hr())
@@ -171,7 +171,7 @@ class CopyFileSyncManager(SyncManager):
                 changelog(song)
             else:
                 self.logger.info(f"No action for {song}")
-                result['songs'][song] = {'result': 'success', 'action': up}
+                results['songs'].append({'song': song, 'result': 'success', 'action': up})
                 continue
             self.local_hs.update(song, self.remote_hash_cache[join(src, song)])
             try:
@@ -187,16 +187,16 @@ class CopyFileSyncManager(SyncManager):
                         raise e
                 copy(song, src, dst)
             except Exception as e:
-                result['songs'][song] = {'result': 'error', 'msg': str(e)}
+                results['songs'].append({'song': song, 'result': 'error', 'msg': str(e)})
                 self.logger.error(
                     f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
                     f"from the database.")
             else:
-                result['songs'][song] = {'result': 'success', 'action': up}
+                results['songs'].append({'song': song, 'result': 'success', 'action': up})
                 self.logger.info(f"Successfully synced {song}")
         self.print(print_hr())
         self.print(print_hr('='))
-        return result
+        return results
 
     def push_amp_settings(self, amp, project):
         try:
@@ -297,6 +297,7 @@ def main():
     except Exception as e:
         logger.critical(f"Fatal error!\n{str(e)} {str(traceback.format_exc())}")
         MessageBoxUI.error("Syncprojects encountered a fatal error and must exit. Please contact support.")
+        sys.exit(-1)
 
 
 if __name__ == '__main__':
