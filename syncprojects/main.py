@@ -20,7 +20,7 @@ from syncprojects.storage import appdata, HashStore
 from syncprojects.sync import SyncManager, RandomNoOpSyncManager
 from syncprojects.ui.first_start import SetupUI
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import prompt_to_exit, fmt_error, get_input_choice, print_hr, print_latest_change, \
+from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_change, \
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running, open_app_in_browser
 
@@ -90,13 +90,11 @@ class CopyFileSyncManager(SyncManager):
         elif dst_hash and (not src_hash or not dst_hash == known_hash):
             return "remote"
 
-    # TODO: return something relevant
     def sync(self, project: Dict) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")
         self.logger.debug(f"{self.local_hs.open()=}")
         remote_stores = {}
-        songs = [song.get('directory_name') or song['name'] for song in project['songs'] if
-                 song['sync_enabled'] and not song['is_locked']]
+        songs = project['songs']
         if not songs:
             self.logger.warning("No songs, skipping")
             return {'status': 'done', 'songs': None}
@@ -105,8 +103,8 @@ class CopyFileSyncManager(SyncManager):
 
         self.logger.info("Checking local files for changes...")
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-            futures = {executor.submit(self.hash_directory, join(appdata['source'], s)): s for s in songs}
-            # concurrency bug with cx_freeze here
+            futures = {executor.submit(self.hash_directory, join(appdata['source'], s['name'])): s['name'] for s in
+                       songs}
             for result in concurrent.futures.as_completed(futures):
                 song = futures[result]
                 try:
@@ -132,6 +130,13 @@ class CopyFileSyncManager(SyncManager):
 
         result = {'status': 'done', 'songs': {}}
         for song in songs:
+            if not song['sync_enabled']:
+                result['songs'][song] = {'result': 'success', 'action': 'disabled'}
+                continue
+            elif song['is_locked']:
+                result['songs'][song] = {'result': 'error', 'action': 'locked'}
+                continue
+            song = song.get('directory_name') or song['name']
             self.print(print_hr())
             self.logger.info("Syncing {}...".format(song))
             not_local = False
@@ -143,13 +148,23 @@ class CopyFileSyncManager(SyncManager):
                 up == "remote"
                 handle_new_song(song, remote_hs)
             if up == "mismatch":
-                print_latest_change(join(project_dest, song))
+                if changes := get_latest_change(join(project_dest, song)):
+                    MessageBoxUI.info(changes, "Sync Conflict: changes")
                 self.logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
-                up = get_input_choice(("local", "remote", "skip"))
+                result = MessageBoxUI.yesnocancel(f"{song} has changed both locally and remotely! Which one do you "
+                                                  f"want to " f"keep? Note that proceeding may cause loss of "
+                                                  f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
+                                                  f"\"no\" to confirm overwrite of server " f"files. Or, \"cancel\" "
+                                                  f"to skip.", "Sync Conflict")
+                if result:
+                    up = "remote"
+                elif result is None:
+                    up = None
+                else:
+                    up = "local"
             if up == "remote":
                 src = project_dest
                 dst = appdata['source']
-                print_latest_change(join(project_dest, song))
             elif up == "local":
                 src = appdata['source']
                 dst = project_dest
@@ -163,17 +178,13 @@ class CopyFileSyncManager(SyncManager):
                 self.logger.info("Now copying {} from {} ({}) to {} ({})".format(song, up, src,
                                                                                  "remote" if up == "local" else "local",
                                                                                  dst))
-                if up == "remote":
-                    if not get_input_choice(("Confirm", "skip")) == "confirm":
-                        continue
-                else:
-                    try:
-                        remote_hs.update(song, self.remote_hash_cache[join(src, song)])
-                    except Exception as e:
-                        self.logger.error(fmt_error("sync:update_remote_hashes", e))
-                        if not appdata['legacy_mode']:
-                            self.logger.critical("Failed to update remote hashes!")
-                            raise e
+                try:
+                    remote_hs.update(song, self.remote_hash_cache[join(src, song)])
+                except Exception as e:
+                    self.logger.error(fmt_error("sync:update_remote_hashes", e))
+                    if not appdata['legacy_mode']:
+                        self.logger.critical("Failed to update remote hashes!")
+                        raise e
                 copy(song, src, dst)
             except Exception as e:
                 result['songs'][song] = {'result': 'error', 'msg': str(e)}

@@ -104,7 +104,7 @@ class RandomNoOpSyncManager(SyncManager):
                  song['sync_enabled'] and not song['is_locked']]
         result = {'status': 'done', 'songs': []}
         for song in songs:
-            changed = random.choice(('local', 'remote', 'error', None))
+            changed = random.choice(('local', 'remote', 'error', None, 'locked', 'disabled'))
             self.logger.info(f"{project=} {song=} {changed=}")
             result['songs'].append({'song': song, 'result': 'error' if changed == 'error' else 'success', 'action': changed})
         return result

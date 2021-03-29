@@ -76,7 +76,7 @@ class CommandHandler(ABC):
             # Not efficient... if there are multiple songs under the same project for some reason,
             # really shouldn't check out the same project multiple times... use case TBD
             self.logger.debug(f"Requesting lock of project {project['name']} song {song['name']}")
-            if get_lock_status(song_lock := self.api_client.lock(song, reason="workon")):
+            if get_lock_status(song_lock := self.api_client.lock(song, reason="Checked out")):
                 self.logger.debug("Got exclusive lock of song, unlocking project")
                 self.api_client.unlock(project)
                 project['songs'] = [song]
@@ -164,7 +164,9 @@ class WorkOnHandler(CommandHandler):
             return
         """
         # Keep song checked out afterwards
-        self.lock_and_sync_song(song, unlock=False)
+        if not (song := self.lock_and_sync_song(song, unlock=False)):
+            self.send_queue({'status': 'complete'})
+            return
         # TODO: DAW agnostic?
         # just guessing at which file to open
         project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
@@ -182,8 +184,14 @@ class WorkDoneHandler(CommandHandler):
     def handle(self, data: Dict):
         song = data['song']
         project = self.api_client.get_project(song['project'])
-        project['songs'] = song
+        # TODO: do we just want to call the sync method at the top of this file and add a way to not lock there?
+        song = next(s for s in project['songs'] if s['id'] == song['song'])
+        project['songs'] = [song]
         sync = self.sync_manager.sync(project)
+        try:
+            self.api_client.unlock(song)
+        except HTTPError:
+            self.send_queue({'status': 'error', 'msg': f'Error unlocking {song["name"]}'})
         self.send_queue({'status': 'complete', 'sync': sync})
 
 

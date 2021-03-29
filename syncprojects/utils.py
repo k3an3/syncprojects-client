@@ -182,7 +182,7 @@ def print_hr(char="-", chars=79):
     return char * chars
 
 
-def print_latest_change(directory_path):
+def get_latest_change(directory_path):
     changelog_file = join(directory_path, "changelog.txt")
     if not isfile(changelog_file):
         return
@@ -197,9 +197,7 @@ def print_latest_change(directory_path):
             end = n
             break
     if start:
-        print("Latest changes:\n~~~")
-        print(''.join(lines[start:end]))
-        print("~~~")
+        return "Latest changes:\n~~~\n" + ''.join(lines[start:end]) + "\n~~~"
 
 
 def fetch_update(url: str) -> str:
