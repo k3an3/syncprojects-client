@@ -1,19 +1,18 @@
+import traceback
+from glob import glob
+from os.path import join, isdir, isfile
+
 import concurrent.futures
 import logging
 import os
-import traceback
+import sys
 from concurrent.futures.thread import ThreadPoolExecutor
-from glob import glob
-from os.path import join, isdir, isfile
 from queue import Queue
 from threading import Thread
 from typing import Dict
 
-import sys
-
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.config import LOCAL_HASH_STORE
 from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server.server import app
 from syncprojects.storage import appdata, HashStore
@@ -22,9 +21,11 @@ from syncprojects.ui.first_start import SetupUI
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_change, \
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
-    check_already_running, open_app_in_browser
+    check_already_running, open_app_in_browser, get_datadir
 
-__version__ = '2.0.1'
+__version__ = '2.0.2'
+
+from update.update import APP_NAME
 
 CODENAME = "IT'S EVEN MORE IN THE CLOUD"
 BANNER = """
@@ -39,7 +40,7 @@ BANNER = """
 
 class CopyFileSyncManager(SyncManager):
     def __init__(self, *args, **kwargs):
-        self.local_hs = HashStore(LOCAL_HASH_STORE)
+        self.local_hs = HashStore(str(get_datadir(APP_NAME) / "hashes"))
         self.remote_hash_cache = {}
         self.local_hash_cache = {}
         super().__init__(*args, **kwargs)
@@ -266,6 +267,8 @@ def main():
         if not login_prompt(api_client):
             logger.error("Couldn't log in with provided credentials.")
             prompt_to_exit()
+    # Not only is this line useful for logging, but it populates appdata['username']
+    logger.info(f"Logged in as {api_client.username}")
 
     try:
         check_update(api_client)

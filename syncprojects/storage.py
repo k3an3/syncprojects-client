@@ -1,8 +1,9 @@
+from os.path import isfile, dirname
+
 import json
 import logging
+import os
 import pathlib
-from os.path import isfile
-
 from sqlitedict import SqliteDict
 
 from syncprojects import config
@@ -52,11 +53,16 @@ class HashStore:
         return self.content.get(key)
 
     def open(self):
+        logger.debug(f"Opening hash store at {self.store}")
         try:
             with open(self.store) as f:
                 self.content = json.load(f)
+                logger.debug(f"Loaded hash store successfully")
                 return self.content
-        except FileNotFoundError:
+        except FileNotFoundError as e:
+            if not os.access(dirname(self.store), os.W_OK):
+                logger.critical(f"Couldn't open hash store at {self.store} for writing!")
+                raise e
             logger.debug(f"Didn't find hash store at {self.store}, returning empty")
             return {}
         except json.decoder.JSONDecodeError:
@@ -65,5 +71,9 @@ class HashStore:
 
     def update(self, key, value):
         self.content[key] = value
-        with open(self.store, "w") as f:
-            json.dump(self.content, f)
+        try:
+            with open(self.store, "w") as f:
+                json.dump(self.content, f)
+        except FileNotFoundError as e:
+            logger.critical(f"Couldn't open hash store at {self.store} for writing!")
+            raise e

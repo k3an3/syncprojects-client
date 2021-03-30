@@ -1,24 +1,24 @@
-import datetime
 import getpass
-import logging
-import pathlib
-import re
-import subprocess
 import traceback
-import webbrowser
-from argparse import ArgumentParser
 from json import JSONDecodeError
 from os import readlink, symlink
 from os.path import join, isfile, dirname
+
+import datetime
+import logging
+import pathlib
+import psutil
+import re
+import requests
+import subprocess
+import sys
+import webbrowser
+from argparse import ArgumentParser
+from packaging.version import parse
 from tempfile import NamedTemporaryFile
 from threading import Thread
-from typing import Dict
-
-import psutil
-import requests
-import sys
-from packaging.version import parse
 from time import sleep
+from typing import Dict
 
 import syncprojects.config as config
 from syncprojects.ui.message import MessageBoxUI
@@ -218,7 +218,7 @@ def update(new_version: Dict):
     from syncprojects.storage import appdata
     logpath = appdata['telemetry_file']
     logger.debug(f"Starting updater: `{updater} {package} {dirname(logpath)} -d`")
-    subprocess.Popen([updater, package, logpath, "-d"])
+    subprocess.Popen([updater, package, dirname(logpath), "-d"])
 
 
 def hash_file(file_path, hash_algo=None, block_size=4096):

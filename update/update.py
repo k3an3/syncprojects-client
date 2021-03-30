@@ -1,27 +1,28 @@
-import logging
-import pathlib
 import traceback
-from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
 from os.path import isfile, join
-from tempfile import NamedTemporaryFile
-from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
 from tkinter.messagebox import showerror
 from tkinter.ttk import Frame
-from zipfile import ZipFile
 
+import logging
+import pathlib
 import psutil
 import requests
 import sys
+from argparse import ArgumentParser
 from pyshortcuts import make_shortcut
+from tempfile import NamedTemporaryFile
+from threading import Thread
+from zipfile import ZipFile
 
-PACKAGE = None
-LOGPATH = None
 try:
-    from local_update import PACKAGE, LOGPATH
+    from local_update import *
 except ImportError:
-    pass
+    PACKAGE = None
+    LOGPATH = None
+    PRE_UPDATE = None
+    POST_UPDATE = None
 
 APP_NAME = "syncprojects"
 EXE_NAME = "main"
@@ -189,6 +190,10 @@ if __name__ == "__main__":
         logger.addHandler(fh)
         logger.info(f"Logging debug output to {args.logpath}/{APP_NAME}-update.log")
 
+    if PRE_UPDATE:
+        logger.info("Running pre update script...")
+        PRE_UPDATE()
+
     tk = Tk()
     tk.title(f"{APP_NAME.title()} updater")
 
@@ -199,5 +204,8 @@ if __name__ == "__main__":
     if sys.platform == "win32":
         logger.info("Installing to start menu and desktop...")
         create_shortcut()
+    if POST_UPDATE:
+        logger.info("Running post update script...")
+        POST_UPDATE()
     logger.info("Starting new program...")
     start_program()
