@@ -1,5 +1,6 @@
 import glob
 import logging
+import sys
 from abc import ABC, abstractmethod
 from os.path import join, getctime
 from typing import Dict
@@ -205,3 +206,9 @@ class GetTasksHandler(CommandHandler):
         tasks = self.sync_manager.tasks.copy()
         tasks.remove(self.task_id)
         self.send_queue({'status': 'tasks', 'tasks': list(tasks)})
+
+
+class ShutdownHandler(CommandHandler):
+    def handle(self, data: Dict):
+        self.logger.info("Got command to exit")
+        sys.exit(0)

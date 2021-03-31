@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from flask import Flask, request, cli
 
@@ -52,6 +53,12 @@ def sync(data):
 @app.route('/api/ping', methods=['GET'])
 def ping():
     return {'result': 'pong', 'task_id': queue_put('ping', dry_run=True)}
+
+
+@app.route('/api/shutdown', methods=['POST'])
+def shutdown():
+    # TODO: security
+    return {'result': 'started', 'task_id': queue_put('shutdown')}
 
 
 @app.route('/api/workon', methods=['POST'])
