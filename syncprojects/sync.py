@@ -8,7 +8,8 @@ from typing import Dict
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
-from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler
+from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler, \
+    ShutdownHandler
 from syncprojects.operations import check_out
 from syncprojects.storage import appdata
 from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice
@@ -37,6 +38,7 @@ class SyncManager(ABC):
                     'workon': WorkOnHandler,
                     'workdone': WorkDoneHandler,
                     'tasks': GetTasksHandler,
+                    'shutdown': ShutdownHandler,
                 }[msg['msg_type']](msg['task_id'], self.api_client, self).exec(msg['data'])
             except Exception as e:
                 self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")

@@ -50,8 +50,8 @@ def verify_data(f):
                 data = request.args['data']
             decoded = jwt.decode(data, config.PUBLIC_KEY, algorithms=["RS256"])
             decoded.pop('exp', None)
-            if 'user' in decoded and decoded['user'] != appdata['username']:
-                abort(403)
+            # if 'user' in decoded and decoded['user'] != appdata['username']:
+            #    abort(403)
             decoded.pop('user', None)
             return f(decoded, *args, **kwargs)
         except (InvalidSignatureError, ExpiredSignatureError, KeyError, ValueError, DecodeError) as e:

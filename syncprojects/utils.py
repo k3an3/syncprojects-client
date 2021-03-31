@@ -382,9 +382,21 @@ def check_already_running():
     try:
         if r.json()['result'] == 'pong':
             logger.info("syncprojects-client already running")
-            MessageBoxUI.info(title="Syncprojects", message="Syncprojects-client is already running. Opening the app "
-                                                            "in your browser...")
-            open_app_in_browser()
+            response = MessageBoxUI.yesnocancel(
+                title="Syncprojects",
+                message="Syncprojects-client is already running.\nPress \"yes\" to open the app "
+                        "in your browser, \"no\" to shut down the client, or \"cancel\" to cancel.")
+            if response:
+                logger.info("User opened browser")
+                open_app_in_browser()
+            elif response is None:
+                logger.info("User cancelled")
+            else:
+                logger.info("User requested exit")
+                try:
+                    requests.post("http://localhost:5000/api/shutdown", json={}, headers={"Accept": "application/json"})
+                except requests.exceptions.ConnectionError:
+                    pass
             return True
     except JSONDecodeError:
         pass

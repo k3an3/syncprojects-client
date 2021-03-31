@@ -16,13 +16,14 @@ from tempfile import NamedTemporaryFile
 from threading import Thread
 from zipfile import ZipFile
 
+PACKAGE = None
+LOGPATH = None
+PRE_UPDATE = None
+POST_UPDATE = None
 try:
     from local_update import *
 except ImportError:
-    PACKAGE = None
-    LOGPATH = None
-    PRE_UPDATE = None
-    POST_UPDATE = None
+    pass
 
 APP_NAME = "syncprojects"
 EXE_NAME = "main"
