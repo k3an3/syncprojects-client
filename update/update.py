@@ -1,6 +1,6 @@
 import traceback
 from os import makedirs, getppid, execl, unlink
-from os.path import isfile, join
+from os.path import join
 from tkinter import Tk, ttk, BOTH, TOP, Label
 from tkinter.messagebox import showerror
 from tkinter.ttk import Frame
@@ -55,22 +55,19 @@ def get_start_menu_path():
         raise NotImplementedError()
 
 
-def get_startup_file():
+def get_startup_path():
     home = pathlib.Path.home()
 
     if sys.platform == "win32":
-        return home / "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup" / f"{APP_NAME}.bat"
+        return home / "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup"
     elif sys.platform == "linux":
         raise NotImplementedError()
     elif sys.platform == "darwin":
         raise NotImplementedError()
 
 
-def install_startup(force: bool = False):
-    path = get_startup_file()
-    if force or not isfile(path):
-        with open(path, "w") as f:
-            f.write(WINDOWS_STARTUP.format(path=f"{get_install_location() / EXE_NAME}.exe"))
+def install_startup():
+    create_shortcut(get_startup_path())
 
 
 def kill_old_process():
@@ -97,13 +94,14 @@ def start_program():
     execl(cmd, cmd)
 
 
-def create_shortcut():
+def create_shortcut(folder: str = None):
     make_shortcut(str(get_install_location() / f"{EXE_NAME}.exe"),
                   name=APP_NAME.title(),
                   description=f"{APP_NAME} desktop client",
                   icon=str(get_install_location() / ICON_FILE),
                   terminal=True,
-                  executable=None)
+                  executable=None,
+                  folder=folder)
 
 
 def fetch_update(url: str) -> str:
@@ -145,9 +143,6 @@ def update(root):
         except Exception as e:
             logger.critical(f"Failed to install update! {e}\n{traceback.print_exc()}")
             sys.exit(-1)
-
-        logger.info("Installing to startup...")
-        install_startup(True)
 
         if args.delete_archive:
             logger.debug("Unlinking archive file...")
@@ -198,13 +193,14 @@ if __name__ == "__main__":
     tk = Tk()
     tk.title(f"{APP_NAME.title()} updater")
 
-    create_shortcut()
     update_thread = Thread(target=update, args=(tk,), daemon=True)
     update_thread.start()
     run_ui(tk)
     if sys.platform == "win32":
         logger.info("Installing to start menu and desktop...")
         create_shortcut()
+        logger.info("Installing startup...")
+        install_startup()
     if POST_UPDATE:
         logger.info("Running post update script...")
         POST_UPDATE()
