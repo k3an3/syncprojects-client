@@ -1,7 +1,8 @@
+import traceback
+
 import datetime
 import logging
 import random
-import traceback
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict
@@ -29,30 +30,33 @@ class SyncManager(ABC):
     def run_service(self):
         self.logger.debug("Starting syncprojects-client service")
         self.headless = True
-        while msg := self.api_client.recv_queue.get():
-            self.logger.debug(f"Received {msg['task_id']=} {msg['msg_type']} {msg['data']=}")
-            try:
-                {
-                    'auth': AuthHandler,
-                    'sync': SyncMultipleHandler,
-                    'workon': WorkOnHandler,
-                    'workdone': WorkDoneHandler,
-                    'tasks': GetTasksHandler,
-                    'shutdown': ShutdownHandler,
-                }[msg['msg_type']](msg['task_id'], self.api_client, self).exec(msg['data'])
-            except Exception as e:
-                self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")
-                # TODO: a little out of style
-                # How do we clean up locks and stuff?
-                self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
-                self.tasks.remove(msg['task_id'])
+        try:
+            while msg := self.api_client.recv_queue.get():
+                self.logger.debug(f"Received {msg['task_id']=} {msg['msg_type']} {msg['data']=}")
                 try:
-                    import sentry_sdk
-                    sentry_sdk.capture_exception(e)
-                except ImportError:
-                    pass
-                if config.DEBUG:
-                    raise e
+                    {
+                        'auth': AuthHandler,
+                        'sync': SyncMultipleHandler,
+                        'workon': WorkOnHandler,
+                        'workdone': WorkDoneHandler,
+                        'tasks': GetTasksHandler,
+                        'shutdown': ShutdownHandler,
+                    }[msg['msg_type']](msg['task_id'], self.api_client, self).exec(msg['data'])
+                except Exception as e:
+                    self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")
+                    # TODO: a little out of style
+                    # How do we clean up locks and stuff?
+                    self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
+                    self.tasks.remove(msg['task_id'])
+                    if config.DEBUG:
+                        raise e
+                    try:
+                        import sentry_sdk
+                        sentry_sdk.capture_exception(e)
+                    except ImportError:
+                        pass
+        except KeyboardInterrupt:
+            self.logger.warning("Received SIGINT, exiting...")
 
     def run_tui(self):
         self.logger.debug("Starting sync TUI")
@@ -113,7 +117,8 @@ class RandomNoOpSyncManager(SyncManager):
         for song in songs:
             changed = random.choice(('local', 'remote', 'error', None, 'locked', 'disabled'))
             self.logger.info(f"{project=} {song=} {changed=}")
-            result['songs'].append({'song': song, 'result': 'error' if changed == 'error' else 'success', 'action': changed})
+            result['songs'].append(
+                {'song': song, 'result': 'error' if changed == 'error' else 'success', 'action': changed})
         return result
 
     def push_amp_settings(self, project: str):

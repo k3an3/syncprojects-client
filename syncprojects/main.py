@@ -1,5 +1,6 @@
 import traceback
 from glob import glob
+from multiprocessing import Queue
 from os.path import join, isdir, isfile
 
 import concurrent.futures
@@ -7,8 +8,7 @@ import logging
 import os
 import sys
 from concurrent.futures.thread import ThreadPoolExecutor
-from queue import Queue
-from threading import Thread
+from multiprocessing.context import Process
 from typing import Dict
 
 from syncprojects import config as config
@@ -256,8 +256,9 @@ def main():
     # Start local Flask server
     app.config['main_queue'] = main_queue
     app.config['server_queue'] = server_queue
-    web_thread = Thread(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
-    web_thread.start()
+    logger.debug("Starting web API server thread...")
+    web_process = Process(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
+    web_process.start()
 
     # init API client
     api_client = SyncAPI(appdata.get('refresh'), appdata.get('access'), appdata.get('username'), main_queue,
