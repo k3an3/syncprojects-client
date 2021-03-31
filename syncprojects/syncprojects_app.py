@@ -1,20 +1,20 @@
-import traceback
-from glob import glob
-from multiprocessing import Queue
-from os.path import join, isdir, isfile
-
 import concurrent.futures
 import logging
 import os
-import sys
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from multiprocessing import Queue, freeze_support
 from multiprocessing.context import Process
+from os.path import join, isdir, isfile
 from typing import Dict
+
+import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
-from syncprojects.server.server import app
+from syncprojects.server import start_server
 from syncprojects.storage import appdata, HashStore
 from syncprojects.sync import SyncManager, RandomNoOpSyncManager
 from syncprojects.ui.first_start import SetupUI
@@ -23,7 +23,7 @@ from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_c
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running, open_app_in_browser, get_datadir
 
-__version__ = '2.0.2'
+__version__ = '2.1'
 
 from update.update import APP_NAME
 
@@ -254,10 +254,9 @@ def main():
         open_app_in_browser()
 
     # Start local Flask server
-    app.config['main_queue'] = main_queue
-    app.config['server_queue'] = server_queue
     logger.debug("Starting web API server thread...")
-    web_process = Process(target=app.run, kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
+    web_process = Process(target=start_server, args=(main_queue, server_queue),
+                          kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
     web_process.start()
 
     # init API client
@@ -305,6 +304,8 @@ def main():
 
 
 if __name__ == '__main__':
+    if sys.platform == "win32":
+        freeze_support()
     parsed_args = parse_args()
     if parsed_args.debug:
         config.DEBUG = True

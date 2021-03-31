@@ -1,24 +1,24 @@
+import datetime
 import getpass
+import logging
+import pathlib
+import re
+import subprocess
 import traceback
+import webbrowser
+from argparse import ArgumentParser
 from json import JSONDecodeError
 from os import readlink, symlink
 from os.path import join, isfile, dirname
-
-import datetime
-import logging
-import pathlib
-import psutil
-import re
-import requests
-import subprocess
-import sys
-import webbrowser
-from argparse import ArgumentParser
-from packaging.version import parse
 from tempfile import NamedTemporaryFile
 from threading import Thread
-from time import sleep
 from typing import Dict
+
+import psutil
+import requests
+import sys
+from packaging.version import parse
+from time import sleep
 
 import syncprojects.config as config
 from syncprojects.ui.message import MessageBoxUI
@@ -311,7 +311,7 @@ def check_daw_running():
 
 
 def parse_args():
-    from syncprojects.main import __version__
+    from syncprojects.syncprojects_app import __version__
     parser = ArgumentParser(description=f"Syncprojects-client v{__version__}\nBy default, a background service "
                                         "is started.")
     parser.add_argument('--tui', action='store_true')
@@ -342,7 +342,7 @@ def check_update(api_client) -> Dict:
         latest_version = api_client.get_updates()[-1]
     except IndexError:
         return None
-    from syncprojects.main import __version__
+    from syncprojects.syncprojects_app import __version__
     if parse(__version__) < parse(latest_version['version']):
         logger.info(f"New update found! {latest_version['version']}")
         update(latest_version)

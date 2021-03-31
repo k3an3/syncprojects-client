@@ -1,11 +1,12 @@
 import os
-import sys
 import traceback
 from os.path import join
 from shutil import copy
 from subprocess import check_output
 
-from syncprojects.main import __version__ as version
+import sys
+
+from syncprojects.syncprojects_app import __version__ as version
 
 BUILD_DIR = join('build', f'exe.win-amd64-{sys.version_info.major}.{sys.version_info.minor}')
 

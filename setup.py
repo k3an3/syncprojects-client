@@ -30,14 +30,14 @@ if sys.platform == "win32":
 
 def gen_executables():
     try:
-        return [Executable("syncprojects/main.py", icon="benny.ico", base=base)]
+        return [Executable("syncprojects/syncprojects_app.py", icon="benny.ico", base=base)]
     except NameError:
         return []
 
 
 setup(
     name='syncprojects',
-    version='2.0',
+    version='2.1',
     packages=['syncprojects'],
     url='https://syncprojects.example.com',
     license='',
@@ -46,7 +46,7 @@ setup(
     description='',
     entry_points={
         'console_scripts': [
-            'syncprojects=syncprojects.main:main'
+            'syncprojects=syncprojects.syncprojects_app:main'
         ]
     },
     options={

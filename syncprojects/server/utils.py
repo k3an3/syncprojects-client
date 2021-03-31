@@ -1,16 +1,17 @@
 import functools
-import jwt
-from flask import request, abort
-from jwt import InvalidSignatureError, ExpiredSignatureError, DecodeError
 from queue import Empty
 from typing import Dict
 from uuid import uuid4
+
+import jwt
+from flask import request, abort
+from jwt import InvalidSignatureError, ExpiredSignatureError, DecodeError
 
 from syncprojects import config as config
 
 
 def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
-    from syncprojects.server.server import app
+    from syncprojects.server.app import app
     task_id = gen_task_id()
     if not dry_run:
         app.config['main_queue'].put({'msg_type': name, 'task_id': task_id, 'data': data})
@@ -18,7 +19,7 @@ def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
 
 
 def queue_get() -> Dict:
-    from syncprojects.server.server import app
+    from syncprojects.server.app import app
     queue_results = []
     while True:
         try:

@@ -1,20 +1,19 @@
+import logging
 import traceback
+from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
 from os.path import join
+from tempfile import NamedTemporaryFile
+from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
 from tkinter.messagebox import showerror
 from tkinter.ttk import Frame
+from zipfile import ZipFile
 
-import logging
-import pathlib
 import psutil
 import requests
 import sys
-from argparse import ArgumentParser
 from pyshortcuts import make_shortcut
-from tempfile import NamedTemporaryFile
-from threading import Thread
-from zipfile import ZipFile
 
 PACKAGE = None
 LOGPATH = None
@@ -26,7 +25,7 @@ except ImportError:
     pass
 
 APP_NAME = "syncprojects"
-EXE_NAME = "main"
+EXE_NAME = "syncprojects_app"
 ICON_FILE = "benny.ico"
 WINDOWS_STARTUP = """@echo off
 start cmd /c \"{path} && exit 0\"
@@ -67,7 +66,7 @@ def get_startup_path():
 
 
 def install_startup():
-    create_shortcut(get_startup_path())
+    create_shortcut(str(get_startup_path()))
 
 
 def kill_old_process():
