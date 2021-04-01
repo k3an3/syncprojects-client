@@ -23,7 +23,7 @@ from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_c
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running, open_app_in_browser, get_datadir
 
-__version__ = '2.1.1'
+__version__ = '2.1.2'
 
 from update.update import APP_NAME
 
@@ -310,7 +310,7 @@ if __name__ == '__main__':
     if parsed_args.debug:
         config.DEBUG = True
     # Set up logging
-    logger = logging.getLogger('syncprojects.main')
+    logger = logging.getLogger('syncprojects')
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     if config.DEBUG:
