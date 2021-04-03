@@ -1,20 +1,19 @@
+import logging
 import traceback
+from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
 from os.path import join
+from tempfile import NamedTemporaryFile
+from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
 from tkinter.messagebox import showerror
 from tkinter.ttk import Frame
+from zipfile import ZipFile
 
-import logging
-import pathlib
 import psutil
 import requests
 import sys
-from argparse import ArgumentParser
 from pyshortcuts import make_shortcut
-from tempfile import NamedTemporaryFile
-from threading import Thread
-from zipfile import ZipFile
 
 PACKAGE = None
 LOGPATH = None
@@ -31,6 +30,8 @@ ICON_FILE = "benny.ico"
 WINDOWS_STARTUP = """@echo off
 start cmd /c \"{path} && exit 0\"
 """
+
+update_success = False
 
 
 def get_install_location():
@@ -147,7 +148,7 @@ def update(root):
         if args.delete_archive:
             logger.debug("Unlinking archive file...")
             unlink(archive_path)
-
+        update_success = True
     except Exception:
         showerror(master=root, title="Syncprojects Install Error", message="Critical error during installation!"
                                                                            "\nContact support.")
@@ -204,5 +205,6 @@ if __name__ == "__main__":
     if POST_UPDATE:
         logger.info("Running post update script...")
         POST_UPDATE()
-    logger.info("Starting new program...")
-    start_program()
+    if update_success:
+        logger.info("Starting new program...")
+        start_program()

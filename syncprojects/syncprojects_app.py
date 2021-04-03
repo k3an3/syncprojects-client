@@ -1,15 +1,15 @@
-import traceback
-from glob import glob
-from multiprocessing import Queue, freeze_support
-from os.path import join, isdir, isfile
-
 import concurrent.futures
 import logging
 import os
-import sys
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from multiprocessing import Queue, freeze_support
 from multiprocessing.context import Process
+from os.path import join, isdir, isfile
 from typing import Dict
+
+import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -23,7 +23,7 @@ from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_c
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running, open_app_in_browser, get_datadir
 
-__version__ = '2.1.2'
+__version__ = '2.1.3'
 
 from update.update import APP_NAME
 
