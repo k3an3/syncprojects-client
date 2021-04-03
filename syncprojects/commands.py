@@ -1,11 +1,11 @@
 import glob
+from os.path import join, getctime
+
 import logging
 import sys
 from abc import ABC, abstractmethod
-from os.path import join, getctime
-from typing import Dict
-
 from requests import HTTPError
+from typing import Dict
 
 from syncprojects.api import SyncAPI
 from syncprojects.operations import get_lock_status
@@ -152,6 +152,7 @@ class SyncMultipleHandler(CommandHandler):
             for song in data['songs']:
                 self.lock_and_sync_song(song)
             self.send_queue({'status': 'complete'})
+        self.logger.info("Sync complete")
 
 
 class WorkOnHandler(CommandHandler):

@@ -1,15 +1,15 @@
+import traceback
+from glob import glob
+from multiprocessing import Queue, freeze_support
+from os.path import join, isdir, isfile
+
 import concurrent.futures
 import logging
 import os
-import traceback
-from concurrent.futures.thread import ThreadPoolExecutor
-from glob import glob
-from multiprocessing import Queue, freeze_support
-from multiprocessing.context import Process
-from os.path import join, isdir, isfile
-from typing import Dict
-
 import sys
+from concurrent.futures.thread import ThreadPoolExecutor
+from multiprocessing.context import Process
+from typing import Dict
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -82,11 +82,11 @@ class CopyFileSyncManager(SyncManager):
             known_hash = new_hash
         else:
             logger.debug(f"known_hash is {known_hash}")
-        if not src_hash == known_hash and not dst_hash == known_hash:
+        if src_hash != known_hash and dst_hash != known_hash:
             return "mismatch"
-        elif src_hash and (not dst_hash or not src_hash == known_hash):
+        elif src_hash and (not dst_hash or src_hash != known_hash):
             return "local"
-        elif dst_hash and (not src_hash or not dst_hash == known_hash):
+        elif dst_hash and (not src_hash or dst_hash != known_hash):
             return "remote"
 
     def sync(self, project: Dict) -> Dict:
@@ -145,13 +145,14 @@ class CopyFileSyncManager(SyncManager):
                 self.logger.info("{} does not exist locally.".format(song))
                 not_local = True
             up = self.is_updated(song, project, remote_hs)
+            self.logger.debug(f"Got status: {up}")
             if not_local:
                 up == "remote"
                 handle_new_song(song, remote_hs)
             if up == "mismatch":
                 if changes := get_latest_change(join(project_dest, song)):
                     MessageBoxUI.info(changes, "Sync Conflict: changes")
-                self.logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
+                self.logger.warning("Sync conflict: both local and remote have changed!")
                 result = MessageBoxUI.yesnocancel(f"{song} has changed both locally and remotely! Which one do you "
                                                   f"want to " f"keep? Note that proceeding may cause loss of "
                                                   f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
