@@ -148,6 +148,7 @@ def update(root):
         if args.delete_archive:
             logger.debug("Unlinking archive file...")
             unlink(archive_path)
+        global update_success
         update_success = True
     except Exception:
         showerror(master=root, title="Syncprojects Install Error", message="Critical error during installation!"
