@@ -1,11 +1,11 @@
 import glob
-from os.path import join, getctime
-
 import logging
-import sys
 from abc import ABC, abstractmethod
-from requests import HTTPError
+from os.path import join, getctime
 from typing import Dict
+
+import sys
+from requests import HTTPError
 
 from syncprojects.api import SyncAPI
 from syncprojects.operations import get_lock_status
@@ -73,33 +73,22 @@ class CommandHandler(ABC):
         # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
         project = self.api_client.get_project(song['project'])
         song = next(s for s in project['songs'] if s['id'] == song['song'])
-        self.logger.debug(f"Requesting lock of project {project['name']}")
-        if get_lock_status(project_lock := self.api_client.lock(project)):
-            self.logger.debug("Got exclusive lock of project")
-            # Not efficient... if there are multiple songs under the same project for some reason,
-            # really shouldn't check out the same project multiple times... use case TBD
-            self.logger.debug(f"Requesting lock of project {project['name']} song {song['name']}")
-            if get_lock_status(song_lock := self.api_client.lock(song, reason="Checked out")):
-                self.logger.debug("Got exclusive lock of song, unlocking project")
-                self.api_client.unlock(project)
-                project['songs'] = [song]
-                sync = self.sync_manager.sync(project)
-                if unlock:
-                    self.logger.debug("Unlocking song")
-                    self.api_client.unlock(song)
-                else:
-                    self.logger.debug("Not unlocking song")
-                self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
-                return song
+        if get_lock_status(song_lock := self.api_client.lock(song, reason="Checked out")):
+            self.logger.debug("Got exclusive lock of song, unlocking project")
+            self.api_client.unlock(project)
+            project['songs'] = [song]
+            sync = self.sync_manager.sync(project)
+            if unlock:
+                self.logger.debug("Unlocking song")
+                self.api_client.unlock(song)
             else:
-                # TODO: does this contain enough info about song?
-                self.api_client.unlock(project)
-                self.send_queue({'status': 'error', 'lock': song_lock, 'msg': f"Song \"{song['name']}\" is locked",
-                                 'component': 'song'})
+                self.logger.debug("Not unlocking song")
+            self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
+            return song
         else:
-            # TODO: does this contain enough info about project?
-            self.send_queue({'status': 'error', 'lock': project_lock, 'msg': f"Project \"{project['name']}\" is locked",
-                             'component': 'project'})
+            self.api_client.unlock(project)
+            self.send_queue({'status': 'error', 'lock': song_lock, 'msg': f"Song \"{song['name']}\" is locked",
+                             'component': 'song'})
 
 
 class AuthHandler(CommandHandler):
