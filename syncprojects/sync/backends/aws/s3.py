@@ -1,13 +1,18 @@
 from bisect import bisect_left
 from os.path import join
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
+
+from sqlitedict import SqliteDict
 
 from syncprojects.storage import appdata
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends.aws.auth import AWSAuth
+from syncprojects.utils import get_datadir
 
 AWS_REGION = 'us-east-1'
+
+syncdata = SqliteDict(str(get_datadir("syncprojects") / "sync.sqlite"))
 
 
 class S3SyncBackend(SyncBackend):
@@ -16,14 +21,8 @@ class S3SyncBackend(SyncBackend):
         self.auth = auth
         self.client = self.auth.authenticate()
 
-    def sync(self, project: Dict) -> Dict:
-        self.logger.info(f"Syncing project {project['name']}...")
-        songs = project['songs']
-        if not songs:
-            self.logger.warning("No songs, skipping")
-            return {'status': 'done', 'songs': None}
-        self.logger.debug(f"Got songs list {songs}")
-        project = project['name']
+    def sync(self, project: Dict, songs: List[Dict]) -> Dict:
+        for song in songs:
 
         paths = self.list_source_objects(source_folder=join(appdata['source'], s.get('directory_name') or s['name']))
         objects = self.list_bucket_objects(self.bucket)

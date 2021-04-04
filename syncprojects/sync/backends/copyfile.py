@@ -1,7 +1,7 @@
 import os
 import traceback
 from os.path import isdir, join
-from typing import Dict
+from typing import Dict, List
 
 import sys
 
@@ -59,18 +59,10 @@ class ShareDriveSyncBackend(SyncBackend):
         elif dst_hash and (not src_hash or dst_hash != known_hash):
             return "remote"
 
-    def sync(self, project: Dict) -> Dict:
-        self.logger.info(f"Syncing project {project['name']}...")
-        self.logger.debug(f"{self.local_hs.open()=}")
-        remote_stores = {}
-        songs = project['songs']
-        if not songs:
-            self.logger.warning("No songs, skipping")
-            return {'status': 'done', 'songs': None}
-        self.logger.debug(f"Got songs list {songs}")
+    def sync(self, project: Dict, songs: List[Dict]) -> Dict:
         project = project['name']
+        remote_stores = {}
 
-        self.get_local_changes(songs)
         project_dest = join(appdata['smb_drive'], project)
         remote_store_name = join(project_dest, appdata['remote_hash_store'])
         self.logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")
@@ -88,12 +80,6 @@ class ShareDriveSyncBackend(SyncBackend):
 
         results = {'status': 'done', 'songs': []}
         for song in songs:
-            if not song['sync_enabled']:
-                results['songs'].append({'song': song['name'], 'result': 'success', 'action': 'disabled'})
-                continue
-            elif song['is_locked']:
-                results['songs'].append({'song': song['name'], 'result': 'error', 'action': 'locked'})
-                continue
             song = song.get('directory_name') or song['name']
             self.print(print_hr())
             self.logger.info("Syncing {}...".format(song))

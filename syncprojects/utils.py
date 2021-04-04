@@ -1,25 +1,25 @@
-import getpass
-import traceback
-from json import JSONDecodeError
-from os import readlink, symlink
-from os.path import join, isfile, dirname
-
 import datetime
+import getpass
 import logging
 import os
 import pathlib
-import psutil
 import re
-import requests
 import subprocess
-import sys
+import traceback
 import webbrowser
 from argparse import ArgumentParser
-from packaging.version import parse
+from json import JSONDecodeError
+from os import readlink, symlink
+from os.path import join, isfile, dirname
 from tempfile import NamedTemporaryFile
 from threading import Thread
-from time import sleep
 from typing import Dict
+
+import psutil
+import requests
+import sys
+from packaging.version import parse
+from time import sleep
 
 import syncprojects.config as config
 from syncprojects.ui.message import MessageBoxUI

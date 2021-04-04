@@ -1,4 +1,5 @@
 import datetime
+import datetime
 import logging
 import traceback
 import uuid
@@ -23,7 +24,26 @@ class SyncManager:
         self._backend = backend(self.api_client)
 
     def sync(self, project: Dict) -> Dict:
-        return self._backend.sync(project)
+        self.logger.info(f"Syncing project {project['name']}...")
+        pre_results = []
+        songs = []
+        for song in project['songs']:
+            if not song['sync_enabled']:
+                pre_results.append({'song': song['name'], 'result': 'success', 'action': 'disabled'})
+                continue
+            elif song['is_locked']:
+                pre_results.append({'song': song['name'], 'result': 'error', 'action': 'locked'})
+                continue
+            else:
+                songs.append(song)
+        if not songs:
+            self.logger.warning("No songs, skipping")
+            return {'status': 'done', 'songs': None}
+        self.logger.debug(f"Got songs list {songs}")
+        self._backend.get_local_changes(songs)
+        results = self._backend.sync(project, songs)
+        results['songs'].extend(pre_results)
+        return results
 
     def sync_amps(self, project: Dict):
         return self._backend.sync_amps(project)
