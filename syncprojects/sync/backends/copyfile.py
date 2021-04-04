@@ -205,9 +205,3 @@ class ShareDriveSyncManager(SyncManager):
                               update=True,
                               progress=False)
 
-    @staticmethod
-    def get_local_neural_dsp_amps():
-        with os.scandir(appdata['neural_dsp_path']) as entries:
-            for entry in entries:
-                if entry.is_dir() and entry.name != "Impulse Responses":
-                    yield entry.name

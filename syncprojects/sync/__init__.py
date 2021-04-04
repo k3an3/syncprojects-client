@@ -2,6 +2,7 @@ import traceback
 
 import datetime
 import logging
+import os
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict
@@ -99,6 +100,8 @@ class SyncManager(ABC):
         pass
 
     @staticmethod
-    @abstractmethod
     def get_local_neural_dsp_amps():
-        pass
+        with os.scandir(appdata['neural_dsp_path']) as entries:
+            for entry in entries:
+                if entry.is_dir() and entry.name != "Impulse Responses":
+                    yield entry.name
