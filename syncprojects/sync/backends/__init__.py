@@ -3,12 +3,14 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
-from os.path import join
+from glob import glob
+from os.path import join, isdir, isfile
 from typing import Dict, List
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
+from syncprojects.utils import hash_file
 
 
 class SyncBackend(ABC):
@@ -40,6 +42,17 @@ class SyncBackend(ABC):
             for entry in entries:
                 if entry.is_dir() and entry.name != "Impulse Responses":
                     yield entry.name
+
+    def hash_directory(self, dir_name):
+        hash_algo = config.DEFAULT_HASH_ALGO()
+        if isdir(dir_name):
+            for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
+                if isfile(file_name):
+                    self.logger.debug(f"Hashing {file_name}")
+                    hash_file(file_name, hash_algo)
+            hash_digest = hash_algo.hexdigest()
+            self.remote_hash_cache[dir_name] = hash_digest
+            return hash_digest
 
     def get_local_changes(self, songs: List[Dict]):
         self.logger.info("Checking local files for changes...")

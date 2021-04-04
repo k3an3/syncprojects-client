@@ -1,17 +1,15 @@
 import os
 import traceback
-from glob import glob
-from os.path import isdir, join, isfile
+from os.path import isdir, join
 from typing import Dict
 
 import sys
 
-from syncprojects import config as config
 from syncprojects.storage import HashStore, appdata
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.operations import handle_new_song, changelog, copy, copy_tree
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import get_datadir, hash_file, print_hr, get_latest_change, fmt_error, current_user, \
+from syncprojects.utils import get_datadir, print_hr, get_latest_change, fmt_error, current_user, \
     mount_persistent_drive, test_mode
 
 
@@ -31,17 +29,6 @@ class ShareDriveSyncBackend(SyncBackend):
     def print(self, *args, **kwargs):
         if not self.headless:
             print(*args, **kwargs)
-
-    def hash_directory(self, dir_name):
-        hash_algo = config.DEFAULT_HASH_ALGO()
-        if isdir(dir_name):
-            for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
-                if isfile(file_name):
-                    self.logger.debug(f"Hashing {file_name}")
-                    hash_file(file_name, hash_algo)
-            hash_digest = hash_algo.hexdigest()
-            self.remote_hash_cache[dir_name] = hash_digest
-            return hash_digest
 
     def is_updated(self, dir_name, group, remote_hs):
         dest = join(appdata['smb_drive'], group)
@@ -65,11 +52,11 @@ class ShareDriveSyncBackend(SyncBackend):
             known_hash = new_hash
         else:
             self.logger.debug(f"known_hash is {known_hash}")
-        if not src_hash == known_hash and not dst_hash == known_hash:
+        if src_hash != known_hash and dst_hash != known_hash:
             return "mismatch"
-        elif src_hash and (not dst_hash or not src_hash == known_hash):
+        elif src_hash and (not dst_hash or src_hash != known_hash):
             return "local"
-        elif dst_hash and (not src_hash or not dst_hash == known_hash):
+        elif dst_hash and (not src_hash or dst_hash != known_hash):
             return "remote"
 
     def sync(self, project: Dict) -> Dict:
@@ -115,13 +102,14 @@ class ShareDriveSyncBackend(SyncBackend):
                 self.logger.info("{} does not exist locally.".format(song))
                 not_local = True
             up = self.is_updated(song, project, remote_hs)
+            self.logger.debug(f"Got status: {up}")
             if not_local:
                 up == "remote"
                 handle_new_song(song, remote_hs)
             if up == "mismatch":
+                self.logger.warning("Sync conflict: both local and remote have changed!")
                 if changes := get_latest_change(join(project_dest, song)):
                     MessageBoxUI.info(changes, "Sync Conflict: changes")
-                self.logger.warning("WARNING: Both local and remote have changed!!!! Which to keep?")
                 result = MessageBoxUI.yesnocancel(f"{song} has changed both locally and remotely! Which one do you "
                                                   f"want to " f"keep? Note that proceeding may cause loss of "
                                                   f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
@@ -139,6 +127,7 @@ class ShareDriveSyncBackend(SyncBackend):
             elif up == "local":
                 src = appdata['source']
                 dst = project_dest
+                self.logger.debug("Prompting for changelog")
                 changelog(song)
             else:
                 self.logger.info(f"No action for {song}")
@@ -188,4 +177,3 @@ class ShareDriveSyncBackend(SyncBackend):
                               join(appdata['neural_dsp_path'], amp, "User", entry.name),
                               update=True,
                               progress=False)
-
