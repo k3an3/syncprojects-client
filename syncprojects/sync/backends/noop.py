@@ -1,12 +1,12 @@
 import random
 from typing import Dict
 
-from syncprojects.sync import SyncManager
+from syncprojects.sync import SyncBackend
 
 
-class RandomNoOpSyncManager(SyncManager):
+class RandomNoOpSyncBackend(SyncBackend):
     """
-    A SyncManager that doesn't do anything, but produces random output.
+    A SyncManager that doesn't actually do anything, but produces random output.
     """
 
     def sync(self, project: Dict):

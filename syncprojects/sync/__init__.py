@@ -1,10 +1,7 @@
-import traceback
-
 import datetime
 import logging
-import os
+import traceback
 import uuid
-from abc import ABC, abstractmethod
 from typing import Dict
 
 from syncprojects import config
@@ -12,20 +9,24 @@ from syncprojects.api import SyncAPI
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler, \
     ShutdownHandler
 from syncprojects.storage import appdata
+from syncprojects.sync.backends import SyncBackend
 from syncprojects.sync.operations import check_out
 from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice
 
 
-class SyncManager(ABC):
-    def __init__(self, api_client: SyncAPI, headless: bool = False):
+class SyncManager:
+    def __init__(self, api_client: SyncAPI, backend: SyncBackend, headless: bool = False):
         self.logger = logging.getLogger(f'syncprojects.sync.{self.__class__.__name__}')
         self.api_client = api_client
         self.headless = headless
         self.tasks = set()
+        self._backend = backend(self.api_client)
 
-    @abstractmethod
     def sync(self, project: Dict) -> Dict:
-        pass
+        return self._backend.sync(project)
+
+    def sync_amps(self, project: Dict):
+        return self._backend.sync_amps(project)
 
     def run_service(self):
         self.logger.debug("Starting syncprojects-client service")
@@ -85,23 +86,3 @@ class SyncManager(ABC):
             input("[enter] to check in")
             projects = self.api_client.get_all_projects()
             SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
-
-    def sync_amps(self, project: str):
-        for amp in self.get_local_neural_dsp_amps():
-            self.push_amp_settings(amp, project)
-            self.pull_amp_settings(amp, project)
-
-    @abstractmethod
-    def push_amp_settings(self, amp: str, project: str):
-        pass
-
-    @abstractmethod
-    def pull_amp_settings(self, amp: str, project: str):
-        pass
-
-    @staticmethod
-    def get_local_neural_dsp_amps():
-        with os.scandir(appdata['neural_dsp_path']) as entries:
-            for entry in entries:
-                if entry.is_dir() and entry.name != "Impulse Responses":
-                    yield entry.name

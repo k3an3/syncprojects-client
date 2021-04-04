@@ -10,8 +10,9 @@ from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.server import start_server
 from syncprojects.storage import appdata
-from syncprojects.sync.backends.copyfile import ShareDriveSyncManager
-from syncprojects.sync.backends.noop import RandomNoOpSyncManager
+from syncprojects.sync import SyncManager
+from syncprojects.sync.backends.copyfile import ShareDriveSyncBackend
+from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
 from syncprojects.ui.first_start import SetupUI
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import fmt_error, print_hr, get_latest_change, \
@@ -284,9 +285,11 @@ def main():
             api_unblock()
 
         if test_mode():
-            sync = RandomNoOpSyncManager(api_client)
+            backend = RandomNoOpSyncBackend
         else:
-            sync = ShareDriveSyncManager(api_client)
+            backend = ShareDriveSyncBackend
+
+        sync = SyncManager(api_client, backend)
 
         if parsed_args.tui:
             sync.run_tui()

@@ -1,28 +1,25 @@
+import os
 import traceback
 from glob import glob
 from os.path import isdir, join, isfile
-
-import concurrent.futures
-import os
-import sys
-from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Dict
+
+import sys
 
 from syncprojects import config as config
 from syncprojects.storage import HashStore, appdata
-from syncprojects.sync import SyncManager
+from syncprojects.sync import SyncBackend
 from syncprojects.sync.operations import handle_new_song, changelog, copy, copy_tree
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import get_datadir, hash_file, print_hr, get_latest_change, fmt_error, current_user, \
     mount_persistent_drive, test_mode
 
 
-class ShareDriveSyncManager(SyncManager):
+class ShareDriveSyncBackend(SyncBackend):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.local_hs = HashStore(str(get_datadir("syncprojects") / "hashes"))
         self.remote_hash_cache = {}
-        self.local_hash_cache = {}
         if not isdir(appdata['smb_drive']):
             mount_persistent_drive()
         if not isdir(appdata['smb_drive']) and not test_mode():
@@ -86,20 +83,7 @@ class ShareDriveSyncManager(SyncManager):
         self.logger.debug(f"Got songs list {songs}")
         project = project['name']
 
-        self.logger.info("Checking local files for changes...")
-        with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-            futures = {
-                executor.submit(self.hash_directory, join(appdata['source'], s.get('directory_name') or s['name'])): s
-                for s in
-                songs}
-            for results in concurrent.futures.as_completed(futures):
-                song = futures[results]
-                try:
-                    src_hash = results.result()
-                except FileNotFoundError:
-                    self.logger.debug(f"Didn't get hash for {song['name']}")
-                    src_hash = ""
-                self.local_hash_cache[join(appdata['source'], song.get('directory_name') or song['name'])] = src_hash
+        self.get_local_changes(songs)
         project_dest = join(appdata['smb_drive'], project)
         remote_store_name = join(project_dest, appdata['remote_hash_store'])
         self.logger.debug(f"Directory config: {project_dest=}, {remote_store_name=}")

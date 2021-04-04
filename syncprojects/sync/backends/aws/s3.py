@@ -1,93 +1,32 @@
 from bisect import bisect_left
 from os.path import join
-
-import boto3
 from pathlib import Path
 from typing import Dict
 
 from syncprojects.storage import appdata
-from syncprojects.sync import SyncManager
+from syncprojects.sync import SyncBackend
+from syncprojects.sync.backends.aws.auth import AWSAuth
 
 AWS_REGION = 'us-east-1'
 
 
-class S3Sync:
-    def sync(self, source: str, dest: str) -> [str]:
-        """
-        Sync source to dest, this means that all elements existing in
-        source that not exists in dest will be copied to dest.
-
-        No element will be deleted.
-
-        :param source: Source folder.
-        :param dest: Destination folder.
-
-        :return: None
-        """
-
-
-class S3SyncManager(SyncManager):
-    def __init__(self):
+class S3SyncBackend(SyncBackend):
+    def __init__(self, auth: AWSAuth):
         super().__init__()
-        self._client = boto3.client('cognito-idp', region_name=self.region_name)
-        self.client = None
-        self.id_token = None
-        self.identity_id = None
-        self.aws_credentials = None
-        self.bucket_name = None
-        self.auth()
-
-    def auth(self):
-        self.id_token = self.get_cognito_id_token(
-            self.username, self.refresh_token,
-            self.device_key, self.client_id
-        )
-        self.identity_id = self.get_identity_id(
-            self.account_id, self.identity_pool_id,
-            self.provider_name, self.id_token
-        )
-        self.aws_credentials = self.get_credentials(
-            self.identity_id, self.provider_name, self.id_token
-        )
-        self.client = boto3.client(
-            's3',
-            aws_access_key_id=self.aws_credentials['AccessKeyId'],
-            aws_secret_access_key=self.aws_credentials['SecretKey'],
-            aws_session_token=self.aws_credentials['SessionToken'],
-        )
-
-    def get_cognito_id_token(self, username, refresh_token,
-                             device_key, client_id):
-        response = self._client.initiate_auth(
-            AuthFlow='REFRESH_TOKEN',
-            AuthParameters={
-                'USERNAME': username,
-                'REFRESH_TOKEN': refresh_token,
-                'DEVICE_KEY': device_key
-            },
-            ClientId=client_id
-        )
-        return response['AuthenticationResult']['IdToken']
-
-    def get_identity_id(self, account_id, identity_pool_id,
-                        provider_name, id_token):
-        creds = self._client.get_id(
-            AccountId=account_id, IdentityPoolId=identity_pool_id,
-            Logins={provider_name: id_token}
-        )
-        return creds['IdentityId']
-
-    def get_credentials(self, identity_id, provider_name, id_token):
-        creds = self._client.get_credentials_for_identity(
-            IdentityId=identity_id,
-            Logins={provider_name: id_token},
-        )
-        return creds['Credentials']
+        self.auth = auth
+        self.client = self.auth.authenticate()
 
     def sync(self, project: Dict) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")
+        songs = project['songs']
+        if not songs:
+            self.logger.warning("No songs, skipping")
+            return {'status': 'done', 'songs': None}
+        self.logger.debug(f"Got songs list {songs}")
+        project = project['name']
+
         paths = self.list_source_objects(source_folder=join(appdata['source'], s.get('directory_name') or s['name']))
-        objects = self.list_bucket_objects(dest)
+        objects = self.list_bucket_objects(self.bucket)
 
         # Getting the keys and ordering to perform binary search
         # each time we want to check if any paths is already there.
