@@ -1,7 +1,6 @@
-from os.path import expanduser
-
 import re
 from hashlib import md5
+from os.path import expanduser
 from shutil import which
 
 # WARNING: hardcoded configuration is deprecated and will be removed soon!
@@ -46,7 +45,7 @@ PROJECT_GLOB = "*.cpr"
 BINARY_CLEAN_GLOB = "syncprojects*.exe"
 DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)
 DAW_EXE_SEARCH_PATH = "C:\\Program Files\\Steinberg"
-UPDATE_INTERVAL = 3600 * 6
+UPDATE_INTERVAL = 3600 * 12
 
 # Development key
 PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----

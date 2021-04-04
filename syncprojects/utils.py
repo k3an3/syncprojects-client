@@ -370,7 +370,7 @@ class UpdateThread(Thread):
                 self.logger.info("Checking for update...")
                 check_update(self.api_client)
                 self.update_next_check()
-        sleep(3600)
+            sleep(3600)
 
 
 def open_app_in_browser():
