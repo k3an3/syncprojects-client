@@ -1,15 +1,15 @@
-import traceback
-from glob import glob
-from multiprocessing import Queue, freeze_support
-from os.path import join, isdir, isfile
-
 import concurrent.futures
 import logging
 import os
-import sys
+import traceback
 from concurrent.futures.thread import ThreadPoolExecutor
+from glob import glob
+from multiprocessing import Queue, freeze_support
 from multiprocessing.context import Process
+from os.path import join, isdir, isfile
 from typing import Dict
+
+import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -23,7 +23,7 @@ from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_c
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running, open_app_in_browser, get_datadir
 
-__version__ = '2.1.4'
+__version__ = '2.1.5'
 
 from update.update import APP_NAME
 
@@ -131,18 +131,19 @@ class CopyFileSyncManager(SyncManager):
 
         results = {'status': 'done', 'songs': []}
         for song in songs:
+            song_name = song['name']
             if not song['sync_enabled']:
-                results['songs'].append({'song': song['name'], 'result': 'success', 'action': 'disabled'})
+                results['songs'].append({'song': song_name, 'result': 'success', 'action': 'disabled'})
                 continue
             elif song['is_locked']:
-                results['songs'].append({'song': song['name'], 'result': 'error', 'action': 'locked'})
+                results['songs'].append({'song': song_name, 'result': 'error', 'action': 'locked'})
                 continue
             song = song.get('directory_name') or song['name']
             self.print(print_hr())
             self.logger.info("Syncing {}...".format(song))
             not_local = False
             if not isdir(join(appdata['source'], song)):
-                self.logger.info("{} does not exist locally.".format(song))
+                self.logger.info(f"{song_name} does not exist locally.")
                 not_local = True
             up = self.is_updated(song, project, remote_hs)
             self.logger.debug(f"Got status: {up}")
@@ -153,11 +154,12 @@ class CopyFileSyncManager(SyncManager):
                 self.logger.warning("Sync conflict: both local and remote have changed!")
                 if changes := get_latest_change(join(project_dest, song)):
                     MessageBoxUI.info(changes, "Sync Conflict: changes")
-                result = MessageBoxUI.yesnocancel(f"{song} has changed both locally and remotely! Which one do you "
-                                                  f"want to " f"keep? Note that proceeding may cause loss of "
-                                                  f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
-                                                  f"\"no\" to confirm overwrite of server " f"files. Or, \"cancel\" "
-                                                  f"to skip.", "Sync Conflict")
+                result = MessageBoxUI.yesnocancel(
+                    f"{song_name} has changed both locally and remotely! Which one do you "
+                    f"want to " f"keep? Note that proceeding may cause loss of "
+                    f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
+                    f"\"no\" to confirm overwrite of server " f"files. Or, \"cancel\" "
+                    f"to skip.", "Sync Conflict")
                 if result:
                     up = "remote"
                 elif result is None:
@@ -173,12 +175,12 @@ class CopyFileSyncManager(SyncManager):
                 self.logger.debug("Prompting for changelog")
                 changelog(song)
             else:
-                self.logger.info(f"No action for {song}")
-                results['songs'].append({'song': song, 'result': 'success', 'action': up})
+                self.logger.info(f"No action for {song_name}")
+                results['songs'].append({'song': song_name, 'result': 'success', 'action': up})
                 continue
             self.local_hs.update(song, self.remote_hash_cache[join(src, song)])
             try:
-                self.logger.info("Now copying {} from {} ({}) to {} ({})".format(song, up, src,
+                self.logger.info("Now copying {} from {} ({}) to {} ({})".format(song_name, up, src,
                                                                                  "remote" if up == "local" else "local",
                                                                                  dst))
                 try:
@@ -190,13 +192,13 @@ class CopyFileSyncManager(SyncManager):
                         raise e
                 copy(song, src, dst)
             except Exception as e:
-                results['songs'].append({'song': song, 'result': 'error', 'msg': str(e)})
+                results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
                 self.logger.error(
-                    f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
+                    f"Error syncing {song_name}: {e}. If the remote directory does not exist, please remove it "
                     f"from the database.")
             else:
-                results['songs'].append({'song': song, 'result': 'success', 'action': up})
-                self.logger.info(f"Successfully synced {song}")
+                results['songs'].append({'song': song_name, 'result': 'success', 'action': up})
+                self.logger.info(f"Successfully synced {song_name}")
         self.print(print_hr())
         self.print(print_hr('='))
         return results
