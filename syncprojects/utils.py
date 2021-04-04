@@ -1,24 +1,25 @@
-import datetime
 import getpass
-import logging
-import pathlib
-import re
-import subprocess
 import traceback
-import webbrowser
-from argparse import ArgumentParser
 from json import JSONDecodeError
 from os import readlink, symlink
 from os.path import join, isfile, dirname
+
+import datetime
+import logging
+import os
+import pathlib
+import psutil
+import re
+import requests
+import subprocess
+import sys
+import webbrowser
+from argparse import ArgumentParser
+from packaging.version import parse
 from tempfile import NamedTemporaryFile
 from threading import Thread
-from typing import Dict
-
-import psutil
-import requests
-import sys
-from packaging.version import parse
 from time import sleep
+from typing import Dict
 
 import syncprojects.config as config
 from syncprojects.ui.message import MessageBoxUI
@@ -405,3 +406,7 @@ def check_already_running():
         pass
     logger.critical("Something else is already using port 5000! Exiting...")
     sys.exit(-1)
+
+
+def test_mode() -> bool:
+    return os.getenv('TEST', '0') == '1'

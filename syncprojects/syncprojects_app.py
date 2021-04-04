@@ -1,31 +1,26 @@
-import concurrent.futures
 import logging
-import os
 import traceback
-from concurrent.futures.thread import ThreadPoolExecutor
-from glob import glob
 from multiprocessing import Queue, freeze_support
 from multiprocessing.context import Process
-from os.path import join, isdir, isfile
-from typing import Dict
+from os.path import isdir
 
 import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.operations import copy, changelog, handle_new_song, copy_tree
 from syncprojects.server import start_server
-from syncprojects.storage import appdata, HashStore
-from syncprojects.sync import SyncManager, RandomNoOpSyncManager
+from syncprojects.storage import appdata
+from syncprojects.sync.backends.copyfile import ShareDriveSyncManager
+from syncprojects.sync.backends.noop import RandomNoOpSyncManager
 from syncprojects.ui.first_start import SetupUI
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_change, \
-    parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
-    check_already_running, open_app_in_browser, get_datadir
+from syncprojects.utils import fmt_error, print_hr, get_latest_change, \
+    hash_file, current_user, \
+    get_datadir
+from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
+    check_already_running, open_app_in_browser, test_mode
 
-__version__ = '2.1.6'
-
-from update.update import APP_NAME
+__version__ = '2.2'
 
 CODENAME = "IT'S EVEN MORE IN THE CLOUD"
 BANNER = """
@@ -250,7 +245,6 @@ def first_time_run():
 def main():
     if check_already_running():
         sys.exit(0)
-    test = os.getenv('TEST', '0') == '1'
     main_queue = Queue()
     server_queue = Queue()
 
@@ -288,16 +282,11 @@ def main():
             prompt_to_exit()
         if appdata['firewall_api_url'] and appdata['firewall_api_key']:
             api_unblock()
-        if not isdir(appdata['smb_drive']):
-            mount_persistent_drive()
-        if not isdir(appdata['smb_drive']) and not test:
-            logger.critical(f"Error! Destination path {appdata['smb_drive']} not found.")
-            prompt_to_exit()
 
-        if test:
+        if test_mode():
             sync = RandomNoOpSyncManager(api_client)
         else:
-            sync = CopyFileSyncManager(api_client)
+            sync = ShareDriveSyncManager(api_client)
 
         if parsed_args.tui:
             sync.run_tui()

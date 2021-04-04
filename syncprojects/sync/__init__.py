@@ -2,7 +2,6 @@ import traceback
 
 import datetime
 import logging
-import random
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict
@@ -11,8 +10,8 @@ from syncprojects import config
 from syncprojects.api import SyncAPI
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler, \
     ShutdownHandler
-from syncprojects.operations import check_out
 from syncprojects.storage import appdata
+from syncprojects.sync.operations import check_out
 from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice
 
 
@@ -103,30 +102,3 @@ class SyncManager(ABC):
     @abstractmethod
     def get_local_neural_dsp_amps():
         pass
-
-
-class RandomNoOpSyncManager(SyncManager):
-    """
-    A SyncManager that doesn't do anything, but produces random output.
-    """
-
-    def sync(self, project: Dict):
-        songs = [song['name'] for song in project['songs'] if
-                 song['sync_enabled'] and not song['is_locked']]
-        result = {'status': 'done', 'songs': []}
-        for song in songs:
-            changed = random.choice(('local', 'remote', 'error', None, 'locked', 'disabled'))
-            self.logger.info(f"{project=} {song=} {changed=}")
-            result['songs'].append(
-                {'song': song, 'result': 'error' if changed == 'error' else 'success', 'action': changed})
-        return result
-
-    def push_amp_settings(self, project: str):
-        pass
-
-    def pull_amp_settings(self, project: str):
-        pass
-
-    @staticmethod
-    def get_local_neural_dsp_amps():
-        return []

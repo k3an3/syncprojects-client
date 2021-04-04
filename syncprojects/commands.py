@@ -8,8 +8,8 @@ import sys
 from requests import HTTPError
 
 from syncprojects.api import SyncAPI
-from syncprojects.operations import get_lock_status
 from syncprojects.storage import appdata
+from syncprojects.sync.operations import get_lock_status
 from syncprojects.utils import open_default_app, check_update
 
 logger = logging.getLogger('syncprojects.commands')
