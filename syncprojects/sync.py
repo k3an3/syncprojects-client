@@ -32,7 +32,7 @@ class SyncManager(ABC):
         self.headless = True
         try:
             while msg := self.api_client.recv_queue.get():
-                self.logger.debug(f"Received {msg['task_id']=} {msg['msg_type']} {msg['data']=}")
+                self.logger.debug(f"Received {msg['task_id']=} {msg['msg_type']=} {msg['data']=}")
                 try:
                     {
                         'auth': AuthHandler,

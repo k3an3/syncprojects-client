@@ -1,13 +1,13 @@
-import datetime
 import getpass
-import logging
-import webbrowser
-from queue import Queue
-from typing import Dict
 
+import datetime
+import logging
 import requests
 import sys
+import webbrowser
+from queue import Queue
 from requests import HTTPError
+from typing import Dict
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
@@ -71,6 +71,7 @@ class SyncAPI:
     def _request(self, path: str, method: str = 'GET', params: dict = {}, json: dict = {}, headers: dict = {},
                  auth: bool = True, refresh: bool = True):
         attempts = 0
+        headers['User-Agent'] = "syncprojects-client"
         while attempts < 2:
             if auth and self.access_token:
                 headers['Authorization'] = f"Bearer {self.access_token}"

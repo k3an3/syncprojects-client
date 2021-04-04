@@ -23,7 +23,7 @@ from syncprojects.utils import prompt_to_exit, fmt_error, print_hr, get_latest_c
     parse_args, logger, hash_file, check_update, UpdateThread, api_unblock, mount_persistent_drive, current_user, \
     check_already_running, open_app_in_browser, get_datadir
 
-__version__ = '2.1.3'
+__version__ = '2.1.4'
 
 from update.update import APP_NAME
 
@@ -150,9 +150,9 @@ class CopyFileSyncManager(SyncManager):
                 up == "remote"
                 handle_new_song(song, remote_hs)
             if up == "mismatch":
+                self.logger.warning("Sync conflict: both local and remote have changed!")
                 if changes := get_latest_change(join(project_dest, song)):
                     MessageBoxUI.info(changes, "Sync Conflict: changes")
-                self.logger.warning("Sync conflict: both local and remote have changed!")
                 result = MessageBoxUI.yesnocancel(f"{song} has changed both locally and remotely! Which one do you "
                                                   f"want to " f"keep? Note that proceeding may cause loss of "
                                                   f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
@@ -170,6 +170,7 @@ class CopyFileSyncManager(SyncManager):
             elif up == "local":
                 src = appdata['source']
                 dst = project_dest
+                self.logger.debug("Prompting for changelog")
                 changelog(song)
             else:
                 self.logger.info(f"No action for {song}")

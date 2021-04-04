@@ -58,7 +58,9 @@ class CommandHandler(ABC):
         :return:
         """
         self.sync_manager.tasks.add(self.task_id)
+        self.logger.debug("Starting")
         self.handle(data)
+        self.logger.debug("Done")
         self.sync_manager.tasks.remove(self.task_id)
 
     def send_queue(self, response_data: Dict) -> None:
@@ -152,32 +154,28 @@ class SyncMultipleHandler(CommandHandler):
             for song in data['songs']:
                 self.lock_and_sync_song(song)
             self.send_queue({'status': 'complete'})
-        self.logger.info("Sync complete")
 
 
 class WorkOnHandler(CommandHandler):
     def handle(self, data: Dict):
         song = data['song']
-        """
-        if not (exe := find_daw_exe()):
-            # If we don't get the path to the DAW executable right away, we'll prompt the user to open their DAW just
-            # this one time so we can learn the path to it.
-            self.send_queue({'status': 'error', 'reason': 'daw_path'})
-            return
-        """
+        self.logger.info(f"Working on {song=}")
         # Keep song checked out afterwards
         if not (song := self.lock_and_sync_song(song, unlock=False)):
+            self.logger.warning("Couldn't sync/check out song")
             self.send_queue({'status': 'complete'})
             return
+        self.logger.debug("Sync complete")
         # TODO: DAW agnostic?
         # just guessing at which file to open
+        self.logger.debug("Resolving project file")
         project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
         try:
             latest_project_file = max(project_files, key=getctime)
         except ValueError:
             self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
             return
-        self.logger.debug(f"Resolved project file to {latest_project_file}")
+        self.logger.debug(f"Resolved project file to {latest_project_file}, opening in DAW")
         open_default_app(latest_project_file)
         self.send_queue({'status': 'complete'})
 
@@ -185,20 +183,25 @@ class WorkOnHandler(CommandHandler):
 class WorkDoneHandler(CommandHandler):
     def handle(self, data: Dict):
         song = data['song']
+        self.logger.info(f"Work done on {song=}")
         project = self.api_client.get_project(song['project'])
         # TODO: do we just want to call the sync method at the top of this file and add a way to not lock there?
         song = next(s for s in project['songs'] if s['id'] == song['song'])
         project['songs'] = [song]
+        self.logger.debug("Syncing")
         sync = self.sync_manager.sync(project)
+        self.logger.debug("Sync done; trying unlock")
         try:
             self.api_client.unlock(song)
-        except HTTPError:
+        except HTTPError as e:
+            self.logger.error(f"Error unlocking song: {e}")
             self.send_queue({'status': 'error', 'msg': f'Error unlocking {song["name"]}'})
         self.send_queue({'status': 'complete', 'sync': sync})
 
 
 class UpdateHandler(CommandHandler):
     def handle(self, data: Dict):
+        self.logger.debug("Received request to check for updates...")
         check_update(self.api_client)
 
 
