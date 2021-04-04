@@ -1,13 +1,14 @@
-import getpass
-
 import datetime
+import getpass
 import logging
-import requests
-import sys
 import webbrowser
 from queue import Queue
-from requests import HTTPError
 from typing import Dict
+from typing import List
+
+import requests
+import sys
+from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
@@ -165,3 +166,9 @@ class SyncAPI:
 
     def get_updates(self):
         return self._request("updates/")['results']
+
+    def add_sync(self, project: Dict, songs: List[int]):
+        return self._request("syncs/", "POST", json={
+            'project': project['id'],
+            'songs': songs,
+        })
