@@ -133,9 +133,11 @@ class CopyFileSyncManager(SyncManager):
         for song in songs:
             song_name = song['name']
             if not song['sync_enabled']:
+                self.logger.debug(f"{song_name} sync disabled, skipping...")
                 results['songs'].append({'song': song_name, 'result': 'success', 'action': 'disabled'})
                 continue
             elif song['is_locked']:
+                self.logger.debug(f"{song_name} locked, skipping...")
                 results['songs'].append({'song': song_name, 'result': 'error', 'action': 'locked'})
                 continue
             song = song.get('directory_name') or song['name']

@@ -74,8 +74,7 @@ class CommandHandler(ABC):
         project = self.api_client.get_project(song['project'])
         song = next(s for s in project['songs'] if s['id'] == song['song'])
         if get_lock_status(song_lock := self.api_client.lock(song, reason="Checked out")):
-            self.logger.debug("Got exclusive lock of song, unlocking project")
-            self.api_client.unlock(project)
+            self.logger.debug("Got exclusive lock of song")
             project['songs'] = [song]
             sync = self.sync_manager.sync(project)
             if unlock:
@@ -176,6 +175,8 @@ class WorkDoneHandler(CommandHandler):
         project = self.api_client.get_project(song['project'])
         # TODO: do we just want to call the sync method at the top of this file and add a way to not lock there?
         song = next(s for s in project['songs'] if s['id'] == song['song'])
+        # Song will be skipped if it is locked
+        song['is_locked'] = False
         project['songs'] = [song]
         self.logger.debug("Syncing")
         sync = self.sync_manager.sync(project)
