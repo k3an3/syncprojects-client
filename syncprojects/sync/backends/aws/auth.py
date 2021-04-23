@@ -1,24 +1,41 @@
+import logging
 from abc import ABC, abstractmethod
 
 import boto3
 
 
 class AWSAuth(ABC):
+    def __init__(self):
+        self.logger = logging.getLogger(f'syncprojects.sync.backends.aws.auth.{self.__class__.__name__}')
+        self.client = self.authenticate()
+
     @abstractmethod
     def authenticate(self):
         pass
 
 
+class StaticAuth(AWSAuth):
+    def __init__(self, access_id: str, secret_key: str):
+        self.access_id = access_id
+        self.secret_key = secret_key
+        super().__init__()
+
+    def authenticate(self):
+        return boto3.client(
+            's3',
+            aws_access_key_id=self.access_id,
+            aws_secret_access_key=self.secret_key,
+        )
+
+
 class CognitoAuth(AWSAuth):
     def __init__(self):
-        super().__init__()
         self._client = boto3.client('cognito-idp', region_name=self.region_name)
-        self.client = None
         self.id_token = None
         self.identity_id = None
         self.aws_credentials = None
         self.bucket = None
-        self.authenticate()
+        super().__init__()
 
     def authenticate(self):
         self.id_token = self.get_cognito_id_token(
@@ -32,7 +49,7 @@ class CognitoAuth(AWSAuth):
         self.aws_credentials = self.get_credentials(
             self.identity_id, self.provider_name, self.id_token
         )
-        self.client = boto3.client(
+        return boto3.client(
             's3',
             aws_access_key_id=self.aws_credentials['AccessKeyId'],
             aws_secret_access_key=self.aws_credentials['SecretKey'],
