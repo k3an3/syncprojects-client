@@ -85,7 +85,6 @@ class CommandHandler(ABC):
             self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
             return song
         else:
-            self.api_client.unlock(project)
             self.send_queue({'status': 'error', 'lock': song_lock, 'msg': f"Song \"{song['name']}\" is locked",
                              'component': 'song'})
 
