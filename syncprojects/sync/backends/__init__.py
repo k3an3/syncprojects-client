@@ -3,6 +3,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
+from enum import Enum
 from glob import glob
 from os.path import join, isdir, isfile
 from typing import Dict, List
@@ -68,4 +69,10 @@ class SyncBackend(ABC):
                 except FileNotFoundError:
                     self.logger.debug(f"Didn't get hash for {song['name']}")
                     src_hash = ""
-                self.local_hash_cache[join(appdata['source'], song.get('directory_name') or song['name'])] = src_hash
+                self.local_hash_cache[f"{song['project']}:{song['id']}"] = src_hash
+
+
+class Verdict(Enum):
+    LOCAL = "local"
+    REMOTE = "remote"
+    CONFLICT = "conflict"

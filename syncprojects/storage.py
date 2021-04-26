@@ -1,15 +1,29 @@
-from os.path import isfile, dirname
-
 import json
 import logging
 import os
 import pathlib
+from os.path import isfile, dirname
+
 from sqlitedict import SqliteDict
 
 from syncprojects import config
 from syncprojects.utils import get_datadir, migrate_old_settings, get_config_path
 
 logger = logging.getLogger('syncprojects.storage')
+
+
+class SongData:
+    def __init__(self, song_id: int, revision: int = 0, known_hash: str = ""):
+        self.song_id = song_id
+        self.revision = revision
+        self.known_hash = known_hash
+
+
+def get_song(data: SqliteDict, song: int):
+    if song not in data:
+        logger.info("Song doesn't exist in local db, adding...")
+        data[song] = SongData(song)
+    return data[song]
 
 
 def get_appdata():
@@ -35,7 +49,23 @@ def get_appdata():
     return loaded_config
 
 
+def get_songdata(project: str):
+    if config.DEBUG:
+        config_dir = pathlib.Path("..")
+    else:
+        config_dir = get_datadir("syncprojects")
+    config_file = str(config_dir / "songdata.sqlite")
+    if not isfile(config_file):
+        config_created = True
+    loaded_config = SqliteDict(config_file, tablename=project)
+    if config_created:
+        logger.info("Created songdata db.")
+    loaded_config.autocommit = True
+    return loaded_config
+
+
 appdata = get_appdata()
+songdata = get_songdata()
 
 
 def get_hash_store(project):

@@ -30,9 +30,9 @@ class ShareDriveSyncBackend(SyncBackend):
         if not self.headless:
             print(*args, **kwargs)
 
-    def is_updated(self, dir_name, group, remote_hs):
+    def is_updated(self, song: Dict, dir_name: str, group: str, remote_hs: HashStore) -> str:
         dest = join(appdata['smb_drive'], group)
-        src_hash = self.local_hash_cache[join(appdata['source'], dir_name)]
+        src_hash = self.local_hash_cache[f"{song['project']}:{song['id']}"]
         self.logger.debug(f"local_hash is {src_hash}")
         dst_hash = remote_hs.get(dir_name)
         self.remote_hash_cache[join(dest, dir_name)] = dst_hash
@@ -81,6 +81,7 @@ class ShareDriveSyncBackend(SyncBackend):
         results = {'status': 'done', 'songs': []}
         for song in songs:
             song_name = song['name']
+            og_song = song
             song = song.get('directory_name') or song['name']
             self.print(print_hr())
             self.logger.info(f"Syncing {song_name}")
@@ -88,7 +89,7 @@ class ShareDriveSyncBackend(SyncBackend):
             if not isdir(join(appdata['source'], song)):
                 self.logger.info(f"{song_name} does not exist locally.")
                 not_local = True
-            up = self.is_updated(song, project, remote_hs)
+            up = self.is_updated(og_song, song, project, remote_hs)
             self.logger.debug(f"Got status: {up}")
             if not_local:
                 up == "remote"

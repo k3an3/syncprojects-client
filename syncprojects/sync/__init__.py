@@ -1,5 +1,4 @@
 import datetime
-import datetime
 import logging
 import traceback
 import uuid
@@ -43,6 +42,7 @@ class SyncManager:
         self._backend.get_local_changes(songs)
         results = self._backend.sync(project, songs)
         results['songs'].extend(pre_results)
+        self.api_client.add_sync(project, [s['id'] for s in results['songs']])
         return results
 
     def sync_amps(self, project: Dict):
