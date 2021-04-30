@@ -29,8 +29,8 @@ class StaticAuth(AWSAuth):
 
 
 class CognitoAuth(AWSAuth):
-    def __init__(self):
-        self._client = boto3.client('cognito-idp', region_name=self.region_name)
+    def __init__(self, region_name: str):
+        self._client = boto3.client('cognito-idp', region_name=region_name)
         self.id_token = None
         self.identity_id = None
         self.aws_credentials = None

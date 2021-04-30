@@ -15,12 +15,12 @@ from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_inp
 
 
 class SyncManager:
-    def __init__(self, api_client: SyncAPI, backend: SyncBackend, headless: bool = False):
+    def __init__(self, api_client: SyncAPI, backend: SyncBackend, headless: bool = False, args=[], **kwargs):
         self.logger = logging.getLogger(f'syncprojects.sync.{self.__class__.__name__}')
         self.api_client = api_client
         self.headless = headless
         self.tasks = set()
-        self._backend = backend(self.api_client)
+        self._backend = backend(self.api_client, *args, **kwargs)
 
     def sync(self, project: Dict) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")

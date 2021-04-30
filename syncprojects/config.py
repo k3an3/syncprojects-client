@@ -65,6 +65,10 @@ DEBUG = False
 LOGIN_MODE = "web"  # prompt, web
 SYNCPROJECTS_URL = "https://syncprojects.example.com/"
 
+# Temporary
+ACCESS_ID = ""
+SECRET_KEY = ""
+
 try:
     from local_config import *
 except ImportError:

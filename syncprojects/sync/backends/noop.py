@@ -12,11 +12,11 @@ class RandomNoOpSyncBackend(SyncBackend):
     def sync(self, project: Dict, songs: List[Dict]):
         result = {'status': 'done', 'songs': []}
         for song in songs:
-            song = song['name']
+            song_name = song['name']
             changed = random.choice(('local', 'remote', 'error', None, 'locked', 'disabled'))
-            self.logger.info(f"{project=} {song=} {changed=}")
+            self.logger.info(f"{project=} {song_name=} {changed=}")
             result['songs'].append(
-                {'song': song, 'result': 'error' if changed == 'error' else 'success', 'action': changed})
+                {'id': song['id'], 'song': song_name, 'result': 'error' if changed == 'error' else 'success', 'action': changed})
         return result
 
     def push_amp_settings(self, project: str):

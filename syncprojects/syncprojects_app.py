@@ -8,9 +8,12 @@ import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
+from syncprojects.config import ACCESS_ID, SECRET_KEY
 from syncprojects.server import start_server
 from syncprojects.storage import appdata
 from syncprojects.sync import SyncManager
+from syncprojects.sync.backends.aws.auth import StaticAuth
+from syncprojects.sync.backends.aws.s3 import S3SyncBackend
 from syncprojects.sync.backends.copyfile import ShareDriveSyncBackend
 from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
 from syncprojects.ui.first_start import SetupUI
@@ -286,10 +289,12 @@ def main():
 
         if test_mode():
             backend = RandomNoOpSyncBackend
+            args = []
         else:
-            backend = ShareDriveSyncBackend
+            backend = S3SyncBackend
+            args = [StaticAuth(ACCESS_ID, SECRET_KEY), 'syncprojects']
 
-        sync = SyncManager(api_client, backend)
+        sync = SyncManager(api_client, backend, args=args)
 
         if parsed_args.tui:
             sync.run_tui()

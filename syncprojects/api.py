@@ -83,7 +83,8 @@ class SyncAPI:
                 MessageBoxUI.error("Failed to connect to the Syncprojects API! Check your internet connection and try "
                                    "again, or contact support if the error persists.\n\nExiting...")
                 sys.exit(1)
-            if r.status_code == 200:
+            # 2xx status code
+            if r.status_code // 100 == 2:
                 return r.json()
             elif r.status_code == 401:
                 self.logger.debug("Got 401 response, requesting credential re-entry...")

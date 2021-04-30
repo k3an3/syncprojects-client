@@ -65,7 +65,6 @@ def get_songdata(project: str):
 
 
 appdata = get_appdata()
-songdata = get_songdata()
 
 
 def get_hash_store(project):

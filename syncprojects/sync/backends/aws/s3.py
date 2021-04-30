@@ -4,6 +4,7 @@ from typing import Dict, List
 
 from sqlitedict import SqliteDict
 
+from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata, get_songdata, get_song, SongData
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
@@ -38,10 +39,11 @@ def diff_paths(src: Dict, dst: Dict) -> List:
 
 
 class S3SyncBackend(SyncBackend):
-    def __init__(self, auth: AWSAuth):
-        super().__init__()
+    def __init__(self, api_client: SyncAPI, auth: AWSAuth, bucket: str):
+        super().__init__(api_client)
         self.auth = auth
         self.client = self.auth.authenticate()
+        self.bucket = bucket
 
     def get_verdict(self, song_data: SongData, song: Dict) -> Verdict:
         """
@@ -84,7 +86,7 @@ class S3SyncBackend(SyncBackend):
     def get_local_manifest(self, path: str) -> Dict:
         path = join(appdata['source'], path)
         self.logger.debug(f"Generating local manifest from {path}")
-        results = self.walk_dir()
+        results = walk_dir(path)
         self.logger.debug(f"Got {len(results)} from local")
         return results
 
@@ -101,7 +103,7 @@ class S3SyncBackend(SyncBackend):
 
     def sync(self, project: Dict, songs: List[Dict]) -> Dict:
         results = {'status': 'done', 'songs': []}
-        with get_songdata(project['id']) as project_song_data:
+        with get_songdata(str(project['id'])) as project_song_data:
             for song in songs:
                 try:
                     song_data = get_song(project_song_data, song['id'])
@@ -155,36 +157,6 @@ class S3SyncBackend(SyncBackend):
 
     def pull_amp_settings(self, amp: str, project: str):
         pass
-
-    def list_bucket_objects(self, bucket: str) -> [dict]:
-        """
-        List all objects for the given bucket.
-
-        :param bucket: Bucket name.
-        :return: A [dict] containing the elements in the bucket.
-
-        Example of a single object.
-
-        {
-            'Key': 'example/example.txt',
-            'LastModified': datetime.datetime(2019, 7, 4, 13, 50, 34, 893000, tzinfo=tzutc()),
-            'ETag': '"b11564415be7f58435013b414a59ae5c"',
-            'Size': 115280,
-            'StorageClass': 'STANDARD',
-            'Owner': {
-                'DisplayName': 'webfile',
-                'ID': '75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a'
-            }
-        }
-
-        """
-        try:
-            contents = self._s3.list_objects(Bucket=bucket)['Contents']
-        except KeyError:
-            # No Contents Key, empty bucket.
-            return []
-        else:
-            return contents
 
 
 def walk_dir(root: str) -> Dict[str, str]:

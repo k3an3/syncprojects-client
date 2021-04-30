@@ -15,7 +15,7 @@ from syncprojects.utils import hash_file
 
 
 class SyncBackend(ABC):
-    def __init__(self, api_client: SyncAPI):
+    def __init__(self, api_client: SyncAPI, *args, **kwargs):
         self.api_client = api_client
         self.local_hash_cache = {}
         self.logger = logging.getLogger(f'syncprojects.sync.backends.{self.__class__.__name__}')
@@ -52,7 +52,6 @@ class SyncBackend(ABC):
                     self.logger.debug(f"Hashing {file_name}")
                     hash_file(file_name, hash_algo)
             hash_digest = hash_algo.hexdigest()
-            self.remote_hash_cache[dir_name] = hash_digest
             return hash_digest
 
     def get_local_changes(self, songs: List[Dict]):

@@ -9,7 +9,7 @@ from syncprojects.storage import HashStore, appdata
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.operations import handle_new_song, changelog, copy, copy_tree
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import get_datadir, print_hr, get_latest_change, fmt_error, current_user, \
+from syncprojects.utils import get_datadir, get_latest_change, fmt_error, current_user, \
     mount_persistent_drive, test_mode
 
 
@@ -25,10 +25,6 @@ class ShareDriveSyncBackend(SyncBackend):
             MessageBoxUI.error(f"Syncprojects could not find your share drive f{appdata['smb_drive']}. Please ensure "
                                f"it is connected.")
             sys.exit(-1)
-
-    def print(self, *args, **kwargs):
-        if not self.headless:
-            print(*args, **kwargs)
 
     def is_updated(self, song: Dict, dir_name: str, group: str, remote_hs: HashStore) -> str:
         dest = join(appdata['smb_drive'], group)
@@ -83,7 +79,6 @@ class ShareDriveSyncBackend(SyncBackend):
             song_name = song['name']
             og_song = song
             song = song.get('directory_name') or song['name']
-            self.print(print_hr())
             self.logger.info(f"Syncing {song_name}")
             not_local = False
             if not isdir(join(appdata['source'], song)):
@@ -141,8 +136,6 @@ class ShareDriveSyncBackend(SyncBackend):
             else:
                 results['songs'].append({'song': song_name, 'result': 'success', 'action': up})
                 self.logger.info(f"Successfully synced {song_name}")
-        self.print(print_hr())
-        self.print(print_hr('='))
         return results
 
     def push_amp_settings(self, amp, project):
