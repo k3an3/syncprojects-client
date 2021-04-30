@@ -1,6 +1,5 @@
-from bisect import bisect_left
+import os
 from os.path import join
-from pathlib import Path
 from typing import Dict, List
 
 from sqlitedict import SqliteDict
@@ -9,11 +8,33 @@ from syncprojects.storage import appdata, get_songdata, get_song, SongData
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
-from syncprojects.utils import get_datadir
+from syncprojects.sync.operations import changelog
+from syncprojects.ui.message import MessageBoxUI
+from syncprojects.utils import get_datadir, hash_file, get_song_dir
 
 AWS_REGION = 'us-east-1'
 
 syncdata = SqliteDict(str(get_datadir("syncprojects") / "sync.sqlite"))
+
+
+def handle_conflict(song_name: str) -> Verdict:
+    # TODO: legacy prompt
+    result = MessageBoxUI.yesnocancel(
+        f"{song_name} has changed both locally and remotely! Which one do you "
+        f"want to " f"keep? Note that proceeding may cause loss of "
+        f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
+        f"\"no\" to confirm overwrite of server " f"files. Or, \"cancel\" "
+        f"to skip.", "Sync Conflict")
+    if result:
+        return Verdict.REMOTE
+    elif result is None:
+        return None
+    else:
+        return Verdict.LOCAL
+
+
+def diff_paths(src: Dict, dst: Dict) -> List:
+    return src.keys() - dst.keys()
 
 
 class S3SyncBackend(SyncBackend):
@@ -23,48 +44,111 @@ class S3SyncBackend(SyncBackend):
         self.client = self.auth.authenticate()
 
     def get_verdict(self, song_data: SongData, song: Dict) -> Verdict:
+        """
+        Determine whether sync should copy local to remote, remote to local, or no action.
+        :param song_data: Locally-stored song information
+        :param song: Song information from the API
+        :return: A Verdict enum selection for what to do
+        """
         self.logger.debug(
             f"Local revision {song_data.revision}, remote revision {song['revision']}")
+        local_hash = self.local_hash_cache.get(f"{song['project']}:{song['id']}")
+        local_changed = local_hash != song_data.hash
         if song['revision'] == song_data.revision:
-            self.logger.info("Local revision same as remote, further checks needed")
-            local_hash = self.local_hash_cache.get(f"{song['project']}:{song['id']}")
+            self.logger.debug("Local revision same as remote, further checks needed")
             if not local_hash:
-                self.logger.info("No local hash, song doesn't exist locally.")
+                self.logger.debug("No local hash, song doesn't exist locally.")
                 return Verdict.REMOTE
-            elif song_data.hash != local_hash:
-                self.logger.info("Local hash differs from known; local was changed.")
+            elif local_changed:
+                self.logger.debug("Local hash differs from known; local was changed.")
                 return Verdict.LOCAL
             else:
-                self.logger.info("No changes detected.")
+                self.logger.debug("No changes detected.")
         elif song['revision'] > song_data.revision:
-            self.logger.info("Local revision out-of-date")
+            self.logger.debug("Local revision out-of-date")
+            if local_changed:
+                self.logger.warn("Local AND remote changed")
+                return Verdict.CONFLICT
             return Verdict.REMOTE
         else:
             self.logger.info("Local revision newer")
             return Verdict.LOCAL
 
+    def get_remote_manifest(self, path: str) -> Dict:
+        self.logger.debug(f"Generating remote manifest from bucket {self.bucket} {path=}")
+        results = {obj['Key']: obj['ETag'] for obj in
+                   self.client.list_objects_v2(Bucket=self.bucket, Prefix=path)['Contents']}
+        self.logger.debug(f"Got {len(results)} from remote")
+        return results
+
+    def get_local_manifest(self, path: str) -> Dict:
+        path = join(appdata['source'], path)
+        self.logger.debug(f"Generating local manifest from {path}")
+        results = self.walk_dir()
+        self.logger.debug(f"Got {len(results)} from local")
+        return results
+
+    def handle_upload(self, song: Dict, key: str, remote_path: str):
+        self.client.upload_file(join(appdata['source'], get_song_dir(song), key),
+                                self.bucket,
+                                remote_path + key)
+
+    def handle_download(self, song: Dict, key: str, remote_path: str):
+        self.client.download_file(self.bucket,
+                                  remote_path + key,
+                                  join(appdata['source'], get_song_dir(song), key)
+                                  )
+
     def sync(self, project: Dict, songs: List[Dict]) -> Dict:
+        results = {'status': 'done', 'songs': []}
         with get_songdata(project['id']) as project_song_data:
             for song in songs:
-                song_data = get_song(project_song_data, song['id'])
-                verdict = self.get_verdict(song_data, song)
-                self.logger.debug(f"{verdict=}")
-                paths = self.list_source_objects(
-                    source_folder=join(appdata['source'], s.get('directory_name') or s['name']))
-                objects = self.list_bucket_objects(self.bucket)
+                try:
+                    song_data = get_song(project_song_data, song['id'])
+                    song_name = song['name']
+                    verdict = self.get_verdict(song_data, song)
+                    self.logger.debug(f"{verdict=}")
+                    if not verdict:
+                        self.logger.info(f"No action for {song_name}")
+                        results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
+                        continue
+                    remote_path = f"{project['id']}/{song['id']}/"
+                    self.logger.debug("Fetching remote manifest")
+                    remote_manifest = self.get_remote_manifest(remote_path)
+                    self.logger.debug("Generating local manifest")
+                    local_manifest = self.get_local_manifest(get_song_dir(song))
 
-                # Getting the keys and ordering to perform binary search
-                # each time we want to check if any paths is already there.
-                object_keys = [obj['Key'] for obj in objects]
-                object_keys.sort()
-                object_keys_length = len(object_keys)
+                    if verdict == Verdict.CONFLICT:
+                        verdict = handle_conflict(song_name)
 
-                for path in paths:
-                    # Binary search.
-                    index = bisect_left(object_keys, path)
-                    if index == object_keys_length:
-                        # If path not found in object_keys, it has to be sync-ed.
-                        self._s3.upload_file(str(Path(source).joinpath(path)), Bucket=dest, Key=path)
+                    if verdict == Verdict.LOCAL:
+                        self.logger.debug("Prompting for changelog (legacy)")
+                        changelog(get_song_dir(song))
+                        src = local_manifest
+                        dst = remote_manifest
+                        action = self.handle_upload
+                    elif verdict == Verdict.REMOTE:
+                        src = remote_manifest
+                        dst = local_manifest
+                        action = self.handle_download
+                    else:
+                        self.logger.info(f"{song_name} skipped")
+                        results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
+                        continue
+
+                    updated = 0
+                    for key, tag in src.items():
+                        if key not in dst or tag != dst[key]:
+                            action(song, key, remote_path)
+                            updated += 1
+                    self.logger.info(f"Updated {updated} files.")
+                except Exception as e:
+                    results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
+                    self.logger.error(f"Error syncing {song}: {e}.")
+                else:
+                    results['songs'].append({'song': song_name, 'result': 'success', 'action': verdict})
+                    self.logger.info(f"Successfully synced {song_name}")
+        return results
 
     def push_amp_settings(self, amp: str, project: str):
         pass
@@ -102,34 +186,12 @@ class S3SyncBackend(SyncBackend):
         else:
             return contents
 
-    @staticmethod
-    def list_source_objects(source_folder: str) -> [str]:
-        """
-        :param source_folder:  Root folder for resources you want to list.
-        :return: A [str] containing relative names of the files.
 
-        Example:
-
-            /tmp
-                - example
-                    - file_1.txt
-                    - some_folder
-                        - file_2.txt
-
-            >>> sync.list_source_objects("/tmp/example")
-            ['file_1.txt', 'some_folder/file_2.txt']
-
-        """
-
-        path = Path(source_folder)
-
-        paths = []
-
-        for file_path in path.rglob("*"):
-            if file_path.is_dir():
-                continue
-            str_file_path = str(file_path)
-            str_file_path = str_file_path.replace(f'{str(path)}/', "")
-            paths.append(str_file_path)
-
-        return paths
+def walk_dir(root: str) -> Dict[str, str]:
+    manifest = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        for d in dirnames:
+            manifest.update(walk_dir(d))
+        for f in filenames:
+            manifest[join(root, f)] = hash_file(join(dirpath, f))
+    return manifest

@@ -39,7 +39,7 @@ class ShareDriveSyncBackend(SyncBackend):
         if appdata['legacy_mode'] or not dst_hash:
             self.logger.info("Checking with the slow/old method just in case we missed it...")
             try:
-                dst_hash = self.hash_directory(join(dest, dir_name))
+                dst_hash = self.hash_project_root_directory(join(dest, dir_name))
             except FileNotFoundError:
                 dst_hash = ""
         self.logger.debug(f"remote_hash is {dst_hash}")
@@ -137,9 +137,7 @@ class ShareDriveSyncBackend(SyncBackend):
                 copy(song, src, dst)
             except Exception as e:
                 results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
-                self.logger.error(
-                    f"Error syncing {song}: {e}. If the remote directory does not exist, please remove it "
-                    f"from the database.")
+                self.logger.error(f"Error syncing {song}: {e}.")
             else:
                 results['songs'].append({'song': song_name, 'result': 'success', 'action': up})
                 self.logger.info(f"Successfully synced {song_name}")

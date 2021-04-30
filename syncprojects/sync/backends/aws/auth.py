@@ -7,7 +7,7 @@ import boto3
 class AWSAuth(ABC):
     def __init__(self):
         self.logger = logging.getLogger(f'syncprojects.sync.backends.aws.auth.{self.__class__.__name__}')
-        self.client = self.authenticate()
+        self.client: boto3.session.Session = self.authenticate()
 
     @abstractmethod
     def authenticate(self):

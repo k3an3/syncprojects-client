@@ -410,3 +410,7 @@ def check_already_running():
 
 def test_mode() -> bool:
     return os.getenv('TEST', '0') == '1'
+
+
+def get_song_dir(song: Dict) -> str:
+    return song.get('directory_name') or song['name']

@@ -44,7 +44,7 @@ class SyncBackend(ABC):
                 if entry.is_dir() and entry.name != "Impulse Responses":
                     yield entry.name
 
-    def hash_directory(self, dir_name):
+    def hash_project_root_directory(self, dir_name):
         hash_algo = config.DEFAULT_HASH_ALGO()
         if isdir(dir_name):
             for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
@@ -59,7 +59,8 @@ class SyncBackend(ABC):
         self.logger.info("Checking local files for changes...")
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = {
-                executor.submit(self.hash_directory, join(appdata['source'], s.get('directory_name') or s['name'])): s
+                executor.submit(self.hash_project_root_directory,
+                                join(appdata['source'], s.get('directory_name') or s['name'])): s
                 for s in
                 songs}
             for results in concurrent.futures.as_completed(futures):
