@@ -25,7 +25,7 @@ from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update,
 
 __version__ = '2.2'
 
-CODENAME = "IT'S EVEN MORE IN THE CLOUD"
+CODENAME = "IT'S ALL UP IN THE CLOUD"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝

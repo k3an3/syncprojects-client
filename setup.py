@@ -22,8 +22,8 @@ requirements = [
     'pyshortcuts==1.8.0',
     'cx_Freeze==6.5.3',
     'sqlitedict==1.7.0',
-        'timeago==1.0.15',
-    ]
+    'timeago==1.0.15',
+]
 
 if sys.platform == "win32":
     requirements.append('pywin32==228')

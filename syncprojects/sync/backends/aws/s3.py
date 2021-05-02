@@ -81,7 +81,7 @@ class S3SyncBackend(SyncBackend):
         self.logger.debug(f"Generating remote manifest from bucket {self.bucket} {path=}")
         results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=path)
         if 'Contents' in results:
-            return {obj['Key'].split(path)[1]: obj['ETag'] for obj in results['Contents']}
+            return {obj['Key'].split(path)[1]: obj['ETag'][1:-1] for obj in results['Contents']}
             self.logger.debug(f"Got {len(results)} files from remote manifest")
         else:
             self.logger.debug(f"No remote manifest")
