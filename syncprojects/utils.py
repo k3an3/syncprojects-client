@@ -229,7 +229,7 @@ def hash_file(file_path, hash_algo=None, block_size=4096):
         while True:
             data = fp.read(block_size)
             if data:
-                hash_algo.update(fp.read())
+                hash_algo.update(data)
             else:
                 break
     return hash_algo.hexdigest()

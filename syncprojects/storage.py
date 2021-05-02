@@ -55,6 +55,7 @@ def get_songdata(project: str):
     else:
         config_dir = get_datadir("syncprojects")
     config_file = str(config_dir / "songdata.sqlite")
+    config_created = False
     if not isfile(config_file):
         config_created = True
     loaded_config = SqliteDict(config_file, tablename=project)

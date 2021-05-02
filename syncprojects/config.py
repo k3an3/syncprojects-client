@@ -40,7 +40,7 @@ AMP_PRESET_DIR = "X:\\SomeDir\\Amp Settings"
 #############
 CHANGELOG_HEADER_WIDTH = 50
 MAX_WORKERS = 25
-NOTEPAD = which("notepad")
+TEXT_EDITOR = which("notepad") or which("gedit")
 PROJECT_GLOB = "*.cpr"
 BINARY_CLEAN_GLOB = "syncprojects*.exe"
 DAW_PROCESS_REGEX = re.compile(r'cubase', re.IGNORECASE)

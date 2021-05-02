@@ -1,13 +1,13 @@
-from os import listdir
-from os.path import join, isfile, islink, isdir
-
 import datetime
 import logging
 import subprocess
-import timeago
 from concurrent.futures.thread import ThreadPoolExecutor
-from progress.bar import IncrementalBar
+from os import listdir
+from os.path import join, isfile, islink, isdir
 from typing import Dict
+
+import timeago
+from progress.bar import IncrementalBar
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI
@@ -40,11 +40,11 @@ def changelog(directory):
         lines.insert(3, header)
         f.seek(0)
         f.writelines(lines)
-    subprocess.run([config.NOTEPAD, changelog_file])
+    subprocess.run([config.TEXT_EDITOR, changelog_file])
     while err := validate_changelog(changelog_file):
         logger.warning("Error! Improper formatting in changelog. Please correct it:\n")
         logger.warning(err)
-        subprocess.run([config.NOTEPAD, changelog_file])
+        subprocess.run([config.TEXT_EDITOR, changelog_file])
 
 
 def handle_new_song(song_name, remote_hs):

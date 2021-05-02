@@ -1,10 +1,11 @@
 import os
-from os.path import join
+from os.path import join, isdir
 from typing import Dict, List
 
 from sqlitedict import SqliteDict
 
 from syncprojects.api import SyncAPI
+from syncprojects.config import DEBUG
 from syncprojects.storage import appdata, get_songdata, get_song, SongData
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
@@ -55,7 +56,7 @@ class S3SyncBackend(SyncBackend):
         self.logger.debug(
             f"Local revision {song_data.revision}, remote revision {song['revision']}")
         local_hash = self.local_hash_cache.get(f"{song['project']}:{song['id']}")
-        local_changed = local_hash != song_data.hash
+        local_changed = local_hash != song_data.known_hash
         if song['revision'] == song_data.revision:
             self.logger.debug("Local revision same as remote, further checks needed")
             if not local_hash:
@@ -78,16 +79,19 @@ class S3SyncBackend(SyncBackend):
 
     def get_remote_manifest(self, path: str) -> Dict:
         self.logger.debug(f"Generating remote manifest from bucket {self.bucket} {path=}")
-        results = {obj['Key']: obj['ETag'] for obj in
-                   self.client.list_objects_v2(Bucket=self.bucket, Prefix=path)['Contents']}
-        self.logger.debug(f"Got {len(results)} from remote")
-        return results
+        results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=path)
+        if 'Contents' in results:
+            return {obj['Key'].split(path)[1]: obj['ETag'] for obj in results['Contents']}
+            self.logger.debug(f"Got {len(results)} files from remote manifest")
+        else:
+            self.logger.debug(f"No remote manifest")
+            return {}
 
     def get_local_manifest(self, path: str) -> Dict:
         path = join(appdata['source'], path)
         self.logger.debug(f"Generating local manifest from {path}")
         results = walk_dir(path)
-        self.logger.debug(f"Got {len(results)} from local")
+        self.logger.debug(f"Got {len(results)} files from local manifest")
         return results
 
     def handle_upload(self, song: Dict, key: str, remote_path: str):
@@ -115,9 +119,7 @@ class S3SyncBackend(SyncBackend):
                         results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
                         continue
                     remote_path = f"{project['id']}/{song['id']}/"
-                    self.logger.debug("Fetching remote manifest")
                     remote_manifest = self.get_remote_manifest(remote_path)
-                    self.logger.debug("Generating local manifest")
                     local_manifest = self.get_local_manifest(get_song_dir(song))
 
                     if verdict == Verdict.CONFLICT:
@@ -129,10 +131,20 @@ class S3SyncBackend(SyncBackend):
                         src = local_manifest
                         dst = remote_manifest
                         action = self.handle_upload
+                        # This object will replace the local song data upon completion
+                        new_song_data = SongData(song_id=song['id'],
+                                                 known_hash=self.local_hash_cache.get(
+                                                     f"{song['project']}:{song['id']}"),
+                                                 revision=song['revision'] + 1)
                     elif verdict == Verdict.REMOTE:
                         src = remote_manifest
                         dst = local_manifest
                         action = self.handle_download
+                        song_data.revision = song['revision']
+                        song_data.known_hash = song['studio_hash']
+                        new_song_data = SongData(song_id=song['id'],
+                                                 known_hash=song['studio_hash'],
+                                                 revision=song['revision'])
                     else:
                         self.logger.info(f"{song_name} skipped")
                         results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
@@ -147,8 +159,14 @@ class S3SyncBackend(SyncBackend):
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
                     self.logger.error(f"Error syncing {song}: {e}.")
+                    if DEBUG:
+                        raise e
                 else:
-                    results['songs'].append({'song': song_name, 'result': 'success', 'action': verdict})
+                    if new_song_data:
+                        project_song_data[song['id']] = new_song_data
+                        project_song_data.commit()
+                    results['songs'].append(
+                        {'song': song_name, 'id': song['id'], 'result': 'success', 'action': verdict.value})
                     self.logger.info(f"Successfully synced {song_name}")
         return results
 
@@ -159,11 +177,14 @@ class S3SyncBackend(SyncBackend):
         pass
 
 
-def walk_dir(root: str) -> Dict[str, str]:
+def walk_dir(root: str, base: str = None) -> Dict[str, str]:
+    if base is None:
+        base = ""
     manifest = {}
-    for dirpath, dirnames, filenames in os.walk(root):
-        for d in dirnames:
-            manifest.update(walk_dir(d))
-        for f in filenames:
-            manifest[join(root, f)] = hash_file(join(dirpath, f))
+    for entry in os.scandir(root):
+        path = join(root, entry)
+        if isdir(path):
+            manifest.update(walk_dir(path, join(base, entry.name)))
+            continue
+        manifest[join(base, entry.name)] = hash_file(path)
     return manifest
