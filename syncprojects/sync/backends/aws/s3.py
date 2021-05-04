@@ -1,9 +1,10 @@
+import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, Future, as_completed
 from os.path import join, isdir
-from typing import Dict, List
+from typing import Dict, List, Callable
 
-from sqlitedict import SqliteDict
-
+from syncprojects import config
 from syncprojects.api import SyncAPI
 from syncprojects.config import DEBUG
 from syncprojects.storage import appdata, get_songdata, get_song, SongData
@@ -12,11 +13,11 @@ from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
 from syncprojects.sync.operations import changelog
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import get_datadir, hash_file, get_song_dir
+from syncprojects.utils import hash_file, get_song_dir
 
 AWS_REGION = 'us-east-1'
 
-syncdata = SqliteDict(str(get_datadir("syncprojects") / "sync.sqlite"))
+logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
 
 
 def handle_conflict(song_name: str) -> Verdict:
@@ -150,12 +151,8 @@ class S3SyncBackend(SyncBackend):
                         results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
                         continue
 
-                    updated = 0
-                    for key, tag in src.items():
-                        if key not in dst or tag != dst[key]:
-                            action(song, key, remote_path)
-                            updated += 1
-                    self.logger.info(f"Updated {updated} files.")
+                    completed = do_action(action, song, src, dst, remote_path)
+                    self.logger.info(f"Updated {len(completed)} files.")
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
                     self.logger.error(f"Error syncing {song}: {e}.")
@@ -177,14 +174,33 @@ class S3SyncBackend(SyncBackend):
         pass
 
 
-def walk_dir(root: str, base: str = None) -> Dict[str, str]:
-    if base is None:
-        base = ""
-    manifest = {}
+def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: str) -> List[Future]:
+    with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+        futures = []
+        for key, tag in src.items():
+            if key not in dst or tag != dst[key]:
+                futures.append(executor.submit(action, song, key, remote_path))
+        done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
+        if not_done:
+            logger.error(f"{len(not_done)} actions failed for some reason!")
+        return done
+
+
+def walk_dir(root: str, base: str = "", executor: ThreadPoolExecutor = None) -> Dict[str, str]:
+    top = False
+    if not executor:
+        executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS)
+        top = True
+    futures = {}
     for entry in os.scandir(root):
         path = join(root, entry)
         if isdir(path):
-            manifest.update(walk_dir(path, join(base, entry.name)))
+            futures.update(walk_dir(path, join(base, entry.name), executor))
             continue
-        manifest[join(base, entry.name)] = hash_file(path)
-    return manifest
+        futures[executor.submit(hash_file, path)] = join(base, entry.name)
+    if top:
+        manifest = {}
+        for future in as_completed(futures):
+            manifest[futures[future]] = future.result()
+        return manifest
+    return futures
