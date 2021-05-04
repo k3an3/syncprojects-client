@@ -5,6 +5,7 @@ import uuid
 from typing import Dict
 
 from syncprojects import config
+from syncprojects.api import SyncAPI
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler, \
     ShutdownHandler
 from syncprojects.storage import appdata
@@ -14,7 +15,7 @@ from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_inp
 
 
 class SyncManager:
-    def __init__(self, api_client, backend: SyncBackend, headless: bool = False, args=[], **kwargs):
+    def __init__(self, api_client: SyncAPI, backend: SyncBackend, headless: bool = False, args=[], **kwargs):
         self.logger = logging.getLogger(f'syncprojects.sync.{self.__class__.__name__}')
         self.api_client = api_client
         self.headless = headless
