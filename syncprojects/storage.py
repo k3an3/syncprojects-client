@@ -7,16 +7,19 @@ from os.path import isfile, dirname
 from sqlitedict import SqliteDict
 
 from syncprojects import config
+from syncprojects.sync import SyncBackend
 from syncprojects.utils import get_datadir, migrate_old_settings, get_config_path
 
 logger = logging.getLogger('syncprojects.storage')
 
 
 class SongData:
-    def __init__(self, song_id: int, revision: int = 0, known_hash: str = ""):
+    def __init__(self, song_id: int, revision: int = 0, known_hash: str = "", gen_hash_dir: str = ""):
         self.song_id = song_id
         self.revision = revision
         self.known_hash = known_hash
+        if gen_hash_dir:
+            self.known_hash = SyncBackend.hash_project_root_directory(gen_hash_dir)
 
 
 def get_song(data: SqliteDict, song: int):

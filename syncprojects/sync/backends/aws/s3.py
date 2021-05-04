@@ -143,8 +143,8 @@ class S3SyncBackend(SyncBackend):
                         song_data.revision = song['revision']
                         song_data.known_hash = song['studio_hash']
                         new_song_data = SongData(song_id=song['id'],
-                                                 known_hash=song['studio_hash'],
-                                                 revision=song['revision'])
+                                                 revision=song['revision'],
+                                                 gen_hash_dir=join(appdata['source'], get_song_dir(song)))
                     else:
                         self.logger.info(f"{song_name} skipped")
                         results['songs'].append({'song': song_name, 'result': 'success', 'action': None})

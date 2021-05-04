@@ -13,6 +13,8 @@ from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
 from syncprojects.utils import hash_file
 
+logger = logging.getLogger('syncprojects.sync.backends')
+
 
 class SyncBackend(ABC):
     def __init__(self, api_client: SyncAPI, *args, **kwargs):
@@ -44,12 +46,13 @@ class SyncBackend(ABC):
                 if entry.is_dir() and entry.name != "Impulse Responses":
                     yield entry.name
 
-    def hash_project_root_directory(self, dir_name):
+    @staticmethod
+    def hash_project_root_directory(dir_name):
         hash_algo = config.DEFAULT_HASH_ALGO()
         if isdir(dir_name):
             for file_name in glob(join(dir_name, config.PROJECT_GLOB)):
                 if isfile(file_name):
-                    self.logger.debug(f"Hashing {file_name}")
+                    logger.debug(f"Hashing {file_name}")
                     hash_file(file_name, hash_algo)
             hash_digest = hash_algo.hexdigest()
             return hash_digest
