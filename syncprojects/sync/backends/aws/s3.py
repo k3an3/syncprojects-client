@@ -140,11 +140,8 @@ class S3SyncBackend(SyncBackend):
                         src = remote_manifest
                         dst = local_manifest
                         action = self.handle_download
-                        song_data.revision = song['revision']
-                        song_data.known_hash = song['studio_hash']
                         new_song_data = SongData(song_id=song['id'],
-                                                 revision=song['revision'],
-                                                 gen_hash_dir=join(appdata['source'], get_song_dir(song)))
+                                                 revision=song['revision'])
                     else:
                         self.logger.info(f"{song_name} skipped")
                         results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
@@ -163,6 +160,9 @@ class S3SyncBackend(SyncBackend):
                         raise e
                 else:
                     if new_song_data:
+                        if not new_song_data.known_hash:
+                            new_song_data.known_hash = SyncBackend.hash_project_root_directory(
+                                join(appdata['source'], get_song_dir(song)))
                         project_song_data[song['id']] = new_song_data
                         project_song_data.commit()
                     results['songs'].append(

@@ -14,12 +14,10 @@ logger = logging.getLogger('syncprojects.storage')
 
 
 class SongData:
-    def __init__(self, song_id: int, revision: int = 0, known_hash: str = "", gen_hash_dir: str = ""):
+    def __init__(self, song_id: int, revision: int = 0, known_hash: str = ""):
         self.song_id = song_id
         self.revision = revision
         self.known_hash = known_hash
-        if gen_hash_dir:
-            self.known_hash = SyncBackend.hash_project_root_directory(gen_hash_dir)
 
 
 def get_song(data: SqliteDict, song: int):
