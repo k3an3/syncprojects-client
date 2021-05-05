@@ -1,12 +1,14 @@
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, Future, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
 from os.path import join, isdir
 from typing import Dict, List, Callable
 
+from sqlitedict import SqliteDict
+
 from syncprojects import config
 from syncprojects.api import SyncAPI
-from syncprojects.config import DEBUG
+from syncprojects.config import DEBUG, MAX_WORKERS
 from syncprojects.storage import appdata, get_songdata, get_song, SongData
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
@@ -22,12 +24,14 @@ logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
 
 def handle_conflict(song_name: str) -> Verdict:
     # TODO: legacy prompt
+    logger.debug("Prompting user for conflict resolution")
     result = MessageBoxUI.yesnocancel(
         f"{song_name} has changed both locally and remotely! Which one do you "
         f"want to " f"keep? Note that proceeding may cause loss of "
         f"data.\n\nChoose \"yes\" to " f"confirm overwrite of local files, "
         f"\"no\" to confirm overwrite of server " f"files. Or, \"cancel\" "
         f"to skip.", "Sync Conflict")
+    logger.debug(f"User pressed {result}")
     if result:
         return Verdict.REMOTE
     elif result is None:
@@ -46,6 +50,7 @@ class S3SyncBackend(SyncBackend):
         self.auth = auth
         self.client = self.auth.authenticate()
         self.bucket = bucket
+        self.logger.debug(f"Using bucket {bucket}")
 
     def get_verdict(self, song_data: SongData, song: Dict) -> Verdict:
         """
@@ -114,7 +119,7 @@ class S3SyncBackend(SyncBackend):
                     song_data = get_song(project_song_data, song['id'])
                     song_name = song['name']
                     verdict = self.get_verdict(song_data, song)
-                    self.logger.debug(f"{verdict=}")
+                    self.logger.debug(f"Got initial {verdict=}")
                     if not verdict:
                         self.logger.info(f"No action for {song_name}")
                         results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
@@ -148,6 +153,7 @@ class S3SyncBackend(SyncBackend):
                         results['songs'].append({'song': song_name, 'result': 'success', 'action': None})
                         continue
 
+                    self.logger.info("Starting parallel file transfer...")
                     completed = do_action(action, song, src, dst, remote_path)
                     self.logger.info(f"Updated {len(completed)} files.")
                 except Exception as e:

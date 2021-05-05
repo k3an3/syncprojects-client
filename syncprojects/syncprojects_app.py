@@ -12,6 +12,7 @@ from syncprojects.config import ACCESS_ID, SECRET_KEY, DEBUG
 from syncprojects.server import start_server
 from syncprojects.storage import appdata
 from syncprojects.sync import SyncManager
+from syncprojects.sync.backends.aws import NoAuthenticationCredentialsError
 from syncprojects.sync.backends.aws.auth import StaticAuth
 from syncprojects.sync.backends.aws.s3 import S3SyncBackend
 from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
@@ -93,6 +94,8 @@ def main():
             args = []
         else:
             backend = S3SyncBackend
+            if not ACCESS_ID or not SECRET_KEY:
+                raise NoAuthenticationCredentialsError
             args = [StaticAuth(ACCESS_ID, SECRET_KEY), 'syncprojects-debug' if DEBUG else 'syncprojects']
 
         sync = SyncManager(api_client, backend, args=args)
