@@ -67,13 +67,13 @@ class CommandHandler(ABC):
         self.api_client.send_queue.put({'task_id': self.task_id, **response_data})
 
     # TODO: does this really belong here?
-    def lock_and_sync_song(self, song: Dict, unlock: bool = True) -> Dict:
+    def lock_and_sync_song(self, song: Dict, unlock: bool = True, reason: str = "Sync") -> Dict:
         # Thoughts on this: to avoid conflicts, we first lock the entire project, which will also ensure nobody
         # else is syncing. Then, while project is still locked, set the individual song to locked and unlock the
         # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
         project = self.api_client.get_project(song['project'])
         song = next(s for s in project['songs'] if s['id'] == song['song'])
-        if get_lock_status(song_lock := self.api_client.lock(song, reason="Checked out")):
+        if get_lock_status(song_lock := self.api_client.lock(song, reason=reason)):
             self.logger.debug("Got exclusive lock of song")
             project['songs'] = [song]
             sync = self.sync_manager.sync(project)
@@ -148,7 +148,7 @@ class WorkOnHandler(CommandHandler):
         song = data['song']
         self.logger.info(f"Working on {song=}")
         # Keep song checked out afterwards
-        if not (song := self.lock_and_sync_song(song, unlock=False)):
+        if not (song := self.lock_and_sync_song(song, unlock=False, reason="Checked out")):
             self.logger.warning("Couldn't sync/check out song")
             self.send_queue({'status': 'complete'})
             return
