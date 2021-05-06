@@ -11,7 +11,7 @@ from syncprojects import config as config
 
 
 def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
-    from syncprojects.server.app import app
+    from syncprojects.server.apiserver import app
     task_id = gen_task_id()
     if not dry_run:
         app.config['main_queue'].put({'msg_type': name, 'task_id': task_id, 'data': data})
@@ -19,7 +19,7 @@ def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
 
 
 def queue_get() -> Dict:
-    from syncprojects.server.app import app
+    from syncprojects.server.apiserver import app
     queue_results = []
     while True:
         try:

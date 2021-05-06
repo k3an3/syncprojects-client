@@ -33,8 +33,8 @@ def results():
 
 
 @app.route('/api/update', methods=['POST'])
-@verify_data
 def update_client():
+    # TODO: security
     return {'result': 'success', 'task_id': queue_put('update')}
 
 

@@ -373,6 +373,17 @@ class UpdateThread(Thread):
                 self.update_next_check()
             sleep(3600)
 
+    def remote_trigger(self):
+        self.logger.info("Got remote call request, checking for update...")
+        check_update(self.api_client)
+
+
+def call_api(route: str):
+    try:
+        requests.post(f"http://localhost:5000/api/{route}", json={}, headers={"Accept": "application/json"})
+    except requests.exceptions.ConnectionError:
+        pass
+
 
 def open_app_in_browser():
     webbrowser.open(config.SYNCPROJECTS_URL)
@@ -385,26 +396,14 @@ def check_already_running():
         return False
     try:
         if r.json()['result'] == 'pong':
-            logger.info("syncprojects-client already running")
-            response = MessageBoxUI.yesnocancel(
-                title="Syncprojects",
-                message="Syncprojects-client is already running.\nPress \"yes\" to open the app "
-                        "in your browser, \"no\" to shut down the client, or \"cancel\" to cancel.")
-            if response:
-                logger.info("User opened browser")
-                open_app_in_browser()
-            elif response is None:
-                logger.info("User cancelled")
-            else:
-                logger.info("User requested exit")
-                try:
-                    requests.post("http://localhost:5000/api/shutdown", json={}, headers={"Accept": "application/json"})
-                except requests.exceptions.ConnectionError:
-                    pass
+            logger.info("syncprojects-client already running; opening browser")
+            open_app_in_browser()
             return True
     except JSONDecodeError:
         pass
     logger.critical("Something else is already using port 5000! Exiting...")
+    MessageBoxUI.error("Syncprojects cannot start; something is already using TCP port 5000. Please disable any "
+                       "conflicting programs or contact support.")
     sys.exit(-1)
 
 

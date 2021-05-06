@@ -18,6 +18,7 @@ from syncprojects.sync.backends.aws.s3 import S3SyncBackend
 from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
 from syncprojects.ui.first_start import SetupUI
 from syncprojects.ui.message import MessageBoxUI
+from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, open_app_in_browser, test_mode
 
@@ -51,6 +52,7 @@ def first_time_run():
 def main():
     if check_already_running():
         sys.exit(0)
+
     main_queue = Queue()
     server_queue = Queue()
 
@@ -58,6 +60,10 @@ def main():
     if not appdata.get('first_time_setup_complete'):
         first_time_run()
         open_app_in_browser()
+
+    # Add icon to tray
+    ti = TrayIcon()
+    ti.start()
 
     # Start local Flask server
     logger.debug("Starting web API server thread...")

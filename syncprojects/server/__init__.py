@@ -1,4 +1,4 @@
-from syncprojects.server.app import app
+from syncprojects.server.apiserver import app
 
 
 def start_server(main_queue, server_queue, **kwargs):

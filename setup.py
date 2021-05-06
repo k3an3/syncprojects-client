@@ -20,6 +20,7 @@ requirements = [
     'pyjwt[crypto]==2.0.1',
     'pylint',
     'pyshortcuts==1.8.0',
+    'pystray==0.17.3',
     'cx_Freeze==6.5.3',
     'sqlitedict==1.7.0',
     'timeago==1.0.15',
