@@ -42,7 +42,7 @@ class SyncManager:
         self._backend.get_local_changes(songs)
         results = self._backend.sync(project, songs)
         results['songs'].extend(pre_results)
-        api_results = [s['id'] for s in results['songs'] if 'id' in s]
+        api_results = [s['id'] for s in results['songs'] if 'id' in s and s['action'] == "local"]
         if api_results:
             self.api_client.add_sync(project, api_results)
         return results
