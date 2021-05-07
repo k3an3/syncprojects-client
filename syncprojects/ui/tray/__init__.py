@@ -1,8 +1,7 @@
 import logging
-from os.path import expanduser, isfile
+from os.path import isfile
 from threading import Thread
 
-import os
 import pystray
 from PIL import Image
 from pystray import MenuItem, Menu
@@ -38,6 +37,8 @@ class TrayIcon(Thread):
         icon_file = find_data_file(ICON_FILE)
         if not isfile(icon_file):
             self.logger.critical("Icon file not found!")
+            # last ditch fallback to cwd
+            icon_file = ICON_FILE
         image = Image.open(icon_file)
         menu = Menu(
             MenuItem('Open App', open_app_action, default=True),

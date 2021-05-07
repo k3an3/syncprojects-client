@@ -1,10 +1,7 @@
 import logging
-import pathlib
 import traceback
 from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
-from os.path import join
-from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
@@ -18,7 +15,6 @@ import sys
 from pyshortcuts import make_shortcut
 
 PACKAGE = None
-LOGPATH = None
 PRE_UPDATE = None
 POST_UPDATE = None
 try:
@@ -145,7 +141,8 @@ def update(root):
             logger.info("Update is local archive")
             archive_path = args.update_archive
 
-        remove_old_install()
+        # TODO: Needs more testing. Old dir still in use
+        # remove_old_install()
 
         try:
             install_program(archive_path)
@@ -158,7 +155,8 @@ def update(root):
             unlink(archive_path)
         global update_success
         update_success = True
-    except Exception:
+    except Exception as e:
+        logger.critical(str(e))
         showerror(master=root, title="Syncprojects Install Error", message="Critical error during installation!"
                                                                            "\nContact support.")
         traceback.print_exc()
@@ -170,7 +168,7 @@ def update(root):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('update_archive', nargs='?', default=PACKAGE)
-    parser.add_argument('logpath', nargs='?', default=LOGPATH)
+    parser.add_argument('logpath', nargs='?')
     parser.add_argument('-d', '--delete-archive', action='store_true')
     parser.add_argument('-k', '--kill-parent', action='store_true')
     # parser.add_argument('old_pid', type=int)
@@ -184,17 +182,13 @@ if __name__ == "__main__":
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
     logger.addHandler(ch)
-    if args.logpath:
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        try:
-            fh = logging.FileHandler(join(args.logpath, f"{APP_NAME}-update.log"))
-        except FileNotFoundError:
-            logger.error(f"{args.logpath=} invalid; writing to CWD...")
-        fh = logging.FileHandler(f"{APP_NAME}-update.log")
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        logger.info(f"Logging debug output to {args.logpath}/{APP_NAME}-update.log")
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ntf = NamedTemporaryFile(delete=False, prefix=f"{APP_NAME}-update-", suffix=".txt")
+    fh = logging.FileHandler(ntf.name)
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    logger.info(f"Logging debug output to {ntf.name}")
 
     if PRE_UPDATE:
         logger.info("Running pre update script...")
