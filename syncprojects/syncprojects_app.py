@@ -22,7 +22,7 @@ from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, open_app_in_browser, test_mode
 
-__version__ = '2.2.4'
+__version__ = '2.2.5'
 
 CODENAME = "IT'S ALL UP IN THE CLOUD"
 BANNER = """
@@ -66,7 +66,7 @@ def main():
     ti.start()
 
     # Start local Flask server
-    logger.debug("Starting web API server thread...")
+    logger.debug("Starting web API server process...")
     web_process = Process(target=start_server, args=(main_queue, server_queue),
                           kwargs=dict(debug=config.DEBUG, use_reloader=False), daemon=True)
     web_process.start()

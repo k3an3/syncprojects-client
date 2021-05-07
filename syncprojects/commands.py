@@ -203,5 +203,7 @@ class GetTasksHandler(CommandHandler):
 
 class ShutdownHandler(CommandHandler):
     def handle(self, data: Dict):
+        from syncprojects.sync import sync_lock
         self.logger.info("Got command to exit")
-        sys.exit(0)
+        with sync_lock.acquire():
+            sys.exit(0)

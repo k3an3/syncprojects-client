@@ -2,6 +2,7 @@ import datetime
 import logging
 import traceback
 import uuid
+from threading import Lock
 from typing import Dict
 
 from syncprojects import config
@@ -24,28 +25,29 @@ class SyncManager:
 
     def sync(self, project: Dict) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")
-        pre_results = []
-        songs = []
-        for song in project['songs']:
-            if not song['sync_enabled']:
-                pre_results.append({'song': song['name'], 'result': 'success', 'action': 'disabled'})
-                continue
-            elif song['is_locked']:
-                pre_results.append({'song': song['name'], 'result': 'error', 'action': 'locked'})
-                continue
-            else:
-                songs.append(song)
-        if not songs:
-            self.logger.warning("No songs, skipping")
-            return {'status': 'done', 'songs': None}
-        self.logger.debug(f"Got songs list {songs}")
-        self._backend.get_local_changes(songs)
-        results = self._backend.sync(project, songs)
-        results['songs'].extend(pre_results)
-        api_results = [s['id'] for s in results['songs'] if 'id' in s and s['action'] == "local"]
-        if api_results:
-            self.api_client.add_sync(project, api_results)
-        return results
+        with sync_lock.acquire():
+            pre_results = []
+            songs = []
+            for song in project['songs']:
+                if not song['sync_enabled']:
+                    pre_results.append({'song': song['name'], 'result': 'success', 'action': 'disabled'})
+                    continue
+                elif song['is_locked']:
+                    pre_results.append({'song': song['name'], 'result': 'error', 'action': 'locked'})
+                    continue
+                else:
+                    songs.append(song)
+            if not songs:
+                self.logger.warning("No songs, skipping")
+                return {'status': 'done', 'songs': None}
+            self.logger.debug(f"Got songs list {songs}")
+            self._backend.get_local_changes(songs)
+            results = self._backend.sync(project, songs)
+            results['songs'].extend(pre_results)
+            api_results = [s['id'] for s in results['songs'] if 'id' in s and s['action'] == "local"]
+            if api_results:
+                self.api_client.add_sync(project, api_results)
+            return results
 
     def sync_amps(self, project: Dict):
         return self._backend.sync_amps(project)
@@ -109,3 +111,6 @@ class SyncManager:
             input("[enter] to check in")
             projects = self.api_client.get_all_projects()
             SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
+
+
+sync_lock = Lock()
