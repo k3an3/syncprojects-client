@@ -1,3 +1,4 @@
+import os
 import random
 from typing import Dict, List
 
@@ -13,10 +14,14 @@ class RandomNoOpSyncBackend(SyncBackend):
         result = {'status': 'done', 'songs': []}
         for song in songs:
             song_name = song['name']
-            changed = random.choice(('local', 'remote', 'error', None, 'locked', 'disabled'))
+            if os.getenv('CHANGED'):
+                changed = os.environ['CHANGED']
+            else:
+                changed = random.choice(('local', 'remote', 'error', None, 'locked', 'disabled'))
             self.logger.info(f"{project=} {song_name=} {changed=}")
             result['songs'].append(
-                {'id': song['id'], 'song': song_name, 'result': 'error' if changed == 'error' else 'success', 'action': changed})
+                {'id': song['id'], 'song': song_name, 'result': 'error' if changed == 'error' else 'success',
+                 'action': changed})
         return result
 
     def push_amp_settings(self, project: str):

@@ -69,11 +69,12 @@ class SyncManager:
                         'update': UpdateHandler,
                     }[msg['msg_type']](msg['task_id'], self.api_client, self).exec(msg['data'])
                 except Exception as e:
+                    # How do we clean up locks and stuff?
                     self.logger.error(f"Caught exception: {e}\n\n{traceback.print_exc()}")
                     # TODO: a little out of style
-                    # How do we clean up locks and stuff?
                     self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
                     self.tasks.remove(msg['task_id'])
+                    sync_lock.release()
                     if config.DEBUG:
                         raise e
                     try:
