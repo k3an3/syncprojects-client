@@ -4,11 +4,9 @@ from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_com
 from os.path import join, isdir
 from typing import Dict, List, Callable
 
-from sqlitedict import SqliteDict
-
 from syncprojects import config
 from syncprojects.api import SyncAPI
-from syncprojects.config import DEBUG, MAX_WORKERS
+from syncprojects.config import DEBUG
 from syncprojects.storage import appdata, get_songdata, get_song, SongData
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
@@ -118,6 +116,7 @@ class S3SyncBackend(SyncBackend):
                 try:
                     song_data = get_song(project_song_data, song['id'])
                     song_name = song['name']
+                    self.logger.debug(f"Working on {song_name}")
                     verdict = self.get_verdict(song_data, song)
                     self.logger.debug(f"Got initial {verdict=}")
                     if not verdict:
