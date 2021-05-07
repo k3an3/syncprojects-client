@@ -413,3 +413,15 @@ def test_mode() -> bool:
 
 def get_song_dir(song: Dict) -> str:
     return song.get('directory_name') or song['name']
+
+
+# https://cx-freeze.readthedocs.io/en/latest/faq.html#using-data-files
+def find_data_file(filename: str) -> str:
+    if getattr(sys, "frozen", False):
+        # The application is frozen
+        datadir = os.path.dirname(sys.executable)
+    else:
+        # The application is not frozen
+        # Change this bit to match where you store your data files:
+        datadir = os.path.dirname(__file__)
+    return os.path.join(datadir, filename)

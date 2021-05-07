@@ -17,6 +17,7 @@ requirements = [
     'packaging==20.9',
     'progress==1.5',
     'flask==1.1.2',
+    'Pillow==8.2.0',
     'pyjwt[crypto]==2.0.1',
     'pylint',
     'pyshortcuts==1.8.0',
@@ -56,7 +57,7 @@ setup(
             # Slim down build
             'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
             # Won't run correctly without
-            'packages': ['jinja2', 'win32file', 'sentry_sdk', 'html', 'boto3'],
+            'packages': ['jinja2', 'win32file', 'sentry_sdk', 'html', 'boto3', 'pystray'],
             'include_files': ['benny.ico'],
         }
     },

@@ -1,12 +1,15 @@
 import logging
+from os.path import expanduser, isfile
 from threading import Thread
 
+import os
 import pystray
 from PIL import Image
 from pystray import MenuItem, Menu
 
-from syncprojects.utils import open_app_in_browser, call_api
+from syncprojects.utils import open_app_in_browser, call_api, find_data_file
 
+ICON_FILE = "benny.ico"
 logger = logging.getLogger('syncprojects.ui.tray')
 
 
@@ -31,14 +34,18 @@ class TrayIcon(Thread):
         self.logger = logging.getLogger('syncprojects.ui.tray.TrayIcon')
 
     def run(self):
-        self.logger.debug("Starting thread...")
-        image = Image.open("benny.ico")
+        self.logger.debug("Starting icon thread...")
+        icon_file = find_data_file(ICON_FILE)
+        if not isfile(icon_file):
+            self.logger.critical("Icon file not found!")
+        image = Image.open(icon_file)
         menu = Menu(
             MenuItem('Open App', open_app_action, default=True),
             MenuItem('Check for updates', update_action),
             MenuItem('Exit', exit_action),
         )
         icon = pystray.Icon("syncprojects", image, "syncprojects", menu)
+        self.logger.debug("Starting icon loop...")
         icon.run()
 
 

@@ -3,4 +3,4 @@ import os
 import sys
 
 os.environ['PYTHONPATH'] = '.'
-subprocess.run(['python', 'syncprojects/main.py', *sys.argv[1:]])
+subprocess.run(['python', 'syncprojects/syncprojects_app.py', *sys.argv[1:]])
