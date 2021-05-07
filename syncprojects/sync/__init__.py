@@ -25,7 +25,7 @@ class SyncManager:
 
     def sync(self, project: Dict) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")
-        with sync_lock.acquire():
+        with sync_lock:
             pre_results = []
             songs = []
             for song in project['songs']:

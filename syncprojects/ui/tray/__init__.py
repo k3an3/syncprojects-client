@@ -37,12 +37,10 @@ class TrayIcon(Thread):
         icon_file = find_data_file(ICON_FILE)
         if not isfile(icon_file):
             self.logger.critical("Icon file not found!")
-            # last ditch fallback to cwd
-            icon_file = ICON_FILE
         image = Image.open(icon_file)
         menu = Menu(
             MenuItem('Open App', open_app_action, default=True),
-            MenuItem('Check for updates', update_action),
+            MenuItem(f'Check for updates', update_action),
             MenuItem('Exit', exit_action),
         )
         icon = pystray.Icon("syncprojects", image, "syncprojects", menu)

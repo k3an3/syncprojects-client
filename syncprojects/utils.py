@@ -347,7 +347,7 @@ def check_update(api_client) -> Dict:
     if parse(__version__) < parse(latest_version['version']):
         logger.info(f"New update found! {latest_version['version']}")
         from syncprojects.sync import sync_lock
-        with sync_lock.acquire():
+        with sync_lock:
             update(latest_version)
             sys.exit(0)
     else:
@@ -422,8 +422,7 @@ def find_data_file(filename: str) -> str:
     if getattr(sys, "frozen", False):
         # The application is frozen
         datadir = os.path.dirname(sys.executable)
+        return os.path.join(datadir, filename)
     else:
         # The application is not frozen
-        # Change this bit to match where you store your data files:
-        datadir = os.path.dirname(__file__)
-    return os.path.join(datadir, filename)
+        return filename
