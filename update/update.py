@@ -1,8 +1,10 @@
 import logging
+import pathlib
 import traceback
 from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
 from os.path import join
+from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
@@ -69,6 +71,10 @@ def get_startup_path():
 
 def install_startup():
     create_shortcut(str(get_startup_path()))
+
+
+def remove_old_install():
+    rmtree(get_install_location())
 
 
 def kill_old_process():
@@ -138,6 +144,8 @@ def update(root):
         else:
             logger.info("Update is local archive")
             archive_path = args.update_archive
+
+        remove_old_install()
 
         try:
             install_program(archive_path)
