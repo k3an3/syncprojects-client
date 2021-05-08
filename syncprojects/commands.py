@@ -73,20 +73,22 @@ class CommandHandler(ABC):
         # rest of the project. This way, if someone else wants to sync, they will see that the song is locked.
         project = self.api_client.get_project(song['project'])
         song = next(s for s in project['songs'] if s['id'] == song['song'])
-        if get_lock_status(song_lock := self.api_client.lock(song, reason=reason)):
-            self.logger.debug("Got exclusive lock of song")
-            project['songs'] = [song]
-            sync = self.sync_manager.sync(project)
-            if unlock:
-                self.logger.debug("Unlocking song")
-                self.api_client.unlock(song)
+        from syncprojects.sync import sync_lock
+        with sync_lock:
+            if get_lock_status(song_lock := self.api_client.lock(song, reason=reason)):
+                self.logger.debug("Got exclusive lock of song")
+                project['songs'] = [song]
+                sync = self.sync_manager.sync(project)
+                if unlock:
+                    self.logger.debug("Unlocking song")
+                    self.api_client.unlock(song)
+                else:
+                    self.logger.debug("Not unlocking song")
+                self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
+                return song
             else:
-                self.logger.debug("Not unlocking song")
-            self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
-            return song
-        else:
-            self.send_queue({'status': 'error', 'lock': song_lock, 'msg': f"Song \"{song['name']}\" is locked",
-                             'component': 'song'})
+                self.send_queue({'status': 'error', 'lock': song_lock, 'msg': f"Song \"{song['name']}\" is locked",
+                                 'component': 'song'})
 
 
 class AuthHandler(CommandHandler):
@@ -107,40 +109,42 @@ class SyncMultipleHandler(CommandHandler):
         If the current task is finished, it returns status 'complete'.
         If an error happens, I imagine we will return status 'error'.
         """
-        if 'projects' in data:
-            self.logger.debug("Got request to sync projects")
-            for project in data['projects']:
-                if not isinstance(project, dict):
-                    # This request came from the API, we don't have the project data yet
-                    project = self.api_client.get_project(project)
-                try:
-                    if not project['sync_enabled']:
-                        self.logger.debug(f"Project {project['name']} sync disabled, skipping...")
+        from syncprojects.sync import sync_lock
+        with sync_lock:
+            if 'projects' in data:
+                self.logger.debug("Got request to sync projects")
+                for project in data['projects']:
+                    if not isinstance(project, dict):
+                        # This request came from the API, we don't have the project data yet
+                        project = self.api_client.get_project(project)
+                    try:
+                        if not project['sync_enabled']:
+                            self.logger.debug(f"Project {project['name']} sync disabled, skipping...")
+                            continue
+                    except KeyError:
+                        pass
+                    try:
+                        lock = self.api_client.lock(project)
+                    except HTTPError:
+                        self.send_queue({'status': 'error', 'msg': f'Error checking out {project["name"]}'})
                         continue
-                except KeyError:
-                    pass
-                try:
-                    lock = self.api_client.lock(project)
-                except HTTPError:
-                    self.send_queue({'status': 'error', 'msg': f'Error checking out {project["name"]}'})
-                    continue
-                if get_lock_status(lock):
-                    self.logger.debug(f"Unlocked project {project['name']}; starting sync.")
-                    sync = self.sync_manager.sync(project)
-                    self.sync_manager.sync_amps(project["name"])
-                    self.api_client.unlock(project)
-                    self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
-                else:
-                    self.logger.debug("Project is locked; returning error.")
-                    # Lock is only a warning here since other projects can still sync
-                    self.send_queue({'status': 'warn', 'failed': {'project': project['name'], 'lock': lock},
-                                     'msg': f"Project \"{project['name']}\" is locked"})
-            self.send_queue({'status': 'complete'})
-        elif 'songs' in data:
-            self.logger.debug("Got request to sync songs")
-            for song in data['songs']:
-                self.lock_and_sync_song(song)
-            self.send_queue({'status': 'complete'})
+                    if get_lock_status(lock):
+                        self.logger.debug(f"Unlocked project {project['name']}; starting sync.")
+                        sync = self.sync_manager.sync(project)
+                        self.sync_manager.sync_amps(project["name"])
+                        self.api_client.unlock(project)
+                        self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
+                    else:
+                        self.logger.debug("Project is locked; returning error.")
+                        # Lock is only a warning here since other projects can still sync
+                        self.send_queue({'status': 'warn', 'failed': {'project': project['name'], 'lock': lock},
+                                         'msg': f"Project \"{project['name']}\" is locked"})
+                self.send_queue({'status': 'complete'})
+            elif 'songs' in data:
+                self.logger.debug("Got request to sync songs")
+                for song in data['songs']:
+                    self.lock_and_sync_song(song)
+                self.send_queue({'status': 'complete'})
 
 
 class WorkOnHandler(CommandHandler):
@@ -178,14 +182,16 @@ class WorkDoneHandler(CommandHandler):
         song['is_locked'] = False
         project['songs'] = [song]
         self.logger.debug("Syncing")
-        sync = self.sync_manager.sync(project)
-        self.logger.debug("Sync done; trying unlock")
-        try:
-            self.api_client.unlock(song)
-        except HTTPError as e:
-            self.logger.error(f"Error unlocking song: {e}")
-            self.send_queue({'status': 'error', 'msg': f'Error unlocking {song["name"]}'})
-        self.send_queue({'status': 'complete', 'sync': sync})
+        from syncprojects.sync import sync_lock
+        with sync_lock:
+            sync = self.sync_manager.sync(project)
+            self.logger.debug("Sync done; trying unlock")
+            try:
+                self.api_client.unlock(song)
+            except HTTPError as e:
+                self.logger.error(f"Error unlocking song: {e}")
+                self.send_queue({'status': 'error', 'msg': f'Error unlocking {song["name"]}'})
+            self.send_queue({'status': 'complete', 'sync': sync})
 
 
 class UpdateHandler(CommandHandler):
