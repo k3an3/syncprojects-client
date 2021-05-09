@@ -168,7 +168,11 @@ class S3SyncBackend(SyncBackend):
                         project_song_data[song['id']] = new_song_data
                         project_song_data.commit()
                     results['songs'].append(
-                        {'song': song_name, 'id': song['id'], 'result': 'success', 'action': verdict.value})
+                        {'song': song_name, 'id': song['id'],
+                         'result': 'success',
+                         'revision': song_data['revision'],
+                         'action': verdict.value
+                         })
                     self.logger.info(f"Successfully synced {song_name}")
         return results
 
