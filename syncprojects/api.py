@@ -179,4 +179,4 @@ class SyncAPI:
         })
 
     def get_backend_creds(self):
-        return self._request("secrets/", headers={"Content-Type": "application/json"}, params={'id': 1})
+        return self._request("backend_creds/", headers={"Content-Type": "application/json"}, params={'id': 1})
