@@ -170,7 +170,7 @@ class S3SyncBackend(SyncBackend):
                     results['songs'].append(
                         {'song': song_name, 'id': song['id'],
                          'result': 'success',
-                         'revision': song_data['revision'],
+                         'revision': song_data.revision,
                          'action': verdict.value
                          })
                     self.logger.info(f"Successfully synced {song_name}")

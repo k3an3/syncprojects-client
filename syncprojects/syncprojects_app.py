@@ -22,7 +22,7 @@ from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, open_app_in_browser, test_mode
 
-__version__ = '2.2.6'
+__version__ = '2.2.7'
 
 CODENAME = "IT'S ALL UP IN THE CLOUD"
 BANNER = """
