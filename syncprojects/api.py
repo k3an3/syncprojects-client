@@ -2,6 +2,7 @@ import datetime
 import getpass
 import logging
 import webbrowser
+from json import JSONDecodeError
 from queue import Queue
 from typing import Dict
 from typing import List
@@ -85,7 +86,10 @@ class SyncAPI:
                 sys.exit(1)
             # 2xx status code
             if r.status_code // 100 == 2:
-                return r.json()
+                try:
+                    return r.json()
+                except JSONDecodeError:
+                    return r.text
             elif r.status_code == 401:
                 self.logger.debug("Got 401 response, requesting credential re-entry...")
                 login_prompt(self)
@@ -173,3 +177,6 @@ class SyncAPI:
             'project': project['id'],
             'songs': songs,
         })
+
+    def get_backend_creds(self):
+        return self._request("secrets/", headers={"Content-Type": "application/json"}, params={'id': 1})

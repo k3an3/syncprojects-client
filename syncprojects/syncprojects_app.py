@@ -22,7 +22,7 @@ from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, open_app_in_browser, test_mode
 
-__version__ = '2.2.5'
+__version__ = '2.2.6'
 
 CODENAME = "IT'S ALL UP IN THE CLOUD"
 BANNER = """
@@ -101,8 +101,15 @@ def main():
         else:
             backend = S3SyncBackend
             if not ACCESS_ID or not SECRET_KEY:
-                raise NoAuthenticationCredentialsError
-            args = [StaticAuth(ACCESS_ID, SECRET_KEY), 'syncprojects-debug' if DEBUG else 'syncprojects']
+                creds = api_client.get_backend_creds()
+                if not creds:
+                    raise NoAuthenticationCredentialsError
+                access_id = creds['access_id']
+                secret_key = creds['secret_key']
+            else:
+                access_id = ACCESS_ID
+                secret_key = SECRET_KEY
+            args = [StaticAuth(access_id, secret_key), 'syncprojects-debug' if DEBUG else 'syncprojects']
 
         sync = SyncManager(api_client, backend, args=args)
 

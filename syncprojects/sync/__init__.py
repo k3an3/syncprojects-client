@@ -73,7 +73,9 @@ class SyncManager:
                     # TODO: a little out of style
                     self.api_client.send_queue.put({'task_id': msg['task_id'], 'status': 'error'})
                     self.tasks.remove(msg['task_id'])
-                    sync_lock.release()
+                    if sync_lock.locked():
+                        self.logger.debug("Lock was locked, unlocking.")
+                        sync_lock.release()
                     if config.DEBUG:
                         raise e
                     try:
