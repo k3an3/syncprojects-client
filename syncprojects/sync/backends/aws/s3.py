@@ -11,7 +11,6 @@ from syncprojects.storage import appdata, get_songdata, get_song, SongData
 from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
-from syncprojects.sync.operations import changelog
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import hash_file, get_song_dir
 
@@ -131,8 +130,6 @@ class S3SyncBackend(SyncBackend):
                         verdict = handle_conflict(song_name)
 
                     if verdict == Verdict.LOCAL:
-                        self.logger.debug("Prompting for changelog (legacy)")
-                        changelog(get_song_dir(song))
                         src = local_manifest
                         dst = remote_manifest
                         action = self.handle_upload
@@ -160,6 +157,11 @@ class S3SyncBackend(SyncBackend):
                     self.logger.error(f"Error syncing {song}: {e}.")
                     if DEBUG:
                         raise e
+                    try:
+                        import sentry_sdk
+                        sentry_sdk.capture_exception(e)
+                    except ImportError:
+                        pass
                 else:
                     if new_song_data:
                         if not new_song_data.known_hash:

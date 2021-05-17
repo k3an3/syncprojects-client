@@ -346,10 +346,8 @@ def check_update(api_client) -> Dict:
     from syncprojects.syncprojects_app import __version__
     if parse(__version__) < parse(latest_version['version']):
         logger.info(f"New update found! {latest_version['version']}")
-        from syncprojects.sync import sync_lock
-        with sync_lock:
-            update(latest_version)
-            sys.exit(0)
+        update(latest_version)
+        sys.exit(0)
     else:
         logger.info("No new updates.")
 
