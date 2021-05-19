@@ -185,6 +185,7 @@ class WorkDoneHandler(CommandHandler):
         except HTTPError as e:
             self.logger.error(f"Error unlocking song: {e}")
             self.send_queue({'status': 'error', 'msg': f'Error unlocking {song["name"]}'})
+        self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
         self.send_queue({'status': 'complete', 'sync': sync})
 
 
