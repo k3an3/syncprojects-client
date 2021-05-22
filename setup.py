@@ -25,6 +25,7 @@ requirements = [
     'cx_Freeze==6.5.3',
     'sqlitedict==1.7.0',
     'timeago==1.0.15',
+    'watchdog==2.1.2',
 ]
 
 if sys.platform == "win32":
