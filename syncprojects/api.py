@@ -180,3 +180,9 @@ class SyncAPI:
 
     def get_backend_creds(self):
         return self._request("backend_creds/", headers={"Content-Type": "application/json"}, params={'id': 1})
+
+    def update_song_url(self, song: Dict):
+        if not song['url']:
+            return self._request(f"songs/{song['id']}/", "POST", json={
+                'url': '#'
+            })

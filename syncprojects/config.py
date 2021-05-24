@@ -69,6 +69,9 @@ SYNCPROJECTS_URL = "https://syncprojects.example.com/"
 ACCESS_ID = ""
 SECRET_KEY = ""
 
+BUCKET_NAME = 'some-bucket'
+AUDIO_BUCKET_NAME = 'some-bucket-audio'
+
 try:
     from local_config import *
 except ImportError:

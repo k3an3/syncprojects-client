@@ -1,26 +1,32 @@
 import logging
 from abc import abstractmethod
-from os.path import join
+from os import makedirs
+from os.path import join, dirname, basename
 from threading import Thread
 
 from watchdog.events import FileSystemEventHandler, FileSystemEvent, FileSystemMovedEvent
 from watchdog.observers import Observer
 
-from syncprojects.storage import appdata
+from syncprojects.api import SyncAPI
 from syncprojects.sync.backends.aws.auth import AWSAuth
 
 logger = logging.getLogger('syncprojects.watcher')
 
 
-class Handler(FileSystemEventHandler):
+class AudioSyncHandler(FileSystemEventHandler):
+    def __init__(self):
+        self.sync_dir = None
+        self.modified_close = False
+
     def on_any_event(self, event: FileSystemEvent):
+        if not self.sync_dir:
+            raise Exception("sync_dir not set")
         if not event.is_directory:
             logger.debug("File %s %s.", event.src_path, event.event_type)
 
     def on_moved(self, event: FileSystemMovedEvent):
         if not event.is_directory:
-            self.copy_file(event.src_path, event.dest_path)
-            self.delete_file(event.src_path)
+            self.move_file(event.src_path, event.dest_path)
 
     def on_deleted(self, event: FileSystemEvent):
         if not event.is_directory:
@@ -30,13 +36,14 @@ class Handler(FileSystemEventHandler):
         if not event.is_directory:
             self.push_file(event.src_path)
 
-    def on_closed(self, event: FileSystemEvent):
-        if not event.is_directory:
-            self.push_file(event.src_path)
-
     def on_modified(self, event: FileSystemEvent):
         if not event.is_directory:
+            self.modified_close = True
+
+    def on_closed(self, event):
+        if not event.is_directory and self.modified_close:
             self.push_file(event.src_path)
+            self.modified_close = False
 
     @abstractmethod
     def push_file(self, path: str):
@@ -51,41 +58,70 @@ class Handler(FileSystemEventHandler):
         pass
 
     @abstractmethod
-    def copy_file(self, src: str, dest: str):
+    def move_file(self, src: str, dest: str):
         pass
 
 
-class S3SyncHandler(Handler):
+class S3AudioSyncHandler(AudioSyncHandler):
     def __init__(self, auth: AWSAuth, bucket: str):
         self.auth = auth
         self.bucket = bucket
         self.client = self.auth.authenticate()
+        super().__init__()
 
     def push_file(self, path: str):
-        self.client.upload_file(join(appdata['audio_sync_dir'], path),
+        target = "{}/{}".format(basename(dirname(path)), basename(path))
+        logger.debug("Uploading %s to %s", path, target)
+        self.client.upload_file(path,
                                 self.bucket,
-                                path)
+                                target)
+        logger.debug("Done.")
 
     def pull_file(self, path: str):
+        # Not sure if this will get used initially
         self.client.download_file(self.bucket,
                                   path,
-                                  join(appdata['audio_sync_dir'], path))
+                                  join(self.sync_dir, path))
 
     def delete_file(self, path: str):
         self.client.delete_object(self.bucket,
                                   path)
 
-    def copy_file(self, src: str, dest: str):
+    def move_file(self, src: str, dest: str):
         self.client.copy_object(Bucket=self.bucket,
                                 CopySource=src,
                                 Key=dest)
+        self.delete_file(src)
 
 
 class Watcher(Thread):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, sync_dir: str, api_client: SyncAPI, handler: AudioSyncHandler):
         super().__init__(daemon=True)
+        self.api_client = api_client
         self.observer = Observer()
-        self.observer.schedule(S3SyncHandler(*args, **kwargs), appdata['audio_sync_dir'])
+        self.sync_dir = sync_dir
+        handler.sync_dir = sync_dir
+        self.observer.schedule(handler, self.sync_dir, recursive=True)
+
+    def create_sync_dirs(self):
+        logger.debug("Creating sync dirs")
+        projects = self.api_client.get_all_projects()
+        for project in projects:
+            try:
+                makedirs(join(self.sync_dir, project['name']), exist_ok=True)
+            except OSError as e:
+                logger.error("Cannot create directory: %s", e)
 
     def run(self):
+        logger.info("Starting watcher")
+        self.create_sync_dirs()
         self.observer.start()
+        try:
+            while self.observer.is_alive():
+                self.observer.join(1)
+        except Exception as e:
+            logger.error("Observer died with error: %s", e)
+        finally:
+            self.observer.stop()
+            self.observer.join()
+            logger.warning("Observer shut down")

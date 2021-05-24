@@ -8,7 +8,7 @@ import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.config import ACCESS_ID, SECRET_KEY, DEBUG
+from syncprojects.config import ACCESS_ID, SECRET_KEY, DEBUG, BUCKET_NAME, AUDIO_BUCKET_NAME
 from syncprojects.server import start_server
 from syncprojects.storage import appdata
 from syncprojects.sync import SyncManager
@@ -22,7 +22,9 @@ from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, open_app_in_browser, test_mode
 
-__version__ = '2.2.9'
+__version__ = '2.3.0'
+
+from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
 CODENAME = "IT'S ALL UP IN THE CLOUD"
 BANNER = """
@@ -109,7 +111,12 @@ def main():
             else:
                 access_id = ACCESS_ID
                 secret_key = SECRET_KEY
-            args = [StaticAuth(access_id, secret_key), 'syncprojects-debug' if DEBUG else 'syncprojects']
+            aws_auth = StaticAuth(access_id, secret_key)
+            args = [aws_auth, BUCKET_NAME + "-debug" if DEBUG else ""]
+
+            audio_handler = S3AudioSyncHandler(aws_auth, AUDIO_BUCKET_NAME + "-debug" if DEBUG else "")
+            watcher = Watcher(appdata['audio_sync_dir'], api_client, audio_handler)
+            watcher.start()
 
         sync = SyncManager(api_client, backend, args=args)
 
