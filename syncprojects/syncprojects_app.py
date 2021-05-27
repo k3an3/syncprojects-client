@@ -26,7 +26,7 @@ __version__ = '2.3.0'
 
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-CODENAME = "IT'S ALL UP IN THE CLOUD"
+CODENAME = "WHO KNEW IT COULD GET MORE IN THE CLOUD"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝
@@ -112,9 +112,9 @@ def main():
                 access_id = ACCESS_ID
                 secret_key = SECRET_KEY
             aws_auth = StaticAuth(access_id, secret_key)
-            args = [aws_auth, BUCKET_NAME + "-debug" if DEBUG else ""]
+            args = [aws_auth, BUCKET_NAME + ("-debug" if DEBUG else "")]
 
-            audio_handler = S3AudioSyncHandler(aws_auth, AUDIO_BUCKET_NAME + "-debug" if DEBUG else "")
+            audio_handler = S3AudioSyncHandler(aws_auth, AUDIO_BUCKET_NAME + ("-debug" if DEBUG else ""))
             watcher = Watcher(appdata['audio_sync_dir'], api_client, audio_handler)
             watcher.start()
 

@@ -16,7 +16,8 @@ logger = logging.getLogger('syncprojects.watcher')
 class AudioSyncHandler(FileSystemEventHandler):
     def __init__(self):
         self.sync_dir = None
-        self.modified_close = False
+        self.modified_close = set()
+        self.created = set()
 
     def on_any_event(self, event: FileSystemEvent):
         if not self.sync_dir:
@@ -29,21 +30,22 @@ class AudioSyncHandler(FileSystemEventHandler):
             self.move_file(event.src_path, event.dest_path)
 
     def on_deleted(self, event: FileSystemEvent):
-        if not event.is_directory:
-            self.delete_file(event.src_path)
+        pass
 
     def on_created(self, event: FileSystemEvent):
-        if not event.is_directory:
-            self.push_file(event.src_path)
+        self.created.add(event.src_path)
 
     def on_modified(self, event: FileSystemEvent):
-        if not event.is_directory:
-            self.modified_close = True
+        if event.src_path in self.created:
+            self.push_file(event.src_path)
+            self.created.remove(event.src_path)
+        elif not event.is_directory:
+            self.modified_close.add(event.src_path)
 
     def on_closed(self, event):
-        if not event.is_directory and self.modified_close:
+        if not event.is_directory and event.src_path in self.modified_close:
             self.push_file(event.src_path)
-            self.modified_close = False
+            self.modified_close.remove(event.src_path)
 
     @abstractmethod
     def push_file(self, path: str):
@@ -79,13 +81,13 @@ class S3AudioSyncHandler(AudioSyncHandler):
 
     def pull_file(self, path: str):
         # Not sure if this will get used initially
-        self.client.download_file(self.bucket,
-                                  path,
-                                  join(self.sync_dir, path))
+        self.client.download_file(Bucket=self.bucket,
+                                  Path=path,
+                                  Filename=join(self.sync_dir, path))
 
     def delete_file(self, path: str):
-        self.client.delete_object(self.bucket,
-                                  path)
+        self.client.delete_object(Bucket=self.bucket,
+                                  Key=path)
 
     def move_file(self, src: str, dest: str):
         self.client.copy_object(Bucket=self.bucket,
@@ -113,7 +115,7 @@ class Watcher(Thread):
                 logger.error("Cannot create directory: %s", e)
 
     def run(self):
-        logger.info("Starting watcher")
+        logger.info("Starting watcher in %s and bucket %s", self.sync_dir)
         self.create_sync_dirs()
         self.observer.start()
         try:
@@ -121,6 +123,11 @@ class Watcher(Thread):
                 self.observer.join(1)
         except Exception as e:
             logger.error("Observer died with error: %s", e)
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_exception(e)
+            except ImportError:
+                pass
         finally:
             self.observer.stop()
             self.observer.join()
