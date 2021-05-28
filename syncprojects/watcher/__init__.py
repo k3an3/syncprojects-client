@@ -118,9 +118,13 @@ class S3AudioSyncHandler(AudioSyncHandler):
                                   Key=path)
 
     def move_file(self, src: str, dest: str):
-        self.client.copy_object(Bucket=self.bucket,
-                                CopySource=src,
-                                Key=dest)
+        copy_source = {
+            'Bucket': self.bucket,
+            'Key': src
+        }
+        self.client.copy(Bucket=self.bucket,
+                         CopySource=copy_source,
+                         Key=dest)
         self.delete_file(src)
 
 
