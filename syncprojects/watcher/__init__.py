@@ -18,9 +18,12 @@ WAIT_SECONDS = 10
 
 def wait_for_write(path: str) -> None:
     size = -1
-    while size != (new_size := getsize(path)):
-        size = new_size
-        sleep(1)
+    try:
+        while size != (new_size := getsize(path)):
+            size = new_size
+            sleep(1)
+    except OSError:
+        logger.error("Couldn't stat file %s", path)
 
 
 class AudioSyncHandler(FileSystemEventHandler):
