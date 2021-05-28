@@ -82,6 +82,10 @@ class AudioSyncHandler(FileSystemEventHandler):
         pass
 
 
+def get_remote_path(path: str):
+    return "/".join((basename(dirname(path)), basename(path)))
+
+
 class S3AudioSyncHandler(AudioSyncHandler):
     def __init__(self, auth: AWSAuth, bucket: str):
         self.auth = auth
@@ -90,20 +94,29 @@ class S3AudioSyncHandler(AudioSyncHandler):
         super().__init__()
 
     def push_file(self, path: str):
-        target = "{}/{}".format(basename(dirname(path)), basename(path))
+        target = get_remote_path(path)
         logger.debug("Uploading %s to %s", path, target)
         attempts = 0
-        while attempts < 6:
+        try:
+            while attempts < 6:
+                try:
+                    self.client.upload_file(path,
+                                            self.bucket,
+                                            target)
+                    break
+                except PermissionError:
+                    # Linear backoff
+                    sleep(attempts)
+                    attempts += 1
+            else:
+                logger.error("Failed to read file!!!")
+        except Exception as e:
+            logger.error("Error! %s", e)
             try:
-                self.client.upload_file(path,
-                                        self.bucket,
-                                        target)
-                break
-            except PermissionError:
-                sleep(1)
-                attempts += 1
-        else:
-            logger.error("Failed to read file!!!")
+                import sentry_sdk
+                sentry_sdk.capture_exception(e)
+            except ImportError:
+                pass
 
         logger.debug("Done.")
 
@@ -118,6 +131,9 @@ class S3AudioSyncHandler(AudioSyncHandler):
                                   Key=path)
 
     def move_file(self, src: str, dest: str):
+        src = get_remote_path(src)
+        dest = get_remote_path(dest)
+        logger.debug("Moving %s to %s", src, dest)
         copy_source = {
             'Bucket': self.bucket,
             'Key': src
