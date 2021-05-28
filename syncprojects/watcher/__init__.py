@@ -1,9 +1,11 @@
 import logging
 from abc import abstractmethod
+from datetime import datetime
 from os import makedirs
-from os.path import join, dirname, basename
+from os.path import join, dirname, basename, getsize
 from threading import Thread
 
+from time import sleep
 from watchdog.events import FileSystemEventHandler, FileSystemEvent, FileSystemMovedEvent
 from watchdog.observers import Observer
 
@@ -11,13 +13,23 @@ from syncprojects.api import SyncAPI
 from syncprojects.sync.backends.aws.auth import AWSAuth
 
 logger = logging.getLogger('syncprojects.watcher')
+WAIT_SECONDS = 10
+
+
+def wait_for_write(path: str) -> None:
+    size = -1
+    while size != (new_size := getsize(path)):
+        size = new_size
+        sleep(1)
 
 
 class AudioSyncHandler(FileSystemEventHandler):
     def __init__(self):
         self.sync_dir = None
-        self.modified_close = set()
-        self.created = set()
+        self.last_upload = {}
+
+    def should_push(self, path: str) -> bool:
+        return (datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS
 
     def on_any_event(self, event: FileSystemEvent):
         if not self.sync_dir:
@@ -26,26 +38,29 @@ class AudioSyncHandler(FileSystemEventHandler):
             logger.debug("File %s %s.", event.src_path, event.event_type)
 
     def on_moved(self, event: FileSystemMovedEvent):
-        if not event.is_directory:
+        if not event.is_directory and self.should_push(event.dest_path):
+            wait_for_write(event.dest_path)
             self.move_file(event.src_path, event.dest_path)
+            self.last_upload[event.dest_path] = datetime.now()
+            self.last_upload.pop(event.src_path, None)
 
     def on_deleted(self, event: FileSystemEvent):
         pass
 
     def on_created(self, event: FileSystemEvent):
-        self.created.add(event.src_path)
+        if not event.is_directory and self.should_push(event.src_path):
+            wait_for_write(event.src_path)
+            self.push_file(event.src_path)
+            self.last_upload[event.src_path] = datetime.now()
 
     def on_modified(self, event: FileSystemEvent):
-        if event.src_path in self.created:
+        if not event.is_directory and self.should_push(event.src_path):
+            wait_for_write(event.src_path)
             self.push_file(event.src_path)
-            self.created.remove(event.src_path)
-        elif not event.is_directory:
-            self.modified_close.add(event.src_path)
+            self.last_upload[event.src_path] = datetime.now()
 
     def on_closed(self, event):
-        if not event.is_directory and event.src_path in self.modified_close:
-            self.push_file(event.src_path)
-            self.modified_close.remove(event.src_path)
+        pass
 
     @abstractmethod
     def push_file(self, path: str):
@@ -74,9 +89,19 @@ class S3AudioSyncHandler(AudioSyncHandler):
     def push_file(self, path: str):
         target = "{}/{}".format(basename(dirname(path)), basename(path))
         logger.debug("Uploading %s to %s", path, target)
-        self.client.upload_file(path,
-                                self.bucket,
-                                target)
+        attempts = 0
+        while attempts < 6:
+            try:
+                self.client.upload_file(path,
+                                        self.bucket,
+                                        target)
+                break
+            except PermissionError:
+                sleep(1)
+                attempts += 1
+        else:
+            logger.error("Failed to read file!!!")
+
         logger.debug("Done.")
 
     def pull_file(self, path: str):
@@ -115,7 +140,7 @@ class Watcher(Thread):
                 logger.error("Cannot create directory: %s", e)
 
     def run(self):
-        logger.info("Starting watcher in %s and bucket %s", self.sync_dir)
+        logger.info("Starting watcher in %s", self.sync_dir)
         self.create_sync_dirs()
         self.observer.start()
         try:
