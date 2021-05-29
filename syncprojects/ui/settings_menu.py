@@ -3,15 +3,23 @@ import tkinter as tk
 from tkinter.filedialog import askdirectory
 from tkinter.messagebox import showwarning
 
+from syncprojects.storage import appdata
 
-class SetupUI:
+
+class SettingsUI:
     def __init__(self):
         self.window = tk.Tk()
         self.window.title("Syncprojects-client Setup")
+        # Buttons/objects
         self.sync_source_button = None
         self.audio_sync_source_button = None
-        self.sync_source_dir = None
-        self.audio_sync_source_dir = None
+        self.nested_check = tk.BooleanVar()
+        self.nested_check.set(appdata.get('nested_folders', False))
+        # Dest variables
+        self.sync_source_dir = appdata.get('source')
+        self.audio_sync_source_dir = appdata.get('audio_sync_dir')
+        self.nested = False
+
         self.logger = logging.getLogger('syncprojects.ui.first_start.SetupUI')
 
     def get_sync_dir(self):
@@ -37,15 +45,23 @@ class SetupUI:
                                                 "synced to/from:")
         label_a.pack()
         self.sync_source_button = tk.Button(master=frame_a,
-                                            text="Configure project sync location",
+                                            text=appdata.get('source', "Configure project sync location"),
                                             command=self.get_sync_dir)
         self.sync_source_button.pack()
+
+        label_nested_path = tk.Label(master=frame_a, text="Check if you would like songs to be nested by project. "
+                                                          "Otherwise, all of your songs will be in the same folder.")
+        label_nested_path.pack()
+        nested_check = tk.Checkbutton(master=frame_a, text='Nested folder structure', variable=self.nested_check,
+                                      onvalue=True, offvalue=False)
+        nested_check.pack()
 
         label_b = tk.Label(master=frame_b, text="Select the top level folder where you want audio files (e.g. mp3s) "
                                                 "synced to/from. Subfolders will be used for each project.")
         label_b.pack()
         self.audio_sync_source_button = tk.Button(master=frame_b,
-                                                  text="Configure audio file sync location",
+                                                  text=appdata.get('audio_sync_dir',
+                                                                   "Configure audio file sync location"),
                                                   command=self.get_audio_dir)
         self.audio_sync_source_button.pack()
 
@@ -61,7 +77,8 @@ class SetupUI:
         self.window.mainloop()
 
     def quit(self):
-        if not self.sync_source_dir and not self.audio_sync_source_dir:
+        self.nested = self.nested_check.get()
+        if not self.sync_source_dir or not self.audio_sync_source_dir:
             showwarning(master=self.window, title="Missing Information!",
                         message="Please set all fields correctly.")
             self.logger.debug("Quit button pressed. Fields not completed.")
@@ -77,5 +94,5 @@ class SetupUI:
 
 if __name__ == "__main__":
     # testing only
-    ui = SetupUI()
+    ui = SettingsUI()
     ui.run()

@@ -6,7 +6,8 @@ import pystray
 from PIL import Image
 from pystray import MenuItem, Menu
 
-from syncprojects.utils import open_app_in_browser, call_api, find_data_file
+from syncprojects.ui.settings_menu import SettingsUI
+from syncprojects.utils import open_app_in_browser, call_api, find_data_file, commit_settings
 
 ICON_FILE = "benny.ico"
 logger = logging.getLogger('syncprojects.ui.tray')
@@ -27,6 +28,14 @@ def update_action():
     call_api('update')
 
 
+def settings_action():
+    settings = SettingsUI()
+    logger.info("Running settings UI")
+    settings.run()
+    commit_settings(settings)
+    logger.info("Done")
+
+
 class TrayIcon(Thread):
     def __init__(self):
         super().__init__(daemon=True)
@@ -40,7 +49,8 @@ class TrayIcon(Thread):
         image = Image.open(icon_file)
         menu = Menu(
             MenuItem('Open App', open_app_action, default=True),
-            MenuItem(f'Check for updates', update_action),
+            MenuItem('Check for updates', update_action),
+            MenuItem('Settings', settings_action),
             MenuItem('Exit', exit_action),
         )
         icon = pystray.Icon("syncprojects", image, "syncprojects", menu)

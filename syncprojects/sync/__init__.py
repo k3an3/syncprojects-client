@@ -12,7 +12,7 @@ from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandle
 from syncprojects.storage import appdata
 from syncprojects.sync.backends import SyncBackend
 from syncprojects.sync.operations import check_out
-from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice
+from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice, create_project_dirs
 
 
 class SyncManager:
@@ -21,6 +21,8 @@ class SyncManager:
         self.api_client = api_client
         self.headless = headless
         self.tasks = set()
+        if appdata.get('nested_folders'):
+            create_project_dirs(self.api_client, appdata['source'])
         self._backend = backend(self.api_client, *args, **kwargs)
 
     def sync(self, project: Dict) -> Dict:

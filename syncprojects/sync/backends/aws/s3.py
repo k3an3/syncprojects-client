@@ -1,7 +1,7 @@
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
-from os.path import join, isdir
+from os.path import join, isdir, dirname
 from typing import Dict, List, Callable
 
 from syncprojects import config
@@ -103,18 +103,30 @@ class S3SyncBackend(SyncBackend):
                                 remote_path + key)
 
     def handle_download(self, song: Dict, key: str, remote_path: str):
-        self.client.download_file(self.bucket,
-                                  remote_path + key,
-                                  join(appdata['source'], get_song_dir(song), key)
-                                  )
+        fail_count = 0
+        while fail_count < 2:
+            try:
+                self.client.download_file(self.bucket,
+                                          remote_path + key,
+                                          join(appdata['source'], get_song_dir(song), key)
+                                          )
+                break
+            except FileNotFoundError:
+                os.makedirs(join(appdata['source'], get_song_dir(song), dirname(key)), exist_ok=True)
+                fail_count += 1
 
     def sync(self, project: Dict, songs: List[Dict]) -> Dict:
         results = {'status': 'done', 'songs': []}
         with get_songdata(str(project['id'])) as project_song_data:
             for song in songs:
                 try:
+                    # Used to parse nested directories
+                    song['project_name'] = project['name']
+                    # Locally-cached song information for comparison
                     song_data = get_song(project_song_data, song['id'])
+                    # Break out the song name since this is used a lot
                     song_name = song['name']
+
                     self.logger.debug(f"Working on {song_name}")
                     verdict = self.get_verdict(song_data, song)
                     self.logger.debug(f"Got initial {verdict=}")
@@ -125,6 +137,10 @@ class S3SyncBackend(SyncBackend):
                     remote_path = f"{project['id']}/{song['id']}/"
                     remote_manifest = self.get_remote_manifest(remote_path)
                     local_manifest = self.get_local_manifest(get_song_dir(song))
+
+                    if not local_manifest:
+                        logger.warning("Remote manifest empty; assuming remote")
+                        verdict = Verdict.REMOTE
 
                     if verdict == Verdict.CONFLICT:
                         verdict = handle_conflict(song_name)
@@ -186,20 +202,30 @@ class S3SyncBackend(SyncBackend):
 
 
 def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: str) -> List[Future]:
-    with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-        futures = []
+    if os.getenv('THREADS_OFF') == '1':
+        logger.debug("Not using threading!")
+        results = []
         for key, tag in src.items():
             if key not in dst or tag != dst[key]:
-                futures.append(executor.submit(action, song, key, remote_path))
-        done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
-        if not_done:
-            logger.error(f"{len(not_done)} actions failed for some reason!")
-        return done
+                results.append(action(song, key, remote_path))
+        return results
+    else:
+        with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+            futures = []
+            for key, tag in src.items():
+                if key not in dst or tag != dst[key]:
+                    futures.append(executor.submit(action, song, key, remote_path))
+            done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
+            if not_done:
+                logger.error(f"{len(not_done)} actions failed for some reason!")
+            return done
 
 
 def walk_dir(root: str, base: str = "", executor: ThreadPoolExecutor = None) -> Dict[str, str]:
     top = False
     if not executor:
+        if not isdir(root):
+            return {}
         executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS)
         top = True
     futures = {}

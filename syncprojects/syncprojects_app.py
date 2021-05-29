@@ -16,13 +16,13 @@ from syncprojects.sync.backends.aws import NoAuthenticationCredentialsError
 from syncprojects.sync.backends.aws.auth import StaticAuth
 from syncprojects.sync.backends.aws.s3 import S3SyncBackend
 from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
-from syncprojects.ui.first_start import SetupUI
 from syncprojects.ui.message import MessageBoxUI
+from syncprojects.ui.settings_menu import SettingsUI
 from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
-    check_already_running, open_app_in_browser, test_mode
+    check_already_running, open_app_in_browser, test_mode, commit_settings
 
-__version__ = '2.3.2'
+__version__ = '2.3.3'
 
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
@@ -38,16 +38,17 @@ BANNER = """
 
 
 def first_time_run():
-    setup = SetupUI()
+    settings = SettingsUI()
     logger.info("Running first time setup")
-    setup.run()
+    settings.run()
     logger.info("First time setup complete")
-    logger.debug(f"{setup.sync_source_dir=} {setup.audio_sync_source_dir=}")
-    if not setup.sync_source_dir and not setup.audio_sync_source_dir:
+    logger.debug(f"{settings.sync_source_dir=} {settings.audio_sync_source_dir=}")
+    if not settings.sync_source_dir and not settings.audio_sync_source_dir:
         logger.error("Required settings weren't provided; quitting.")
+        MessageBoxUI.error("Syncprojects was improperly configured! Try again, or contact support if the issue "
+                           "persists.")
         sys.exit(1)
-    appdata['source'] = setup.sync_source_dir
-    appdata['audio_sync_dir'] = setup.audio_sync_source_dir
+    commit_settings(settings)
     appdata['first_time_setup_complete'] = True
 
 

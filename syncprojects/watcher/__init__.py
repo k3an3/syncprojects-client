@@ -1,7 +1,6 @@
 import logging
 from abc import abstractmethod
 from datetime import datetime
-from os import makedirs
 from os.path import join, dirname, basename, getsize
 from threading import Thread
 
@@ -11,6 +10,7 @@ from watchdog.observers import Observer
 
 from syncprojects.api import SyncAPI
 from syncprojects.sync.backends.aws.auth import AWSAuth
+from syncprojects.utils import create_project_dirs
 
 logger = logging.getLogger('syncprojects.watcher')
 WAIT_SECONDS = 10
@@ -153,18 +153,9 @@ class Watcher(Thread):
         handler.sync_dir = sync_dir
         self.observer.schedule(handler, self.sync_dir, recursive=True)
 
-    def create_sync_dirs(self):
-        logger.debug("Creating sync dirs")
-        projects = self.api_client.get_all_projects()
-        for project in projects:
-            try:
-                makedirs(join(self.sync_dir, project['name']), exist_ok=True)
-            except OSError as e:
-                logger.error("Cannot create directory: %s", e)
-
     def run(self):
         logger.info("Starting watcher in %s", self.sync_dir)
-        self.create_sync_dirs()
+        create_project_dirs(self.api_client, self.sync_dir)
         self.observer.start()
         try:
             while self.observer.is_alive():

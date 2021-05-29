@@ -412,7 +412,11 @@ def test_mode() -> bool:
 
 
 def get_song_dir(song: Dict) -> str:
-    return song.get('directory_name') or song['name']
+    path = song.get('directory_name') or song['name']
+    from syncprojects.storage import appdata
+    if appdata.get('nested_folders'):
+        path = join(song['project_name'], path)
+    return path
 
 
 # https://cx-freeze.readthedocs.io/en/latest/faq.html#using-data-files
@@ -424,3 +428,22 @@ def find_data_file(filename: str) -> str:
     else:
         # The application is not frozen
         return filename
+
+
+def commit_settings(settings):
+    from syncprojects.storage import appdata
+    if settings.sync_source_dir:
+        appdata['source'] = settings.sync_source_dir
+    if settings.audio_sync_source_dir:
+        appdata['audio_sync_dir'] = settings.audio_sync_source_dir
+    appdata['nested_folders'] = settings.nested
+
+
+def create_project_dirs(api_client, base_dir):
+    logger.debug("Creating dirs in %s", base_dir)
+    projects = api_client.get_all_projects()
+    for project in projects:
+        try:
+            os.makedirs(join(base_dir, project['name']), exist_ok=True)
+        except OSError as e:
+            logger.error("Cannot create directory: %s", e)
