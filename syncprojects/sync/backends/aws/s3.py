@@ -115,7 +115,7 @@ class S3SyncBackend(SyncBackend):
                 os.makedirs(join(appdata['source'], get_song_dir(song), dirname(key)), exist_ok=True)
                 fail_count += 1
 
-    def sync(self, project: Dict, songs: List[Dict], verdict: Verdict = None) -> Dict:
+    def sync(self, project: Dict, songs: List[Dict], force_verdict: Verdict = None) -> Dict:
         results = {'status': 'done', 'songs': []}
         with get_songdata(str(project['id'])) as project_song_data:
             for song in songs:
@@ -128,7 +128,8 @@ class S3SyncBackend(SyncBackend):
                     song_name = song['name']
 
                     self.logger.debug(f"Working on {song_name}")
-                    if verdict:
+                    if force_verdict:
+                        verdict = force_verdict
                         self.logger.debug(f"Using pre-specified {verdict=}")
                     else:
                         verdict = self.get_verdict(song_data, song)

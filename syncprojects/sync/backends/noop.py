@@ -10,12 +10,12 @@ class RandomNoOpSyncBackend(SyncBackend):
     A SyncManager that doesn't actually do anything, but produces random output.
     """
 
-    def sync(self, project: Dict, songs: List[Dict], verdict: Verdict = None):
+    def sync(self, project: Dict, songs: List[Dict], force_verdict: Verdict = None):
         result = {'status': 'done', 'songs': []}
         for song in songs:
             song_name = song['name']
-            if verdict:
-                changed = verdict
+            if force_verdict:
+                changed = force_verdict
             elif os.getenv('CHANGED'):
                 changed = os.environ['CHANGED']
             else:

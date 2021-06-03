@@ -187,7 +187,7 @@ class WorkDoneHandler(CommandHandler):
             verdict = Verdict.REMOTE
         else:
             verdict = None
-        sync = self.sync_manager.sync(project, verdict=verdict)
+        sync = self.sync_manager.sync(project, force_verdict=verdict)
         self.logger.debug("Sync done; trying unlock")
         try:
             self.api_client.unlock(song)

@@ -54,7 +54,7 @@ class ShareDriveSyncBackend(SyncBackend):
         elif dst_hash and (not src_hash or dst_hash != known_hash):
             return Verdict.REMOTE
 
-    def sync(self, project: Dict, songs: List[Dict], verdict: Verdict = None) -> Dict:
+    def sync(self, project: Dict, songs: List[Dict], force_verdict: Verdict = None) -> Dict:
         project = project['name']
         remote_stores = {}
 
@@ -83,8 +83,8 @@ class ShareDriveSyncBackend(SyncBackend):
             if not isdir(join(appdata['source'], song)):
                 self.logger.info(f"{song_name} does not exist locally.")
                 not_local = True
-            if verdict:
-                up = verdict
+            if force_verdict:
+                up = force_verdict
             else:
                 up = self.is_updated(og_song, song, project, remote_hs)
             self.logger.debug(f"Got status: {up}")

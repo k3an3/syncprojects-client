@@ -29,7 +29,7 @@ class SyncBackend(ABC):
         self.logger = logging.getLogger(f'syncprojects.sync.backends.{self.__class__.__name__}')
 
     @abstractmethod
-    def sync(self, project: Dict, songs: List[Dict], verdict: Verdict = None):
+    def sync(self, project: Dict, songs: List[Dict], force_verdict: Verdict = None):
         pass
 
     def sync_amps(self, project: str):

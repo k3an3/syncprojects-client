@@ -48,7 +48,7 @@ class TrayIcon(Thread):
             self.logger.critical("Icon file not found!")
         image = Image.open(icon_file)
         menu = Menu(
-            MenuItem('Open App', open_app_action, default=True),
+            MenuItem('Open Syncprojects', open_app_action, default=True),
             MenuItem('Check for updates', update_action),
             MenuItem('Settings', settings_action),
             MenuItem('Exit', exit_action),
