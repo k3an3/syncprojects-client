@@ -16,6 +16,12 @@ from syncprojects.utils import hash_file
 logger = logging.getLogger('syncprojects.sync.backends')
 
 
+class Verdict(Enum):
+    LOCAL = "local"
+    REMOTE = "remote"
+    CONFLICT = "conflict"
+
+
 class SyncBackend(ABC):
     def __init__(self, api_client: SyncAPI, *args, **kwargs):
         self.api_client = api_client
@@ -23,7 +29,7 @@ class SyncBackend(ABC):
         self.logger = logging.getLogger(f'syncprojects.sync.backends.{self.__class__.__name__}')
 
     @abstractmethod
-    def sync(self, project: Dict, songs: List[Dict]):
+    def sync(self, project: Dict, songs: List[Dict], verdict: Verdict = None):
         pass
 
     def sync_amps(self, project: str):
@@ -73,9 +79,3 @@ class SyncBackend(ABC):
                     self.logger.debug(f"Didn't get hash for {song['name']}")
                     src_hash = ""
                 self.local_hash_cache[f"{song['project']}:{song['id']}"] = src_hash
-
-
-class Verdict(Enum):
-    LOCAL = "local"
-    REMOTE = "remote"
-    CONFLICT = "conflict"

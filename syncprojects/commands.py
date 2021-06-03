@@ -1,16 +1,17 @@
 import glob
 import logging
+import sys
 from abc import ABC, abstractmethod
 from os.path import join, getctime
 from typing import Dict
 
-import sys
 from requests import HTTPError
 
 from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
+from syncprojects.sync.backends import Verdict
 from syncprojects.sync.operations import get_lock_status
-from syncprojects.utils import open_default_app, check_update
+from syncprojects.utils import open_default_app, check_update, get_song_dir
 
 logger = logging.getLogger('syncprojects.commands')
 
@@ -156,7 +157,11 @@ class WorkOnHandler(CommandHandler):
         # TODO: DAW agnostic?
         # just guessing at which file to open
         self.logger.debug("Resolving project file")
-        project_files = glob.glob(join(appdata['source'], song.get('directory_name') or song['name'], "*.cpr"))
+        # inject project name
+        # unnecessary API call?
+        project = self.api_client.get_project(song['project'])
+        song['project_name'] = project['name']
+        project_files = glob.glob(join(appdata['source'], get_song_dir(song), "*.cpr"))
         try:
             latest_project_file = max(project_files, key=getctime)
         except ValueError:
@@ -178,7 +183,11 @@ class WorkDoneHandler(CommandHandler):
         song['is_locked'] = False
         project['songs'] = [song]
         self.logger.debug("Syncing")
-        sync = self.sync_manager.sync(project)
+        if 'undo' in data and data['undo'] is True:
+            verdict = Verdict.REMOTE
+        else:
+            verdict = None
+        sync = self.sync_manager.sync(project, verdict=verdict)
         self.logger.debug("Sync done; trying unlock")
         try:
             self.api_client.unlock(song)

@@ -5,6 +5,7 @@ import os
 import pathlib
 import re
 import subprocess
+import sys
 import traceback
 import webbrowser
 from argparse import ArgumentParser
@@ -13,13 +14,12 @@ from os import readlink, symlink
 from os.path import join, isfile, dirname
 from tempfile import NamedTemporaryFile
 from threading import Thread
+from time import sleep
 from typing import Dict
 
 import psutil
 import requests
-import sys
 from packaging.version import parse
-from time import sleep
 
 import syncprojects.config as config
 from syncprojects.ui.message import MessageBoxUI
@@ -79,7 +79,10 @@ def open_default_app(path: str):
         # pylint: disable=no-name-in-module
         from os import startfile
         return startfile(path)
-    return subprocess.Popen(['open', path])
+    try:
+        return subprocess.Popen(['open', path])
+    except FileNotFoundError:
+        return subprocess.Popen(['xdg-open', path])
 
 
 def migrate_old_settings(new_config):

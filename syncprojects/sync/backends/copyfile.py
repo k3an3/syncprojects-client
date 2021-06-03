@@ -1,12 +1,11 @@
 import os
+import sys
 import traceback
 from os.path import isdir, join
 from typing import Dict, List
 
-import sys
-
 from syncprojects.storage import HashStore, appdata
-from syncprojects.sync import SyncBackend
+from syncprojects.sync import SyncBackend, Verdict
 from syncprojects.sync.operations import handle_new_song, changelog, copy, copy_tree
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import get_datadir, get_latest_change, fmt_error, current_user, \
@@ -49,13 +48,13 @@ class ShareDriveSyncBackend(SyncBackend):
         else:
             self.logger.debug(f"known_hash is {known_hash}")
         if src_hash != known_hash and dst_hash != known_hash:
-            return "mismatch"
+            return Verdict.CONFLICT
         elif src_hash and (not dst_hash or src_hash != known_hash):
-            return "local"
+            return Verdict.LOCAL
         elif dst_hash and (not src_hash or dst_hash != known_hash):
-            return "remote"
+            return Verdict.REMOTE
 
-    def sync(self, project: Dict, songs: List[Dict]) -> Dict:
+    def sync(self, project: Dict, songs: List[Dict], verdict: Verdict = None) -> Dict:
         project = project['name']
         remote_stores = {}
 
@@ -84,12 +83,15 @@ class ShareDriveSyncBackend(SyncBackend):
             if not isdir(join(appdata['source'], song)):
                 self.logger.info(f"{song_name} does not exist locally.")
                 not_local = True
-            up = self.is_updated(og_song, song, project, remote_hs)
+            if verdict:
+                up = verdict
+            else:
+                up = self.is_updated(og_song, song, project, remote_hs)
             self.logger.debug(f"Got status: {up}")
             if not_local:
-                up == "remote"
+                up == Verdict.REMOTE
                 handle_new_song(song, remote_hs)
-            if up == "mismatch":
+            if up == Verdict.CONFLICT:
                 self.logger.warning("Sync conflict: both local and remote have changed!")
                 if changes := get_latest_change(join(project_dest, song)):
                     MessageBoxUI.info(changes, "Sync Conflict: changes")
@@ -100,15 +102,15 @@ class ShareDriveSyncBackend(SyncBackend):
                     f"\"no\" to confirm overwrite of server " f"files. Or, \"cancel\" "
                     f"to skip.", "Sync Conflict")
                 if result:
-                    up = "remote"
+                    up = Verdict.REMOTE
                 elif result is None:
                     up = None
                 else:
-                    up = "local"
-            if up == "remote":
+                    up = Verdict.LOCAL
+            if up == Verdict.REMOTE:
                 src = project_dest
                 dst = appdata['source']
-            elif up == "local":
+            elif up == Verdict.LOCAL:
                 src = appdata['source']
                 dst = project_dest
                 self.logger.debug("Prompting for changelog")

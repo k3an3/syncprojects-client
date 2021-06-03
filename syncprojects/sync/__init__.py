@@ -10,7 +10,7 @@ from syncprojects.api import SyncAPI
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler, \
     ShutdownHandler, UpdateHandler
 from syncprojects.storage import appdata
-from syncprojects.sync.backends import SyncBackend
+from syncprojects.sync.backends import SyncBackend, Verdict
 from syncprojects.sync.operations import check_out
 from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice, create_project_dirs
 
@@ -25,7 +25,7 @@ class SyncManager:
             create_project_dirs(self.api_client, appdata['source'])
         self._backend = backend(self.api_client, *args, **kwargs)
 
-    def sync(self, project: Dict) -> Dict:
+    def sync(self, project: Dict, verdict: Verdict = None) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")
         pre_results = []
         songs = []
@@ -43,7 +43,7 @@ class SyncManager:
             return {'status': 'done', 'songs': None}
         self.logger.debug(f"Got songs list {songs}")
         self._backend.get_local_changes(songs)
-        results = self._backend.sync(project, songs)
+        results = self._backend.sync(project, songs, verdict)
         results['songs'].extend(pre_results)
         api_results = [s['id'] for s in results['songs'] if 'id' in s and s['action'] == "local"]
         if api_results:
