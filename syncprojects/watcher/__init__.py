@@ -160,6 +160,8 @@ class Watcher(Thread):
         try:
             while self.observer.is_alive():
                 self.observer.join(1)
+        except FileNotFoundError:
+            logger.debug("File not found: %s", e)
         except Exception as e:
             logger.error("Observer died with error: %s", e)
             try:

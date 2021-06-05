@@ -21,7 +21,7 @@ from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, open_app_in_browser, test_mode, commit_settings
 
-__version__ = '2.3.5'
+__version__ = '2.3.6'
 
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
