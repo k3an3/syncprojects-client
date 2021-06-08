@@ -1,9 +1,10 @@
 import logging
-import sys
 import traceback
 from multiprocessing import Queue, freeze_support
 from multiprocessing.context import Process
 from os.path import isdir
+
+import sys
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -15,17 +16,18 @@ from syncprojects.sync.backends.aws import NoAuthenticationCredentialsError
 from syncprojects.sync.backends.aws.auth import StaticAuth
 from syncprojects.sync.backends.aws.s3 import S3SyncBackend
 from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
+from syncprojects.system import open_app_in_browser, test_mode
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.ui.settings_menu import SettingsUI
 from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
-    check_already_running, open_app_in_browser, test_mode, commit_settings
+    check_already_running, commit_settings
 
-__version__ = '2.3.6'
+__version__ = '2.4.0'
 
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-CODENAME = "WHO KNEW IT COULD GET MORE IN THE CLOUD"
+CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """
 ███████╗██╗   ██╗███╗   ██╗ ██████╗██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗███████╗
 ██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██╔════╝

@@ -13,6 +13,7 @@ from requests import HTTPError
 
 from syncprojects.config import LOGIN_MODE, SYNCPROJECTS_URL
 from syncprojects.storage import appdata
+from syncprojects.system import get_host_string
 from syncprojects.ui.message import MessageBoxUI
 
 API_BASE_URL = SYNCPROJECTS_URL + "api/v1/"
@@ -169,8 +170,8 @@ class SyncAPI:
                 break
         return True
 
-    def get_updates(self):
-        return self._request("updates/")['results']
+    def get_client_updates(self):
+        return self._request("updates/", params={'target': get_host_string()})['results']
 
     def add_sync(self, project: Dict, songs: List[int]):
         return self._request("syncs/", "POST", json={

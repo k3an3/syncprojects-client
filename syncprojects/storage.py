@@ -7,7 +7,8 @@ from os.path import isfile, dirname
 from sqlitedict import SqliteDict
 
 from syncprojects import config
-from syncprojects.utils import get_datadir, migrate_old_settings, get_config_path
+from syncprojects.system import get_datadir
+from syncprojects.utils import migrate_old_settings, get_config_path
 
 logger = logging.getLogger('syncprojects.storage')
 

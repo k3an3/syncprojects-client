@@ -1,17 +1,18 @@
 import glob
 import logging
-import sys
 from abc import ABC, abstractmethod
 from os.path import join, getctime
 from typing import Dict
 
+import sys
 from requests import HTTPError
 
 from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.operations import get_lock_status
-from syncprojects.utils import open_default_app, check_update, get_song_dir
+from syncprojects.system import open_default_app
+from syncprojects.utils import check_update, get_song_dir
 
 logger = logging.getLogger('syncprojects.commands')
 

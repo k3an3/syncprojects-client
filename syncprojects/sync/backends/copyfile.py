@@ -1,15 +1,16 @@
 import os
-import sys
 import traceback
 from os.path import isdir, join
 from typing import Dict, List
 
+import sys
+
 from syncprojects.storage import HashStore, appdata
 from syncprojects.sync import SyncBackend, Verdict
 from syncprojects.sync.operations import handle_new_song, changelog, copy, copy_tree
+from syncprojects.system import test_mode, mount_persistent_drive, get_datadir
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import get_datadir, get_latest_change, fmt_error, current_user, \
-    mount_persistent_drive, test_mode
+from syncprojects.utils import get_latest_change, fmt_error, current_user
 
 
 class ShareDriveSyncBackend(SyncBackend):

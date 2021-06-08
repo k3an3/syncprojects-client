@@ -2,26 +2,23 @@ import datetime
 import getpass
 import logging
 import os
-import pathlib
 import re
 import subprocess
-import sys
 import traceback
-import webbrowser
 from argparse import ArgumentParser
 from json import JSONDecodeError
-from os import readlink, symlink
 from os.path import join, isfile, dirname
 from tempfile import NamedTemporaryFile
 from threading import Thread
-from time import sleep
 from typing import Dict
 
-import psutil
 import requests
+import sys
 from packaging.version import parse
+from time import sleep
 
 import syncprojects.config as config
+from syncprojects.system import open_app_in_browser, process_running, get_datadir
 from syncprojects.ui.message import MessageBoxUI
 
 logger = logging.getLogger('syncprojects.utils')
@@ -45,44 +42,7 @@ def format_time():
 
 
 def current_user():
-    return resolve_username(getpass.getuser())
-
-
-def resolve_username(user):
-    if user == "Admin":
-        return "Keane"
-    return user
-
-
-def get_datadir(app: str) -> pathlib.Path:
-    """
-    Returns a parent directory path
-    where persistent application data can be stored.
-
-    # linux: ~/.local/share
-    # macOS: ~/Library/Application Support
-    # windows: C:/Users/<USER>/AppData/Roaming
-    """
-
-    home = pathlib.Path.home()
-
-    if sys.platform == "win32":
-        return home / "AppData/Roaming" / app
-    elif sys.platform == "linux":
-        return home / ".local/share" / app
-    elif sys.platform == "darwin":
-        return home / "Library/Application Support" / app
-
-
-def open_default_app(path: str):
-    if sys.platform == "win32":
-        # pylint: disable=no-name-in-module
-        from os import startfile
-        return startfile(path)
-    try:
-        return subprocess.Popen(['open', path])
-    except FileNotFoundError:
-        return subprocess.Popen(['xdg-open', path])
+    return getpass.getuser()
 
 
 def migrate_old_settings(new_config):
@@ -141,30 +101,6 @@ def get_patched_progress():
     return progress
 
 
-def process_running(regex):
-    for process in psutil.process_iter():
-        if regex.search(process.name()):
-            return process
-
-
-def handle_link(src_name, dst_name, verbose, dry_run):
-    link_dest = readlink(src_name)
-    if verbose >= 1:
-        logger.debug(f"linking {dst_name} -> {link_dest}")
-    if not dry_run:
-        symlink(link_dest, dst_name)
-    return dst_name
-
-
-# noinspection PyUnresolvedReferences
-def move_file_on_reboot(src, dst):
-    try:
-        # pylint: disable=undefined-variable
-        win32file.MoveFileEx(src, dst, win32file.MOVEFILE_DELAY_UNTIL_REBOOT)
-    except Exception as e:
-        logger.error(fmt_error("pending file move", e))
-
-
 def get_input_choice(options):
     formatted_options = '[{}]: '.format('/'.join(["[{}]{}".format(o[0], o[1:]) for o in options]))
     while True:
@@ -217,8 +153,16 @@ def fetch_update(url: str) -> str:
 def update(new_version: Dict):
     logger.debug(f"Fetching updater from {new_version['updater']}")
     updater = fetch_update(new_version['updater'])
+    if not verify_signature(updater, None):
+        logger.error("Updater failed signature check! Aborting.")
+        # TODO: Alert user
+        return
     logger.debug(f"Fetching package from {new_version['package']}")
     package = fetch_update(new_version['package'])
+    if not verify_signature(package, None):
+        logger.error("Package failed signature check! Aborting.")
+        # TODO: Alert user
+        return
     from syncprojects.storage import appdata
     logpath = appdata['telemetry_file']
     logger.debug(f"Starting updater: `{updater} {package} {dirname(logpath)} -d`")
@@ -236,18 +180,6 @@ def hash_file(file_path, hash_algo=None, block_size=4096):
             else:
                 break
     return hash_algo.hexdigest()
-
-
-def mount_persistent_drive():
-    from syncprojects.storage import appdata
-    try:
-        subprocess.run(
-            ["net", "use", appdata['smb_drive'],
-             f"\\\\{appdata['smb_server']}\\{appdata['smb_share']}",
-             "/persistent:Yes"],
-            check=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Drive mount failed! {e}")
 
 
 def api_unblock():
@@ -337,13 +269,14 @@ def find_daw_exe(search: bool = False) -> str:
             return None
 
 
-def verify_signature(data: str):
-    pass
+def verify_signature(path: str, given_hash: str) -> bool:
+    # TODO: Implement
+    return True
 
 
 def check_update(api_client) -> Dict:
     try:
-        latest_version = api_client.get_updates()[-1]
+        latest_version = api_client.get_client_updates()[-1]
     except IndexError:
         return None
     from syncprojects.syncprojects_app import __version__
@@ -381,15 +314,11 @@ class UpdateThread(Thread):
         check_update(self.api_client)
 
 
-def call_api(route: str):
+def check_local_api_reachable(route: str):
     try:
         requests.post(f"http://localhost:5000/api/{route}", json={}, headers={"Accept": "application/json"})
     except requests.exceptions.ConnectionError:
         pass
-
-
-def open_app_in_browser():
-    webbrowser.open(config.SYNCPROJECTS_URL)
 
 
 def check_already_running():
@@ -408,10 +337,6 @@ def check_already_running():
     MessageBoxUI.error("Syncprojects cannot start; something is already using TCP port 5000. Please disable any "
                        "conflicting programs or contact support.")
     sys.exit(-1)
-
-
-def test_mode() -> bool:
-    return os.getenv('TEST', '0') == '1'
 
 
 def get_song_dir(song: Dict) -> str:

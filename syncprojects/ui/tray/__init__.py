@@ -6,8 +6,9 @@ import pystray
 from PIL import Image
 from pystray import MenuItem, Menu
 
+from syncprojects.system import open_app_in_browser
 from syncprojects.ui.settings_menu import SettingsUI
-from syncprojects.utils import open_app_in_browser, call_api, find_data_file, commit_settings
+from syncprojects.utils import check_local_api_reachable, find_data_file, commit_settings
 
 ICON_FILE = "benny.ico"
 logger = logging.getLogger('syncprojects.ui.tray')
@@ -20,12 +21,12 @@ def open_app_action():
 
 def exit_action():
     logger.debug("Requested to exit")
-    call_api('shutdown')
+    check_local_api_reachable('shutdown')
 
 
 def update_action():
     logger.debug("Requested to update")
-    call_api('update')
+    check_local_api_reachable('update')
 
 
 def settings_action():

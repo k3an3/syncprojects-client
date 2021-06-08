@@ -11,7 +11,8 @@ from progress.bar import IncrementalBar
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI
-from syncprojects.utils import print_hr, current_user, format_time, validate_changelog, prompt_to_exit, handle_link, \
+from syncprojects.system import handle_link
+from syncprojects.utils import print_hr, current_user, format_time, validate_changelog, prompt_to_exit, \
     get_patched_progress, get_input_choice
 
 logger = logging.getLogger('syncprojects.operations')
