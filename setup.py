@@ -1,14 +1,19 @@
 import sys
 
+from syncprojects.syncprojects_app import __version__ as version
+
 try:
     from cx_Freeze import setup, Executable
 except ImportError:
     print("Not using cx_Freeze.")
     from setuptools import setup
 
+packages = ['jinja2', 'sentry_sdk', 'html', 'boto3', 'pystray']
 base = None
+
 if sys.platform == "win32":
     base = "Win32GUI"  # Tells the build script to hide the console.
+    packages.append('win32file')
 
 requirements = [
     'boto3==1.17.44',
@@ -41,7 +46,7 @@ def gen_executables():
 
 setup(
     name='syncprojects',
-    version='2.1',
+    version=version,
     packages=['syncprojects'],
     url='https://syncprojects.example.com',
     license='',
@@ -58,8 +63,11 @@ setup(
             # Slim down build
             'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
             # Won't run correctly without
-            'packages': ['jinja2', 'win32file', 'sentry_sdk', 'html', 'boto3', 'pystray'],
+            'packages': packages,
             'include_files': ['benny.ico'],
+        },
+        'bdist_mac': {
+            'iconfile': 'benny.ico'
         }
     },
     install_requires=requirements,

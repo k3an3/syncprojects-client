@@ -1,8 +1,10 @@
 import logging
+import os
 import pathlib
 import traceback
 from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
+from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
@@ -16,6 +18,9 @@ import sys
 from pyshortcuts import make_shortcut
 
 PACKAGE = None
+if not PACKAGE:
+    bundle_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
+    PACKAGE = os.path.abspath(os.path.join(bundle_dir, 'release.zip'))
 PRE_UPDATE = None
 POST_UPDATE = None
 try:
@@ -26,9 +31,6 @@ except ImportError:
 APP_NAME = "syncprojects"
 EXE_NAME = "syncprojects_app"
 ICON_FILE = "benny.ico"
-WINDOWS_STARTUP = """@echo off
-start cmd /c \"{path} && exit 0\"
-"""
 
 update_success = False
 
@@ -142,7 +144,7 @@ def update(root):
             logger.info("Update is local archive")
             archive_path = args.update_archive
 
-        # TODO: Needs more testing. Old dir still in use
+        # TODO: Needs more testing. Old dir still in use on Windows
         # remove_old_install()
 
         try:
