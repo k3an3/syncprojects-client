@@ -151,12 +151,6 @@ def fetch_update(url: str) -> str:
 
 
 def update(new_version: Dict):
-    logger.debug(f"Fetching updater from {new_version['updater']}")
-    updater = fetch_update(new_version['updater'])
-    if not verify_signature(updater, None):
-        logger.error("Updater failed signature check! Aborting.")
-        # TODO: Alert user
-        return
     logger.debug(f"Fetching package from {new_version['package']}")
     package = fetch_update(new_version['package'])
     if not verify_signature(package, None):
@@ -165,8 +159,8 @@ def update(new_version: Dict):
         return
     from syncprojects.storage import appdata
     logpath = appdata['telemetry_file']
-    logger.debug(f"Starting updater: `{updater} {package} {dirname(logpath)} -d`")
-    subprocess.Popen([updater, package, dirname(logpath), "-d"])
+    logger.debug(f"Starting updater: `{package} {dirname(logpath)} -d`")
+    subprocess.Popen([package, dirname(logpath), "-d"])
 
 
 def hash_file(file_path, hash_inst=None, block_size=4096) -> str:

@@ -52,7 +52,7 @@ try:
                          cwd=BUILD_DIR)
         shutil.copy(release, 'release.zip')
         check_output(['pyinstaller', '-F', '--specpath', 'update', '--add-data',
-                      os.pathsep.join((f'../release.zip', '.')), '--icon', 'benny.ico',
+                      os.pathsep.join((f'../release.zip', '.')), '--icon', '../benny.ico',
                       join('update/update.py'), '--name', f'syncprojects-{formatted_version}-installer',
                       '--noconsole'])
         os.unlink('release.zip')

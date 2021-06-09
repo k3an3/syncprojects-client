@@ -1,10 +1,8 @@
 import logging
 import os
-import pathlib
 import traceback
 from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
-from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label
@@ -121,7 +119,7 @@ def fetch_update(url: str) -> str:
 
 def run_ui(root):
     ft = Frame()
-    label = Label(text=f"Updating {APP_NAME}...")
+    label = Label(text=f"Installing {APP_NAME}...")
     label.pack()
     progress_bar = ttk.Progressbar(ft, orient='horizontal', mode='indeterminate')
     progress_bar.pack(expand=True, fill=BOTH, side=TOP)
@@ -175,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--delete-archive', action='store_true')
     parser.add_argument('-k', '--kill-parent', action='store_true')
     # parser.add_argument('old_pid', type=int)
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
     if not args.update_archive:
         parser.print_usage()
         sys.exit(0)
