@@ -27,7 +27,7 @@ def get_song(data: SqliteDict, song: int):
     return data[song]
 
 
-def get_appdata():
+def get_appdata() -> SqliteDict:
     config_created = False
     if config.DEBUG:
         config_dir = pathlib.Path("..")
@@ -50,7 +50,7 @@ def get_appdata():
     return loaded_config
 
 
-def get_songdata(project: str):
+def get_songdata(project: str) -> SqliteDict:
     if config.DEBUG:
         config_dir = pathlib.Path("..")
     else:
@@ -62,6 +62,22 @@ def get_songdata(project: str):
     loaded_config = SqliteDict(config_file, tablename=project)
     if config_created:
         logger.info("Created songdata db.")
+    loaded_config.autocommit = True
+    return loaded_config
+
+
+def get_audiodata() -> SqliteDict:
+    if config.DEBUG:
+        config_dir = pathlib.Path("..")
+    else:
+        config_dir = get_datadir("syncprojects")
+    config_file = str(config_dir / "audiodata.sqlite")
+    config_created = False
+    if not isfile(config_file):
+        config_created = True
+    loaded_config = SqliteDict(config_file)
+    if config_created:
+        logger.info("Created audiodata db.")
     loaded_config.autocommit = True
     return loaded_config
 

@@ -9,8 +9,9 @@ from watchdog.events import FileSystemEventHandler, FileSystemEvent, FileSystemM
 from watchdog.observers import Observer
 
 from syncprojects.api import SyncAPI
+from syncprojects.storage import get_audiodata
 from syncprojects.sync.backends.aws.auth import AWSAuth
-from syncprojects.utils import create_project_dirs
+from syncprojects.utils import create_project_dirs, hash_file
 
 logger = logging.getLogger('syncprojects.watcher')
 WAIT_SECONDS = 10
@@ -30,9 +31,20 @@ class AudioSyncHandler(FileSystemEventHandler):
     def __init__(self):
         self.sync_dir = None
         self.last_upload = {}
+        self.store = get_audiodata()
+
+    def get_known_hash(self, path: str) -> str:
+        return self.store.get(path)
+
+    def file_changed(self, path: str) -> bool:
+        return hash_file(path) != self.get_known_hash(path)
+
+    def update_known_hash(self, path: str):
+        self.store[path] = hash_file(path)
 
     def should_push(self, path: str) -> bool:
-        return (datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS
+        return (datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS \
+               and self.file_changed(path)
 
     def on_any_event(self, event: FileSystemEvent):
         if not self.sync_dir:
@@ -46,6 +58,7 @@ class AudioSyncHandler(FileSystemEventHandler):
             self.move_file(event.src_path, event.dest_path)
             self.last_upload[event.dest_path] = datetime.now()
             self.last_upload.pop(event.src_path, None)
+            self.update_known_hash(event.dest_path)
 
     def on_deleted(self, event: FileSystemEvent):
         pass
@@ -55,12 +68,14 @@ class AudioSyncHandler(FileSystemEventHandler):
             wait_for_write(event.src_path)
             self.push_file(event.src_path)
             self.last_upload[event.src_path] = datetime.now()
+            self.update_known_hash(event.src_path)
 
     def on_modified(self, event: FileSystemEvent):
         if not event.is_directory and self.should_push(event.src_path):
             wait_for_write(event.src_path)
             self.push_file(event.src_path)
             self.last_upload[event.src_path] = datetime.now()
+            self.update_known_hash(event.src_path)
 
     def on_closed(self, event):
         pass

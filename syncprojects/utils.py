@@ -169,17 +169,17 @@ def update(new_version: Dict):
     subprocess.Popen([updater, package, dirname(logpath), "-d"])
 
 
-def hash_file(file_path, hash_algo=None, block_size=4096):
-    if not hash_algo:
-        hash_algo = config.DEFAULT_HASH_ALGO()
+def hash_file(file_path, hash_inst=None, block_size=4096) -> str:
+    if not hash_inst:
+        hash_inst = config.DEFAULT_HASH_ALGO()
     with open(file_path, 'rb') as fp:
         while True:
             data = fp.read(block_size)
             if data:
-                hash_algo.update(data)
+                hash_inst.update(data)
             else:
                 break
-    return hash_algo.hexdigest()
+    return hash_inst.hexdigest()
 
 
 def api_unblock():
