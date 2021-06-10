@@ -37,17 +37,18 @@ class AudioSyncHandler(FileSystemEventHandler):
         return self.store.get(path)
 
     def file_changed(self, path: str) -> bool:
-        try:
-            return hash_file(path) != self.get_known_hash(path)
-        except FileNotFoundError:
-            return False
+        return hash_file(path) != self.get_known_hash(path)
 
     def update_known_hash(self, path: str):
         self.store[path] = hash_file(path)
 
     def should_push(self, path: str) -> bool:
-        return (datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS \
-               and self.file_changed(path)
+        try:
+            return getsize(path) > 0 and (
+                        datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS \
+                   and self.file_changed(path)
+        except FileNotFoundError:
+            return False
 
     def on_any_event(self, event: FileSystemEvent):
         if not self.sync_dir:
