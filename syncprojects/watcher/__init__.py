@@ -37,7 +37,10 @@ class AudioSyncHandler(FileSystemEventHandler):
         return self.store.get(path)
 
     def file_changed(self, path: str) -> bool:
-        return hash_file(path) != self.get_known_hash(path)
+        try:
+            return hash_file(path) != self.get_known_hash(path)
+        except FileNotFoundError:
+            return False
 
     def update_known_hash(self, path: str):
         self.store[path] = hash_file(path)

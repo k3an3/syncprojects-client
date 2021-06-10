@@ -157,10 +157,9 @@ def update(new_version: Dict):
         logger.error("Package failed signature check! Aborting.")
         # TODO: Alert user
         return
-    from syncprojects.storage import appdata
-    logpath = appdata['telemetry_file']
-    logger.debug(f"Starting updater: `{package} {dirname(logpath)} -d`")
-    subprocess.Popen([package, dirname(logpath), "-d"])
+    args = (package, "-d")
+    logger.debug(f"Starting updater: `{' '.join(args)}`")
+    subprocess.Popen(args)
 
 
 def hash_file(file_path, hash_inst=None, block_size=4096) -> str:

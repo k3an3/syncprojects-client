@@ -28,7 +28,7 @@ if not platform.system() in SUPPORTED_OS:
 
 try:
     formatted_version = '-'.join((version, platform.machine(), platform.system())).lower()
-    print("Building version", version)
+    print("Building version", formatted_version)
     os.makedirs('release', exist_ok=True)
     build_cmd = {}
     check_output(['python', 'setup.py', SUPPORTED_OS[platform.system()]])

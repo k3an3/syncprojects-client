@@ -168,11 +168,9 @@ def update(root):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('update_archive', nargs='?', default=PACKAGE)
-    parser.add_argument('logpath', nargs='?')
+    parser.add_argument('--update-archive', default=PACKAGE)
     parser.add_argument('-d', '--delete-archive', action='store_true')
     parser.add_argument('-k', '--kill-parent', action='store_true')
-    # parser.add_argument('old_pid', type=int)
     args, unknown = parser.parse_known_args()
     if not args.update_archive:
         parser.print_usage()
