@@ -11,7 +11,7 @@ from typing import Dict, List
 from syncprojects import config
 from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
-from syncprojects.utils import hash_file
+from syncprojects.utils import hash_file, get_song_dir
 
 logger = logging.getLogger('syncprojects.sync.backends')
 
@@ -68,7 +68,7 @@ class SyncBackend(ABC):
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = {
                 executor.submit(self.hash_project_root_directory,
-                                join(appdata['source'], s.get('directory_name') or s['name'])): s
+                                join(appdata['source'], get_song_dir(s))): s
                 for s in
                 songs}
             for results in concurrent.futures.as_completed(futures):

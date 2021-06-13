@@ -7,7 +7,7 @@ import subprocess
 import traceback
 from argparse import ArgumentParser
 from json import JSONDecodeError
-from os.path import join, isfile, dirname
+from os.path import join, isfile
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from typing import Dict
@@ -333,6 +333,11 @@ def check_already_running():
 
 
 def get_song_dir(song: Dict) -> str:
+    """
+    resolve song directory
+    :param song:
+    :return:
+    """
     path = song.get('directory_name') or song['name']
     from syncprojects.storage import appdata
     if appdata.get('nested_folders'):
