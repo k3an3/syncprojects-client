@@ -373,3 +373,12 @@ def create_project_dirs(api_client, base_dir):
             os.makedirs(join(base_dir, project['name']), exist_ok=True)
         except OSError as e:
             logger.error("Cannot create directory: %s", e)
+
+
+def report_error(e):
+    try:
+        import sentry_sdk
+
+        sentry_sdk.capture_exception(e)
+    except ImportError:
+        pass

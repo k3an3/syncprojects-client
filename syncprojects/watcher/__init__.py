@@ -11,7 +11,7 @@ from watchdog.observers import Observer
 from syncprojects.api import SyncAPI
 from syncprojects.storage import get_audiodata
 from syncprojects.sync.backends.aws.auth import AWSAuth
-from syncprojects.utils import create_project_dirs, hash_file
+from syncprojects.utils import create_project_dirs, hash_file, report_error
 
 logger = logging.getLogger('syncprojects.watcher')
 WAIT_SECONDS = 10
@@ -131,11 +131,7 @@ class S3AudioSyncHandler(AudioSyncHandler):
                 logger.error("Failed to read file!!!")
         except Exception as e:
             logger.error("Error! %s", e)
-            try:
-                import sentry_sdk
-                sentry_sdk.capture_exception(e)
-            except ImportError:
-                pass
+            report_error(e)
 
         logger.debug("Done.")
 
@@ -179,15 +175,11 @@ class Watcher(Thread):
         try:
             while self.observer.is_alive():
                 self.observer.join(1)
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             logger.debug("File not found: %s", e)
         except Exception as e:
             logger.error("Observer died with error: %s", e)
-            try:
-                import sentry_sdk
-                sentry_sdk.capture_exception(e)
-            except ImportError:
-                pass
+            report_error(e)
         finally:
             self.observer.stop()
             self.observer.join()

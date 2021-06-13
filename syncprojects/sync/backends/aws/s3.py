@@ -12,7 +12,7 @@ from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import hash_file, get_song_dir
+from syncprojects.utils import hash_file, get_song_dir, report_error
 
 AWS_REGION = 'us-east-1'
 
@@ -178,11 +178,7 @@ class S3SyncBackend(SyncBackend):
                     self.logger.error(f"Error syncing {song}: {e}.")
                     if DEBUG:
                         raise e
-                    try:
-                        import sentry_sdk
-                        sentry_sdk.capture_exception(e)
-                    except ImportError:
-                        pass
+                    report_error(e)
                 else:
                     if new_song_data:
                         if not new_song_data.known_hash:

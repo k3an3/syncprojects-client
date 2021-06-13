@@ -11,7 +11,7 @@ from typing import Dict, List
 from syncprojects import config
 from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
-from syncprojects.utils import hash_file, get_song_dir
+from syncprojects.utils import hash_file, get_song_dir, report_error
 
 logger = logging.getLogger('syncprojects.sync.backends')
 
@@ -33,9 +33,15 @@ class SyncBackend(ABC):
         pass
 
     def sync_amps(self, project: str):
-        for amp in self.get_local_neural_dsp_amps():
-            self.push_amp_settings(amp, project)
-            self.pull_amp_settings(amp, project)
+        try:
+            for amp in self.get_local_neural_dsp_amps():
+                self.push_amp_settings(amp, project)
+                self.pull_amp_settings(amp, project)
+        except FileNotFoundError as e:
+            self.logger.error("Didn't find amp preset dir: %s", e)
+        except Exception as e:
+            self.logger.error("Error syncing amps: %s", e)
+            report_error(e)
 
     @abstractmethod
     def push_amp_settings(self, amp: str, project: str):
