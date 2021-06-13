@@ -37,6 +37,7 @@ class SyncManager:
                 pre_results.append({'song': song['name'], 'result': 'error', 'action': 'locked'})
                 continue
             else:
+                song['project_name'] = project['name']
                 songs.append(song)
         if not songs:
             self.logger.warning("No songs, skipping")
