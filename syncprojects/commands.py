@@ -1,8 +1,11 @@
 import glob
 import logging
+import tempfile
 from abc import ABC, abstractmethod
+from os import unlink
 from os.path import join, getctime
 from typing import Dict
+from zipfile import ZipFile
 
 import sys
 from requests import HTTPError
@@ -216,3 +219,19 @@ class ShutdownHandler(CommandHandler):
     def handle(self, data: Dict):
         self.logger.info("Got command to exit")
         sys.exit(0)
+
+
+class LogReportHandler(CommandHandler):
+    def handle(self, data: Dict):
+        if not appdata['telemetry_file']:
+            self.logger.warning("Can't upload logs, no logfile configured.")
+            return
+        tf = tempfile.NamedTemporaryFile(mode='wb', delete=False)
+        self.logger.debug("Compressing logs into zip...")
+        with ZipFile(tf, 'w') as z:
+            z.write(appdata['telemetry_file'])
+        tf.close()
+        self.logger.debug("Uploading...")
+        with open(tf.name, 'rb') as f:
+            self.api_client.report_logs(f.read())
+        unlink(tf.name)

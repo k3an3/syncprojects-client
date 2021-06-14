@@ -7,10 +7,12 @@ import subprocess
 import traceback
 from argparse import ArgumentParser
 from json import JSONDecodeError
+from multiprocessing import Queue
 from os.path import join, isfile
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from typing import Dict
+from uuid import uuid4
 
 import requests
 import sys
@@ -307,7 +309,7 @@ class UpdateThread(Thread):
         check_update(self.api_client)
 
 
-def check_local_api_reachable(route: str):
+def request_local_api(route: str):
     try:
         requests.post(f"http://localhost:5000/api/{route}", json={}, headers={"Accept": "application/json"})
     except requests.exceptions.ConnectionError:
@@ -382,3 +384,13 @@ def report_error(e):
         sentry_sdk.capture_exception(e)
     except ImportError:
         pass
+
+
+def gen_task_id() -> str:
+    return str(uuid4())
+
+
+def add_to_command_queue(q: Queue, command: str, data: Dict = None) -> str:
+    task_id = gen_task_id()
+    q.put({'msg_type': command, 'task_id': task_id, 'data': data})
+    return task_id

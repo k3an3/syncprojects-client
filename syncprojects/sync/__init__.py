@@ -8,7 +8,7 @@ from typing import Dict
 from syncprojects import config
 from syncprojects.api import SyncAPI
 from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler, \
-    ShutdownHandler, UpdateHandler
+    ShutdownHandler, UpdateHandler, LogReportHandler
 from syncprojects.storage import appdata
 from syncprojects.sync.backends import SyncBackend, Verdict
 from syncprojects.sync.operations import check_out
@@ -69,6 +69,7 @@ class SyncManager:
                         'tasks': GetTasksHandler,
                         'shutdown': ShutdownHandler,
                         'update': UpdateHandler,
+                        'logs': LogReportHandler,
                     }[msg['msg_type']](msg['task_id'], self.api_client, self).exec(msg['data'])
                 except Exception as e:
                     # How do we clean up locks and stuff?

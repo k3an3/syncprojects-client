@@ -72,7 +72,7 @@ class SyncAPI:
         return self.refresh_token and self.access_token
 
     def _request(self, path: str, method: str = 'GET', params: dict = {}, json: dict = {}, headers: dict = {},
-                 auth: bool = True, refresh: bool = True):
+                 files: Dict = None, auth: bool = True, refresh: bool = True):
         attempts = 0
         headers['User-Agent'] = "syncprojects-client"
         while attempts < 2:
@@ -80,7 +80,8 @@ class SyncAPI:
                 headers['Authorization'] = f"Bearer {self.access_token}"
             # Try using access token, fall back to refreshing, then re-login
             try:
-                r = requests.request(method=method, url=API_BASE_URL + path, params=params, json=json, headers=headers)
+                r = requests.request(method=method, url=API_BASE_URL + path, params=params, json=json,
+                                     headers=headers, files=files)
             except requests.exceptions.ConnectionError:
                 MessageBoxUI.error("Failed to connect to the Syncprojects API! Check your internet connection and try "
                                    "again, or contact support if the error persists.\n\nExiting...")
@@ -187,3 +188,6 @@ class SyncAPI:
             return self._request(f"songs/{song['id']}/", "POST", json={
                 'url': '#'
             })
+
+    def report_logs(self, log_data: bytes):
+        return self._request("logs/", "POST", files={'log_compressed': log_data})

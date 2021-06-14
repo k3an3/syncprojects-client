@@ -30,7 +30,7 @@ def get_song(data: SqliteDict, song: int):
 def get_appdata() -> SqliteDict:
     config_created = False
     if config.DEBUG:
-        config_dir = pathlib.Path("..")
+        config_dir = pathlib.Path(".")
     else:
         config_dir = get_datadir("syncprojects")
     try:
@@ -52,7 +52,7 @@ def get_appdata() -> SqliteDict:
 
 def get_songdata(project: str) -> SqliteDict:
     if config.DEBUG:
-        config_dir = pathlib.Path("..")
+        config_dir = pathlib.Path(".")
     else:
         config_dir = get_datadir("syncprojects")
     config_file = str(config_dir / "songdata.sqlite")
@@ -68,7 +68,7 @@ def get_songdata(project: str) -> SqliteDict:
 
 def get_audiodata() -> SqliteDict:
     if config.DEBUG:
-        config_dir = pathlib.Path("..")
+        config_dir = pathlib.Path(".")
     else:
         config_dir = get_datadir("syncprojects")
     config_file = str(config_dir / "audiodata.sqlite")
