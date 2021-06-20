@@ -23,7 +23,7 @@ from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, commit_settings
 
-__version__ = '2.4.5'
+__version__ = '2.4.6'
 
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
@@ -149,7 +149,7 @@ if __name__ == '__main__':
     logger.addHandler(ch)
     if appdata.get('telemetry_file'):
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.FileHandler(appdata['telemetry_file'])
+        fh = logging.RotatingFileHandler(appdata['telemetry_file'], maxBytes=4096, backupCount=3)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         logger.addHandler(fh)

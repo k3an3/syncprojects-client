@@ -1,8 +1,10 @@
 import logging
 import os
+import pathlib
 import traceback
 from argparse import ArgumentParser
 from os import makedirs, getppid, execl, unlink
+from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from threading import Thread
 from tkinter import Tk, ttk, BOTH, TOP, Label

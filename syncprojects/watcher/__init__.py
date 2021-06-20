@@ -18,6 +18,7 @@ WAIT_SECONDS = 10
 
 
 def wait_for_write(path: str) -> None:
+    logger.debug("Waiting for file size for %s to remain constant", path)
     size = -1
     try:
         while size != (new_size := getsize(path)):
@@ -25,6 +26,8 @@ def wait_for_write(path: str) -> None:
             sleep(1)
     except OSError:
         logger.error("Couldn't stat file %s", path)
+    else:
+        logger.debug("File stopped at %d bytes", new_size)
 
 
 class AudioSyncHandler(FileSystemEventHandler):
@@ -43,12 +46,22 @@ class AudioSyncHandler(FileSystemEventHandler):
         self.store[path] = hash_file(path)
 
     def should_push(self, path: str) -> bool:
+        result = False
         try:
-            return getsize(path) > 0 and (
-                        datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS \
-                   and self.file_changed(path)
+            if getsize(path) > 0:
+                if (datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS:
+                    if self.file_changed(path):
+                        result = True
+                    else:
+                        logger.debug("File hasn't changed since last upload")
+                else:
+                    logger.debug("File %s last uploaded too recently", path)
+            else:
+                logger.debug("File size of %s is 0", path)
         except FileNotFoundError:
-            return False
+            logger.debug(f"{path=} doesn't exist")
+        logger.debug(f"should_push {path=} {result=}")
+        return result
 
     def on_any_event(self, event: FileSystemEvent):
         if not self.sync_dir:
