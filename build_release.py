@@ -7,10 +7,12 @@ import traceback
 from os.path import join
 from subprocess import check_output, CalledProcessError
 
+import requests
 import sys
 
 from syncprojects.syncprojects_app import __version__ as version
 
+URL = 'https://syncprojects.example.com/api/v1/updates/'
 SUPPORTED_OS = {
     'Windows': 'build_exe',
     'Linux': 'build',
@@ -25,6 +27,13 @@ BUILD_DIR = join('build', {
 
 if not platform.system() in SUPPORTED_OS:
     print("Platform not supported!")
+
+user, passwd = None, None
+try:
+    user, passwd = open(".updater-creds").read().split('\n')
+    print("Will upload to API")
+except FileNotFoundError:
+    print("Creds not found")
 
 try:
     formatted_version = '-'.join((version, platform.machine(), platform.system())).lower()
@@ -62,6 +71,16 @@ try:
             except shutil.Error:
                 pass
         shutil.rmtree('dist')
+        if user and passwd:
+            try:
+                requests.post(URL, files=(
+                    ('package', open(release, 'rb')),
+                    ('target', formatted_version),
+                    ('version', version),
+                ), auth=(user, passwd))
+            except requests.ConnectionError as e:
+                print(e)
+                input("[enter]")
     else:
         print("Copying...")
         shutil.copytree(join('build', f'syncprojects-{version}.app'), 'release')

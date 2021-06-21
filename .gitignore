@@ -66,3 +66,4 @@ local_update.py
 release/
 config.sqlite
 songdata.sqlite
+.updater-creds
