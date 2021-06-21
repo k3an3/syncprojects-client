@@ -1,5 +1,6 @@
 import logging
 import traceback
+from logging.handlers import RotatingFileHandler
 from multiprocessing import Queue, freeze_support
 from multiprocessing.context import Process
 from os.path import isdir
@@ -149,7 +150,7 @@ if __name__ == '__main__':
     logger.addHandler(ch)
     if appdata.get('telemetry_file'):
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh = logging.RotatingFileHandler(appdata['telemetry_file'], maxBytes=4096, backupCount=3)
+        fh = RotatingFileHandler(appdata['telemetry_file'], maxBytes=1024 * 100, backupCount=3)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
