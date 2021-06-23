@@ -64,6 +64,5 @@ target/
 local_config*.py
 local_update.py
 release/
-config.sqlite
-songdata.sqlite
+*.sqlite
 .updater-creds

@@ -1,7 +1,6 @@
 import logging
-from multiprocessing import Queue
+from multiprocessing import Queue, Process
 from os.path import isfile
-from threading import Thread
 from typing import Dict
 
 import pystray
@@ -10,7 +9,7 @@ from pystray import MenuItem, Menu
 
 from syncprojects.system import open_app_in_browser
 from syncprojects.ui.settings_menu import SettingsUI
-from syncprojects.utils import find_data_file, commit_settings, add_to_command_queue
+from syncprojects.utils import find_data_file, commit_settings, add_to_command_queue, request_local_api
 
 ICON_FILE = "benny.ico"
 logger = logging.getLogger('syncprojects.ui.tray')
@@ -29,26 +28,27 @@ def settings_action():
     logger.info("Done")
 
 
-class TrayIcon(Thread):
-    def __init__(self, queue: Queue):
+class TrayIcon(Process):
+    def __init__(self):
         super().__init__(daemon=True)
         self.logger = logging.getLogger('syncprojects.ui.tray.TrayIcon')
-        self.queue = queue
 
-    def queue_put(self, command: str, data: Dict = None) -> str:
-        return add_to_command_queue(self.queue, command, data)
+    # noinspection PyUnusedLocal
+    @staticmethod
+    def send_command(command: str, data: Dict = None) -> str:
+        return request_local_api(command)
 
     def logs_action(self):
         self.logger.debug("Requested logs")
-        self.queue_put('logs')
+        self.send_command('logs')
 
     def update_action(self):
         self.logger.debug("Requested to update")
-        self.queue_put('update')
+        self.send_command('update')
 
     def exit_action(self):
         logger.debug("Requested to exit")
-        self.queue_put('shutdown')
+        self.send_command('shutdown')
 
     def run(self):
         self.logger.debug("Starting icon thread...")
@@ -69,6 +69,6 @@ class TrayIcon(Thread):
 
 
 if __name__ == "__main__":
-    # For testing
+    # For standalone mode
     t = TrayIcon()
     t.run()
