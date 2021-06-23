@@ -15,11 +15,15 @@ if not DEBUG:
 
 RESP_BAD_DATA = {'result': 'error'}, 400
 
+authed = False
+
 
 @app.route('/api/auth', methods=['GET', 'POST'])
 @verify_data
 def auth(data):
     task = queue_put('auth', data)
+    global authed
+    authed = True
     if request.method == "POST":
         return response_started(task)
     else:
@@ -51,7 +55,12 @@ def sync(data):
 
 @app.route('/api/ping', methods=['GET'])
 def ping():
-    return {'result': 'pong', 'task_id': queue_put('ping', dry_run=True)}
+    global authed
+    if not authed:
+        for res in queue_get():
+            if res == 'authed':
+                authed = True
+    return {'result': 'pong', 'task_id': queue_put('ping', dry_run=True), 'auth': authed}
 
 
 @app.route('/api/shutdown', methods=['POST'])

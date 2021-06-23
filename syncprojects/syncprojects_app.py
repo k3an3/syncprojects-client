@@ -86,6 +86,7 @@ def main():
             prompt_to_exit()
     # Not only is this line useful for logging, but it populates appdata['username']
     logger.info(f"Logged in as {api_client.username}")
+    server_queue.put('authed')
 
     try:
         check_update(api_client)
