@@ -78,7 +78,7 @@ try:
                     ('target', formatted_version),
                     ('version', version),
                 ), auth=(user, passwd))
-            except requests.ConnectionError as e:
+            except (requests.ConnectionError, requests.exceptions.HTTPError) as e:
                 print(e)
                 input("[enter]")
     else:
