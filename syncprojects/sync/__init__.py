@@ -115,7 +115,7 @@ class SyncManager:
                 "are done.")
             input("[enter] to check in")
             projects = self.api_client.get_all_projects()
-            SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
+            commands.SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
 
 
 sync_lock = Lock()

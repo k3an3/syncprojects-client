@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
@@ -171,8 +172,10 @@ class S3SyncBackend(SyncBackend):
                         continue
 
                     self.logger.info("Starting parallel file transfer...")
+                    start_time = datetime.datetime.now()
                     completed = do_action(action, song, src, dst, remote_path)
-                    self.logger.info(f"Updated {len(completed)} files.")
+                    duration = datetime.datetime.now() - start_time
+                    self.logger.info(f"Updated {len(completed)} files in {duration.total_seconds()}.")
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
                     self.logger.error(f"Error syncing {song}: {e}.")
