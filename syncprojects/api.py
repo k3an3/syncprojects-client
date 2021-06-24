@@ -20,6 +20,7 @@ API_BASE_URL = SYNCPROJECTS_URL + "api/v1/"
 logger = logging.getLogger('syncprojects.api')
 
 
+# TODO: this should go back under class
 def login_prompt(sync_api) -> bool:
     for key in ('refresh_token', 'access_token'):
         try:

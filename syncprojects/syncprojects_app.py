@@ -24,7 +24,7 @@ from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, commit_settings
 
-__version__ = '2.4.7'
+__version__ = '2.4.8'
 
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
@@ -61,10 +61,11 @@ def main():
     main_queue = Queue()
     server_queue = Queue()
 
+    was_first_start = False
     # Check for first time setup needed
     if not appdata.get('first_time_setup_complete'):
         first_time_run()
-        open_app_in_browser()
+        was_first_start = True
 
     # Add icon to tray
     ti = TrayIcon()
@@ -87,6 +88,9 @@ def main():
     # Not only is this line useful for logging, but it populates appdata['username']
     logger.info(f"Logged in as {api_client.username}")
     server_queue.put('authed')
+
+    if was_first_start:
+        open_app_in_browser()
 
     try:
         check_update(api_client)

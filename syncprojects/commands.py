@@ -15,7 +15,8 @@ from syncprojects.storage import appdata
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.operations import get_lock_status
 from syncprojects.system import open_default_app
-from syncprojects.utils import check_update, get_song_dir
+from syncprojects.ui.settings_menu import SettingsUI
+from syncprojects.utils import check_update, get_song_dir, commit_settings
 
 logger = logging.getLogger('syncprojects.commands')
 
@@ -235,3 +236,11 @@ class LogReportHandler(CommandHandler):
         with open(tf.name, 'rb') as f:
             self.api_client.report_logs(f.read())
         unlink(tf.name)
+
+
+class SettingsHandler(CommandHandler):
+    def handle(self, data: Dict):
+        settings = SettingsUI()
+        logger.info("Running settings UI")
+        settings.run()
+        commit_settings(settings)

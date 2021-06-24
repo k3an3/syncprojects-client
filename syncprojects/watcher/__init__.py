@@ -27,7 +27,7 @@ def wait_for_write(path: str) -> None:
     except OSError:
         logger.error("Couldn't stat file %s", path)
     else:
-        logger.debug("File stopped at %d bytes", new_size)
+        logger.debug("File stopped growing at %d bytes", new_size)
 
 
 class AudioSyncHandler(FileSystemEventHandler):

@@ -5,10 +5,8 @@ import uuid
 from threading import Lock
 from typing import Dict
 
-from syncprojects import config
+from syncprojects import config, commands
 from syncprojects.api import SyncAPI
-from syncprojects.commands import AuthHandler, SyncMultipleHandler, WorkOnHandler, WorkDoneHandler, GetTasksHandler, \
-    ShutdownHandler, UpdateHandler, LogReportHandler
 from syncprojects.storage import appdata
 from syncprojects.sync.backends import SyncBackend, Verdict
 from syncprojects.sync.operations import check_out
@@ -62,14 +60,15 @@ class SyncManager:
                 self.logger.debug(f"Received {msg['task_id']=} {msg['msg_type']=} {msg['data']=}")
                 try:
                     {
-                        'auth': AuthHandler,
-                        'sync': SyncMultipleHandler,
-                        'workon': WorkOnHandler,
-                        'workdone': WorkDoneHandler,
-                        'tasks': GetTasksHandler,
-                        'shutdown': ShutdownHandler,
-                        'update': UpdateHandler,
-                        'logs': LogReportHandler,
+                        'auth': commands.AuthHandler,
+                        'sync': commands.SyncMultipleHandler,
+                        'workon': commands.WorkOnHandler,
+                        'workdone': commands.WorkDoneHandler,
+                        'tasks': commands.GetTasksHandler,
+                        'shutdown': commands.ShutdownHandler,
+                        'update': commands.UpdateHandler,
+                        'logs': commands.LogReportHandler,
+                        'settings': commands.SettingsHandler,
                     }[msg['msg_type']](msg['task_id'], self.api_client, self).exec(msg['data'])
                 except Exception as e:
                     # How do we clean up locks and stuff?
@@ -99,7 +98,7 @@ class SyncManager:
         projects = self.api_client.get_all_projects()
         start = datetime.datetime.now()
         print(print_hr('='))
-        SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
+        commands.SyncMultipleHandler(str(uuid.uuid4()), self.api_client, self).handle({'projects': projects})
         print(print_hr('='))
         print(print_hr('='))
         self.logger.info("All projects up-to-date. Took {} seconds.".format((datetime.datetime.now() - start).seconds))

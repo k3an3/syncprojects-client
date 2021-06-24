@@ -66,3 +66,4 @@ local_update.py
 release/
 *.sqlite
 .updater-creds
+sync.log*
