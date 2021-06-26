@@ -4,8 +4,9 @@ import os
 import platform
 import shutil
 import traceback
+from argparse import ArgumentParser
 from os.path import join
-from subprocess import check_output, CalledProcessError
+from subprocess import check_output, CalledProcessError, run
 
 import requests
 import sys
@@ -35,55 +36,77 @@ try:
 except FileNotFoundError:
     print("Creds not found")
 
+parser = ArgumentParser()
+parser.add_argument('-u', '--upload-only', action='store_true')
+parser.add_argument('-n', '--no-upload', action='store_true')
+parser.add_argument('-g', '--no-tag', action='store_true')
+parser.add_argument('--url', default=URL)
+args = parser.parse_args()
+
 try:
-    formatted_version = '-'.join((version, platform.machine(), platform.system())).lower()
-    print("Building version", formatted_version)
-    os.makedirs('release', exist_ok=True)
-    build_cmd = {}
-    check_output(['python', 'setup.py', SUPPORTED_OS[platform.system()]])
-    try:
-        shutil.copy("local_config_prod.py", join(BUILD_DIR, 'local_config.py'))
-        print("Copied production settings.")
-    except FileNotFoundError:
-        pass
-    if platform.system() in ("Windows", "Linux"):
-        print("Compressing into archive...")
-        release = f'release/syncprojects-v{formatted_version}-release.zip'
+    if not args.no_tag:
+        print("Tagging release")
+        run(['git', 'tag', '-f', version])
+    target = '-'.join((platform.machine(), platform.system())).lower()
+    formatted_version = '-'.join((version, target))
+    release = f'release/syncprojects-v{formatted_version}-release.zip'
+    if not args.upload_only:
+        print("Building version", formatted_version)
+        os.makedirs('release', exist_ok=True)
+        build_cmd = {}
+        check_output(['python', 'setup.py', SUPPORTED_OS[platform.system()]])
         try:
-            os.unlink(release)
+            shutil.copy("local_config_prod.py", join(BUILD_DIR, 'local_config.py'))
+            print("Copied production settings.")
         except FileNotFoundError:
             pass
-        try:
-            check_output(['7z', 'a', f'../../{release}', '*'],
-                         cwd=BUILD_DIR)
-        except CalledProcessError:
-            check_output(['zip', '-r', f'../../{release}', '*'],
-                         cwd=BUILD_DIR)
-        shutil.copy(release, 'release.zip')
-        check_output(['pyinstaller', '-F', '--specpath', 'update', '--add-data',
-                      os.pathsep.join((f'../release.zip', '.')), '--icon', '../benny.ico',
-                      join('update/update.py'), '--name', f'syncprojects-{formatted_version}-installer',
-                      '--noconsole'])
-        os.unlink('release.zip')
-        for f in glob.glob('dist/syncprojects-*-installer*'):
+        if platform.system() in ("Windows", "Linux"):
+            print("Compressing into archive...")
             try:
-                shutil.move(f, 'release')
-            except shutil.Error:
+                os.unlink(release)
+            except FileNotFoundError:
                 pass
-        shutil.rmtree('dist')
-        if user and passwd:
             try:
-                requests.post(URL, files=(
-                    ('package', open(release, 'rb')),
-                    ('target', formatted_version),
-                    ('version', version),
-                ), auth=(user, passwd))
-            except (requests.ConnectionError, requests.exceptions.HTTPError) as e:
-                print(e)
-                input("[enter]")
-    else:
-        print("Copying...")
-        shutil.copytree(join('build', f'syncprojects-{version}.app'), 'release')
+                check_output(['7z', 'a', f'../../{release}', '*'],
+                             cwd=BUILD_DIR)
+            except CalledProcessError:
+                check_output(['zip', '-r', f'../../{release}', '*'],
+                             cwd=BUILD_DIR)
+            shutil.copy(release, join('build', 'release.zip'))
+            check_output(['pyinstaller', '-F', '--specpath', 'update', '--add-data',
+                          os.pathsep.join((f'../build/release.zip', '.')), '--icon', '../benny.ico',
+                          join('update/update.py'), '--name', f'syncprojects-{formatted_version}-installer',
+                          '--noconsole'])
+            os.unlink(join('build', 'release.zip'))
+            for f in glob.glob('dist/syncprojects-*-installer*'):
+                try:
+                    shutil.move(f, 'release')
+                except shutil.Error:
+                    pass
+            shutil.rmtree('dist')
+        else:
+            print("Copying...")
+            shutil.copytree(join('build', f'syncprojects-{version}.app'), 'release')
+    if not args.no_upload and user and passwd:
+        print("Uploading package...")
+        try:
+            files = {
+                'package': open(release, 'rb'),
+            }
+            data = {
+                'target': target,
+                'version': version,
+            }
+            print(files, data)
+            r = requests.post(args.url, files=files, data=data,
+                              auth=(user, passwd))
+            print(r.text)
+            r.raise_for_status()
+        except (requests.ConnectionError, requests.exceptions.HTTPError) as e:
+            print(e)
+            input("[enter]")
+        else:
+            print("Success.")
 
 except Exception:
     traceback.print_exc()
