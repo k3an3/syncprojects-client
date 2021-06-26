@@ -70,7 +70,7 @@ class SyncAPI:
         return self._username
 
     def has_tokens(self) -> bool:
-        return self.refresh_token and self.access_token
+        return bool(self.refresh_token and self.access_token)
 
     def _request(self, path: str, method: str = 'GET', params: dict = {}, json: dict = {}, headers: dict = {},
                  files: Dict = None, auth: bool = True, refresh: bool = True):

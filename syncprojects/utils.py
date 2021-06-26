@@ -11,7 +11,7 @@ from multiprocessing import Queue
 from os.path import join, isfile
 from tempfile import NamedTemporaryFile
 from threading import Thread
-from typing import Dict
+from typing import Dict, Union
 from uuid import uuid4
 
 import requests
@@ -155,7 +155,7 @@ def fetch_update(url: str) -> str:
 def update(new_version: Dict):
     logger.debug(f"Fetching package from {new_version['package']}")
     package = fetch_update(new_version['package'])
-    if not verify_signature(package, None):
+    if not verify_signature(package, ''):
         logger.error("Package failed signature check! Aborting.")
         # TODO: Alert user
         return
@@ -251,7 +251,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def find_daw_exe(search: bool = False) -> str:
+def find_daw_exe(search: bool = False) -> Union[str, None]:
     from syncprojects.storage import appdata
     try:
         return appdata['daw_exe_path']
@@ -261,7 +261,8 @@ def find_daw_exe(search: bool = False) -> str:
         try:
             return process_running(config.DAW_PROCESS_REGEX).exe()
         except AttributeError:
-            return None
+            pass
+    return None
 
 
 def verify_signature(path: str, given_hash: str) -> bool:
@@ -269,7 +270,7 @@ def verify_signature(path: str, given_hash: str) -> bool:
     return True
 
 
-def check_update(api_client) -> Dict:
+def check_update(api_client) -> Union[Dict, None]:
     try:
         latest_version = api_client.get_client_updates()[-1]
     except IndexError:
@@ -281,6 +282,7 @@ def check_update(api_client) -> Dict:
         sys.exit(0)
     else:
         logger.info("No new updates.")
+    return None
 
 
 class UpdateThread(Thread):

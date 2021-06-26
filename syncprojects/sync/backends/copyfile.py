@@ -1,3 +1,4 @@
+# type: ignore
 import os
 import traceback
 from os.path import isdir, join
@@ -7,6 +8,7 @@ import sys
 
 from syncprojects.storage import HashStore, appdata
 from syncprojects.sync import SyncBackend, Verdict
+from syncprojects.sync.backends import ResultType
 from syncprojects.sync.operations import handle_new_song, changelog, copy, copy_tree
 from syncprojects.system import test_mode, mount_persistent_drive, get_datadir
 from syncprojects.ui.message import MessageBoxUI
@@ -74,7 +76,7 @@ class ShareDriveSyncBackend(SyncBackend):
             self.logger.debug(f"{remote_hs.open()=}")
             remote_stores[remote_store_name] = remote_hs
 
-        results = {'status': 'done', 'songs': []}
+        results: ResultType = {'status': 'done', 'songs': []}
         for song in songs:
             song_name = song['name']
             og_song = song

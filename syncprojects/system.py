@@ -72,8 +72,9 @@ def mount_persistent_drive():
 
 def open_default_app(path: str):
     if get_host_platform() == "Windows":
+        # os.startfile only exists on Windows
         # pylint: disable=no-name-in-module
-        from os import startfile
+        from os import startfile  # type: ignore
         return startfile(path)
     try:
         return subprocess.Popen(['open', path])

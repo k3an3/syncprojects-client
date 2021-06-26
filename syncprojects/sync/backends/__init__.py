@@ -6,7 +6,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 from glob import glob
 from os.path import join, isdir, isfile
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
@@ -20,6 +20,9 @@ class Verdict(Enum):
     LOCAL = "local"
     REMOTE = "remote"
     CONFLICT = "conflict"
+
+
+ResultType = Dict[str, Union[str, List[Dict]]]
 
 
 class SyncBackend(ABC):

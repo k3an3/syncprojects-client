@@ -17,7 +17,7 @@ class RandomNoOpSyncBackend(SyncBackend):
             if force_verdict:
                 changed = force_verdict
             elif os.getenv('CHANGED'):
-                changed = os.environ['CHANGED']
+                changed = os.environ['CHANGED']  # type: ignore
             else:
                 changed = random.choice((*list(Verdict), 'error', None, 'locked', 'disabled'))
             if isinstance(changed, Verdict):
@@ -28,10 +28,10 @@ class RandomNoOpSyncBackend(SyncBackend):
                  'action': changed})
         return result
 
-    def push_amp_settings(self, project: str):
+    def push_amp_settings(self, amp: str, project: str):
         pass
 
-    def pull_amp_settings(self, project: str):
+    def pull_amp_settings(self, amp: str, project: str):
         pass
 
     @staticmethod

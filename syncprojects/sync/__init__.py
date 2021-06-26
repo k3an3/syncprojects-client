@@ -3,7 +3,7 @@ import logging
 import traceback
 import uuid
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Type
 
 from syncprojects import config, commands
 from syncprojects.api import SyncAPI
@@ -14,7 +14,7 @@ from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_inp
 
 
 class SyncManager:
-    def __init__(self, api_client: SyncAPI, backend: SyncBackend, headless: bool = False, context: Dict = None,
+    def __init__(self, api_client: SyncAPI, backend: Type[SyncBackend], headless: bool = False, context: Dict = None,
                  args: List = None, **kwargs):
         self.logger = logging.getLogger(f'syncprojects.sync.{self.__class__.__name__}')
         self.api_client = api_client

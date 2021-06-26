@@ -67,3 +67,4 @@ release/
 *.sqlite
 .updater-creds
 sync.log*
+.dmypy.json
