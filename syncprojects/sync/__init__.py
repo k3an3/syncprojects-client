@@ -3,7 +3,7 @@ import logging
 import traceback
 import uuid
 from threading import Lock
-from typing import Dict
+from typing import Dict, List
 
 from syncprojects import config, commands
 from syncprojects.api import SyncAPI
@@ -14,7 +14,8 @@ from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_inp
 
 
 class SyncManager:
-    def __init__(self, api_client: SyncAPI, backend: SyncBackend, headless: bool = False, args=[], **kwargs):
+    def __init__(self, api_client: SyncAPI, backend: SyncBackend, headless: bool = False, context: Dict = None,
+                 args: List = None, **kwargs):
         self.logger = logging.getLogger(f'syncprojects.sync.{self.__class__.__name__}')
         self.api_client = api_client
         self.headless = headless
@@ -22,6 +23,7 @@ class SyncManager:
         if appdata.get('nested_folders'):
             create_project_dirs(self.api_client, appdata['source'])
         self._backend = backend(self.api_client, *args, **kwargs)
+        self.context = context
 
     def sync(self, project: Dict, force_verdict: Verdict = None) -> Dict:
         self.logger.info(f"Syncing project {project['name']}...")

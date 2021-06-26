@@ -178,8 +178,21 @@ class Watcher(Thread):
         self.api_client = api_client
         self.observer = Observer()
         self.sync_dir = sync_dir
-        handler.sync_dir = sync_dir
-        self.observer.schedule(handler, self.sync_dir, recursive=True)
+        self.handler = handler
+        self.start_watch()
+
+    def start_watch(self):
+        self.handler.sync_dir = self.sync_dir
+        self.observer.schedule(self.handler, self.sync_dir, recursive=True)
+
+    def stop_watch(self):
+        self.observer.unschedule_all()
+
+    def change_watch(self, new_watch_dir: str):
+        logger.debug("Restarting watcher with new path %s...", new_watch_dir)
+        self.stop_watch()
+        self.sync_dir = new_watch_dir
+        self.start_watch()
 
     def run(self):
         logger.info("Starting watcher in %s", self.sync_dir)

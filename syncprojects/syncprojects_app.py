@@ -23,10 +23,9 @@ from syncprojects.ui.settings_menu import SettingsUI
 from syncprojects.ui.tray import TrayIcon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
     check_already_running, commit_settings
-
-__version__ = '2.4.8'
-
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
+
+__version__ = '2.4.9'
 
 CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """
@@ -99,6 +98,8 @@ def main():
         update_thread = UpdateThread(api_client)
         update_thread.start()
 
+        context = {}
+
         if not isdir(appdata['source']):
             logger.critical(f"Error! Source path \"{appdata['source']}\" not found.")
             prompt_to_exit()
@@ -124,9 +125,10 @@ def main():
 
             audio_handler = S3AudioSyncHandler(aws_auth, AUDIO_BUCKET_NAME + ("-debug" if DEBUG else ""))
             watcher = Watcher(appdata['audio_sync_dir'], api_client, audio_handler)
+            context['watcher'] = watcher
             watcher.start()
 
-        sync = SyncManager(api_client, backend, args=args)
+        sync = SyncManager(api_client, backend, context=context, args=args)
 
         if parsed_args.tui:
             sync.run_tui()

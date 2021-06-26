@@ -244,3 +244,4 @@ class SettingsHandler(CommandHandler):
         logger.info("Running settings UI")
         settings.run()
         commit_settings(settings)
+        self.sync_manager.context['watcher'].change_watch(appdata['audio_sync_dir'])
