@@ -175,10 +175,12 @@ class S3SyncBackend(SyncBackend):
                     start_time = datetime.datetime.now()
                     completed = do_action(action, song, src, dst, remote_path)
                     duration = datetime.datetime.now() - start_time
-                    self.logger.info(f"Updated {len(completed)} files in {duration.total_seconds()}.")
+                    self.logger.info(f"Updated {len(completed)} files in {duration.total_seconds()} seconds.")
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
                     self.logger.error(f"Error syncing {song}: {e}.")
+                    MessageBoxUI.error(f'Error syncing {song}; please try again or contact support if the error '
+                                       f'persists.')
                     if DEBUG:
                         raise e
                     report_error(e)

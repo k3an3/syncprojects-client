@@ -25,7 +25,7 @@ from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update,
     check_already_running, commit_settings
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-__version__ = '2.4.9'
+__version__ = '2.4.10'
 
 CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """
@@ -156,7 +156,7 @@ if __name__ == '__main__':
         ch.setLevel(logging.INFO)
     logger.addHandler(ch)
     if appdata.get('telemetry_file'):
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s %(funcName)s - %(lineno)d - %(message)s')
         fh = RotatingFileHandler(appdata['telemetry_file'], maxBytes=1024 * 100, backupCount=3)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
