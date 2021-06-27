@@ -1,15 +1,16 @@
-import logging
 import traceback
-from logging.handlers import RotatingFileHandler
-from multiprocessing import Queue, freeze_support
-from multiprocessing.context import Process
-from os.path import isdir
+from multiprocessing import Queue, freeze_support, set_start_method
+from os.path import isdir, join
 
+import logging
 import sys
+import tempfile
+from logging.handlers import RotatingFileHandler
+from multiprocessing.context import Process
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
-from syncprojects.config import ACCESS_ID, SECRET_KEY, DEBUG, BUCKET_NAME, AUDIO_BUCKET_NAME
+from syncprojects.config import ACCESS_ID, SECRET_KEY, DEBUG, BUCKET_NAME, AUDIO_BUCKET_NAME, SENTRY_URL
 from syncprojects.server import start_server
 from syncprojects.storage import appdata
 from syncprojects.sync import SyncManager
@@ -21,8 +22,8 @@ from syncprojects.system import open_app_in_browser, test_mode
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.ui.settings_menu import SettingsUI
 from syncprojects.ui.tray import TrayIcon
-from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, api_unblock, \
-    check_already_running, commit_settings
+from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, check_already_running, \
+    commit_settings, init_sentry
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
 __version__ = '2.4.10'
@@ -36,6 +37,9 @@ BANNER = """
 ███████║   ██║   ██║ ╚████║╚██████╗██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║   ███████║
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝
 \"{}\"""".format(CODENAME)
+
+if SENTRY_URL:
+    init_sentry(SENTRY_URL, __version__)
 
 
 def first_time_run():
@@ -103,8 +107,6 @@ def main():
         if not isdir(appdata['source']):
             logger.critical(f"Error! Source path \"{appdata['source']}\" not found.")
             prompt_to_exit()
-        if appdata['firewall_api_url'] and appdata['firewall_api_key']:
-            api_unblock()
 
         if test_mode():
             backend = RandomNoOpSyncBackend
@@ -141,8 +143,8 @@ def main():
 
 
 if __name__ == '__main__':
-    if sys.platform == "win32":
-        freeze_support()
+    freeze_support()
+    set_start_method('spawn')
     parsed_args = parse_args()
     if parsed_args.debug:
         config.DEBUG = True
@@ -155,13 +157,16 @@ if __name__ == '__main__':
     else:
         ch.setLevel(logging.INFO)
     logger.addHandler(ch)
-    if appdata.get('telemetry_file'):
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s %(funcName)s - %(lineno)d - %(message)s')
-        fh = RotatingFileHandler(appdata['telemetry_file'], maxBytes=1024 * 100, backupCount=3)
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        logger.info(f"Logging debug output to {appdata['telemetry_file']}")
+    if not appdata.get('telemetry_file') or appdata.get('nonpersist_telemetry_file'):
+        appdata['telemetry_file'] = join(tempfile.gettempdir(), 'syncprojects.log')
+        appdata['nonpersist_telemetry_file'] = True
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s %(filename)s:%(funcName)s:%(lineno)d - %('
+                                  'message)s')
+    fh = RotatingFileHandler(appdata['telemetry_file'], maxBytes=1024 * 100, backupCount=3)
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    logger.info(f"Logging debug output to {appdata['telemetry_file']}")
 
     print(BANNER)
     logger.info("[v{}]".format(__version__))

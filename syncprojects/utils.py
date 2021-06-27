@@ -1,26 +1,26 @@
-import datetime
 import getpass
-import logging
-import os
-import re
-import subprocess
 import traceback
-from argparse import ArgumentParser
 from json import JSONDecodeError
 from multiprocessing import Queue
 from os.path import join, isfile
+
+import datetime
+import logging
+import os
+import re
+import requests
+import subprocess
+import sys
+from argparse import ArgumentParser
+from packaging.version import parse
 from tempfile import NamedTemporaryFile
 from threading import Thread
+from time import sleep
 from typing import Dict, Union
 from uuid import uuid4
 
-import requests
-import sys
-from packaging.version import parse
-from time import sleep
-
 import syncprojects.config as config
-from syncprojects.system import open_app_in_browser, process_running, get_datadir
+from syncprojects.system import open_app_in_browser, process_running, get_datadir, is_mac
 from syncprojects.ui.message import MessageBoxUI
 
 logger = logging.getLogger('syncprojects.utils')
@@ -160,8 +160,12 @@ def update(new_version: Dict):
         # TODO: Alert user
         return
     args = (package, "-d")
-    logger.debug(f"Starting updater: `{' '.join(args)}`")
-    subprocess.Popen(args)
+    if is_mac():
+        logger.debug(f"Starting updater: `open {package}`")
+        subprocess.Popen(['open', package])
+    else:
+        logger.debug(f"Starting updater: `{' '.join(args)}`")
+        subprocess.Popen(args)
 
 
 def hash_file(file_path, hash_inst=None, block_size=4096) -> str:
@@ -357,7 +361,7 @@ def find_data_file(filename: str) -> str:
         return os.path.join(datadir, filename)
     else:
         # The application is not frozen
-        return filename
+        return join('res', filename)
 
 
 def commit_settings(settings):
@@ -396,3 +400,11 @@ def add_to_command_queue(q: Queue, command: str, data: Dict = None) -> str:
     task_id = gen_task_id()
     q.put({'msg_type': command, 'task_id': task_id, 'data': data})
     return task_id
+
+
+def init_sentry(url: str, release: str) -> None:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(url, traces_sample_rate=1.0, release='@'.join('syncprojects', release))
+    except ImportError:
+        logger.warning("Sentry package not available.")

@@ -1,6 +1,7 @@
+from os.path import expanduser
+
 import re
 from hashlib import md5
-from os.path import expanduser
 from shutil import which
 
 # WARNING: hardcoded configuration is deprecated and will be removed soon!
@@ -71,6 +72,8 @@ SECRET_KEY = ""
 
 BUCKET_NAME = 'some-bucket'
 AUDIO_BUCKET_NAME = 'some-bucket-audio'
+
+SENTRY_URL = ''
 
 try:
     from local_config import *

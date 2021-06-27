@@ -1,6 +1,7 @@
+import traceback
+
 import datetime
 import logging
-import traceback
 import uuid
 from threading import Lock
 from typing import Dict, List, Type
@@ -10,7 +11,7 @@ from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
 from syncprojects.sync.backends import SyncBackend, Verdict
 from syncprojects.sync.operations import check_out
-from syncprojects.utils import check_daw_running, api_unblock, print_hr, get_input_choice, create_project_dirs
+from syncprojects.utils import check_daw_running, print_hr, get_input_choice, create_project_dirs
 
 
 class SyncManager:
@@ -94,8 +95,6 @@ class SyncManager:
     def run_tui(self):
         self.logger.debug("Starting sync TUI")
         check_daw_running()
-        if appdata['firewall_api_url'] and appdata['firewall_api_key']:
-            api_unblock()
 
         projects = self.api_client.get_all_projects()
         start = datetime.datetime.now()

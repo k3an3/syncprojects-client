@@ -1,18 +1,22 @@
 import platform
+from setuptools import find_packages
 
 from syncprojects.syncprojects_app import __version__ as version
 
 try:
     from cx_Freeze import setup, Executable
+
+    print("Using cx_Freeze")
 except ImportError:
     print("Not using cx_Freeze.")
-    from setuptools import setup, find_packages
+    from setuptools import setup
 
 packages = {'jinja2', 'sentry_sdk', 'html', 'boto3', 'pystray'}
 base = None
 
 APP = ['syncprojects/syncprojects_app.py']
 DATA_FILES = []
+ICON = 'res/benny.ico'
 
 requirements = [
     'boto3==1.17.44',
@@ -40,6 +44,7 @@ if system == "Windows":
     packages.add('win32file')
 elif system == "Darwin":
     SETUP_REQ = ['py2app']
+    ICON = 'res/benny.icns'
     # Not automatically picked up...
     # This feels like a giant hack
     packages.update(('syncprojects',
@@ -53,7 +58,7 @@ elif system == "Darwin":
 
 def gen_executables():
     try:
-        return [Executable("syncprojects/syncprojects_app.py", icon="benny.ico", base=base)]
+        return [Executable("syncprojects/syncprojects_app.py", icon=ICON, base=base)]
     except NameError:
         return []
 
@@ -61,7 +66,7 @@ def gen_executables():
 setup(
     name='syncprojects',
     version=version,
-    packages=['syncprojects'],
+    packages=find_packages(),
     url='https://syncprojects.example.com',
     license='',
     author="Keane O'Kelley",
@@ -78,17 +83,18 @@ setup(
             'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
             # Won't run correctly without
             'packages': packages,
-            'include_files': ['benny.ico'],
+            'include_files': [ICON],
         },
         'bdist_mac': {
-            'iconfile': 'benny.ico'
+            'iconfile': ICON
         },
         'py2app': {
             # Slim down build
-            #'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
+            'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
             'packages': packages,
-            'resources': ['benny.ico'],
-            'use_pythonpath': True,
+            'includes': [*packages, 'syncprojects.ui.*'],
+            'resources': [ICON],
+            'iconfile': ICON,
             'optimize': 2,
         }
     },

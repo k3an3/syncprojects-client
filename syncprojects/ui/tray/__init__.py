@@ -1,16 +1,19 @@
-import logging
 from multiprocessing import Process
 from os.path import isfile
-from typing import Dict
 
+import logging
 import pystray
 from PIL import Image
 from pystray import MenuItem, Menu
+from typing import Dict
 
-from syncprojects.system import open_app_in_browser
+from syncprojects.system import open_app_in_browser, is_mac
 from syncprojects.utils import find_data_file, request_local_api
 
-ICON_FILE = "benny.ico"
+if is_mac():
+    ICON_FILE = "benny.icns"
+else:
+    ICON_FILE = "benny.ico"
 logger = logging.getLogger('syncprojects.ui.tray')
 
 
