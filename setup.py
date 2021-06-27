@@ -1,3 +1,5 @@
+import platform
+
 import sys
 
 from syncprojects.syncprojects_app import __version__ as version
@@ -6,14 +8,13 @@ try:
     from cx_Freeze import setup, Executable
 except ImportError:
     print("Not using cx_Freeze.")
-    from setuptools import setup
+    from setuptools import setup, find_packages
 
 packages = ['jinja2', 'sentry_sdk', 'html', 'boto3', 'pystray']
 base = None
 
-if sys.platform == "win32":
-    base = "Win32GUI"  # Tells the build script to hide the console.
-    packages.append('win32file')
+APP = ['syncprojects/syncprojects_app.py']
+DATA_FILES = []
 
 requirements = [
     'boto3==1.17.44',
@@ -27,14 +28,22 @@ requirements = [
     'pylint',
     'pyshortcuts==1.8.0',
     'pystray==0.17.3',
-    'cx_Freeze==6.5.3',
     'sqlitedict==1.7.0',
     'timeago==1.0.15',
     'watchdog==2.1.2',
 ]
 
-if sys.platform == "win32":
-    requirements.append('pywin32==228')
+SETUP_REQ = []
+system = platform.system()
+
+if system == "Windows":
+    requirements.extend(('pywin32==228', 'cx_Freeze==6.5.3'))
+    base = "Win32GUI"  # Tells the build script to hide the console.
+    packages.append('win32file')
+elif system == "Darwin":
+    SETUP_REQ = ['py2app']
+    # Not automatically picked up...
+    packages.append('syncprojects')
 
 
 def gen_executables():
@@ -68,8 +77,19 @@ setup(
         },
         'bdist_mac': {
             'iconfile': 'benny.ico'
+        },
+        'py2app': {
+            # Slim down build
+            #'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
+            'packages': packages,
+            'resources': ['benny.ico'],
+            'use_pythonpath': True,
+            'optimize': 2,
         }
     },
     install_requires=requirements,
     executables=gen_executables(),
+    app=APP,
+    data_files=DATA_FILES,
+    setup_requires=SETUP_REQ,
 )

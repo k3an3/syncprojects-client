@@ -68,3 +68,4 @@ release/
 .updater-creds
 sync.log*
 .dmypy.json
+.DS_Store
