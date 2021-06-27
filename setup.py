@@ -1,7 +1,5 @@
 import platform
 
-import sys
-
 from syncprojects.syncprojects_app import __version__ as version
 
 try:
@@ -10,7 +8,7 @@ except ImportError:
     print("Not using cx_Freeze.")
     from setuptools import setup, find_packages
 
-packages = ['jinja2', 'sentry_sdk', 'html', 'boto3', 'pystray']
+packages = {'jinja2', 'sentry_sdk', 'html', 'boto3', 'pystray'}
 base = None
 
 APP = ['syncprojects/syncprojects_app.py']
@@ -39,11 +37,18 @@ system = platform.system()
 if system == "Windows":
     requirements.extend(('pywin32==228', 'cx_Freeze==6.5.3'))
     base = "Win32GUI"  # Tells the build script to hide the console.
-    packages.append('win32file')
+    packages.add('win32file')
 elif system == "Darwin":
     SETUP_REQ = ['py2app']
     # Not automatically picked up...
-    packages.append('syncprojects')
+    # This feels like a giant hack
+    packages.update(('syncprojects',
+                     'tkinter',
+                     'jwt',
+                     'PIL',
+                     *[r.split('=')[0].lower() for r in requirements]))
+    packages.remove('pillow')
+    packages.remove('pyjwt[crypto]')
 
 
 def gen_executables():
