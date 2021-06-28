@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 import glob
-import traceback
-from os.path import join
-
 import os
 import platform
-import requests
+import shlex
 import shutil
-import sys
+import traceback
 from argparse import ArgumentParser
+from os.path import join
 from subprocess import check_output, CalledProcessError, run
+
+import requests
+import sys
 
 from syncprojects.syncprojects_app import __version__ as version
 
 URL = 'https://syncprojects.example.com/api/v1/updates/'
-SUPPORTED_OS = {
-    'Windows': 'build_exe',
-    'Linux': 'build',
-    'Darwin': 'py2app',
+PLATFORM_BUILD_COMMAND = {
+    'Windows': 'python setup.py build_exe',
+    'Linux': 'python setup.py build',
+    'Darwin': 'pyinstaller -y syncprojects.spec',
 }
 
 system = platform.system()
@@ -31,11 +32,11 @@ BUILD_DIR = {
 
 PROD_CONFIG_DIR = {
     'Windows': BUILD_DIR,
-    'Darwin': join(BUILD_DIR, 'syncprojects.app', 'Contents', 'Resources'),
+    'Darwin': join(BUILD_DIR, 'syncprojects.app', 'Contents', 'MacOS'),
     'Linux': BUILD_DIR,
 }[system]
 
-if system not in SUPPORTED_OS:
+if system not in PLATFORM_BUILD_COMMAND:
     print("Platform not supported!")
 
 user, passwd = None, None
@@ -66,7 +67,7 @@ try:
             os.makedirs('release', exist_ok=True)
             build_cmd = {}
             # Do application build
-            check_output(['python', 'setup.py', SUPPORTED_OS[system]])
+            check_output(shlex.split(PLATFORM_BUILD_COMMAND[system]))
         try:
             shutil.copy("local_config_prod.py", join(PROD_CONFIG_DIR, 'local_config.py'))
             print("Copied production settings.")
@@ -79,15 +80,15 @@ try:
             pass
         if system in ("Windows", "Linux"):
             target = '*'
-            dir = '../../'
+            dir_offset = '../../'
         elif system == 'Darwin':
             target = 'syncprojects.app'
-            dir = '../'
+            dir_offset = '../'
         try:
-            check_output(['7z', 'a', f'{dir}{release}', target],
+            check_output(['7z', 'a', f'{dir_offset}{release}', target],
                          cwd=BUILD_DIR)
         except (CalledProcessError, FileNotFoundError):
-            check_output(['zip', '-r', f'{dir}{release}', target],
+            check_output(['zip', '-r', f'{dir_offset}{release}', target],
                          cwd=BUILD_DIR)
         shutil.copy(release, join('build', 'release.zip'))
         if system in ("Windows", "Linux"):

@@ -1,23 +1,23 @@
-import getpass
-import traceback
-from json import JSONDecodeError
-from multiprocessing import Queue
-from os.path import join, isfile
-
 import datetime
+import getpass
 import logging
 import os
 import re
-import requests
 import subprocess
-import sys
+import traceback
 from argparse import ArgumentParser
-from packaging.version import parse
+from json import JSONDecodeError
+from multiprocessing import Queue
+from os.path import join, isfile
 from tempfile import NamedTemporaryFile
 from threading import Thread
-from time import sleep
 from typing import Dict, Union
 from uuid import uuid4
+
+import requests
+import sys
+from packaging.version import parse
+from time import sleep
 
 import syncprojects.config as config
 from syncprojects.system import open_app_in_browser, process_running, get_datadir, is_mac
@@ -358,7 +358,12 @@ def find_data_file(filename: str) -> str:
     if getattr(sys, "frozen", False):
         # The application is frozen
         datadir = os.path.dirname(sys.executable)
-        return os.path.join(datadir, filename)
+        path = os.path.join(datadir, filename)
+        if not isfile(path):
+            # handle pyinstaller case
+            bundle_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
+            path = os.path.abspath(os.path.join(bundle_dir, filename))
+        return path
     else:
         # The application is not frozen
         return join('res', filename)
@@ -405,6 +410,6 @@ def add_to_command_queue(q: Queue, command: str, data: Dict = None) -> str:
 def init_sentry(url: str, release: str) -> None:
     try:
         import sentry_sdk
-        sentry_sdk.init(url, traces_sample_rate=1.0, release='@'.join('syncprojects', release))
+        sentry_sdk.init(url, traces_sample_rate=1.0, release='@'.join(('syncprojects', release)))
     except ImportError:
         logger.warning("Sentry package not available.")

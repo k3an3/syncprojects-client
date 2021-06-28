@@ -1,12 +1,12 @@
+import logging
+import tempfile
 import traceback
-from multiprocessing import Queue, freeze_support, set_start_method
+from logging.handlers import RotatingFileHandler
+from multiprocessing import Queue, Process
+from multiprocessing.spawn import freeze_support
 from os.path import isdir, join
 
-import logging
 import sys
-import tempfile
-from logging.handlers import RotatingFileHandler
-from multiprocessing.context import Process
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -144,7 +144,6 @@ def main():
 
 if __name__ == '__main__':
     freeze_support()
-    set_start_method('spawn')
     parsed_args = parse_args()
     if parsed_args.debug:
         config.DEBUG = True
@@ -168,6 +167,5 @@ if __name__ == '__main__':
     logger.addHandler(fh)
     logger.info(f"Logging debug output to {appdata['telemetry_file']}")
 
-    print(BANNER)
     logger.info("[v{}]".format(__version__))
     main()

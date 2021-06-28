@@ -1,7 +1,6 @@
-from os.path import expanduser
-
 import re
 from hashlib import md5
+from os.path import expanduser
 from shutil import which
 
 # WARNING: hardcoded configuration is deprecated and will be removed soon!
@@ -63,6 +62,7 @@ YQIDAQAB
 SIGNING_PUBLIC_KEY = ""
 
 DEBUG = False
+ENV = "DEV"
 LOGIN_MODE = "web"  # prompt, web
 SYNCPROJECTS_URL = "https://syncprojects.example.com/"
 
