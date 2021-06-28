@@ -79,16 +79,16 @@ try:
         except FileNotFoundError:
             pass
         if system in ("Windows", "Linux"):
-            target = '*'
+            zip_source = '*'
             dir_offset = '../../'
         elif system == 'Darwin':
-            target = 'syncprojects.app'
+            zip_source = 'syncprojects.app'
             dir_offset = '../'
         try:
-            check_output(['7z', 'a', f'{dir_offset}{release}', target],
+            check_output(['7z', 'a', f'{dir_offset}{release}', zip_source],
                          cwd=BUILD_DIR)
         except (CalledProcessError, FileNotFoundError):
-            check_output(['zip', '-r', f'{dir_offset}{release}', target],
+            check_output(['zip', '-r', f'{dir_offset}{release}', zip_source],
                          cwd=BUILD_DIR)
         shutil.copy(release, join('build', 'release.zip'))
         if system in ("Windows", "Linux"):
