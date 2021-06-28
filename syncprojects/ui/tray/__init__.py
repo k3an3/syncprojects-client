@@ -54,7 +54,8 @@ class TrayIcon(Process):
         self.logger.debug("Starting icon thread...")
         icon_file = find_data_file(ICON_FILE)
         if not isfile(icon_file):
-            self.logger.critical("Icon file not found!")
+            self.logger.critical("Icon file not resolved! Falling back.")
+            icon_file = ICON_FILE
         image = Image.open(icon_file)
         menu = Menu(
             MenuItem('Open Syncprojects', open_app_action, default=True),
