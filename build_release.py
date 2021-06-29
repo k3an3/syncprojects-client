@@ -49,13 +49,13 @@ except FileNotFoundError:
 parser = ArgumentParser()
 parser.add_argument('-u', '--upload-only', action='store_true')
 parser.add_argument('-n', '--no-upload', action='store_true')
-parser.add_argument('-g', '--no-tag', action='store_true')
+parser.add_argument('-t', '--tag', action='store_true')
 parser.add_argument('-b', '--no-build', action='store_true')
 parser.add_argument('--url', default=URL)
 args = parser.parse_args()
 
 try:
-    if not args.no_tag:
+    if args.tag:
         print("Tagging release")
         run(['git', 'tag', '-f', version])
     target = '-'.join((platform.machine(), system)).lower()
