@@ -97,6 +97,7 @@ try:
                           join('update/update.py'), '--name', f'syncprojects-{formatted_version}-installer',
                           '--noconsole'])
             os.unlink(join('build', 'release.zip'))
+            release = f'release/syncprojecs-{formatted_version}-installer.exe'
             for f in glob.glob('dist/syncprojects-*-installer*'):
                 try:
                     shutil.move(f, 'release')
