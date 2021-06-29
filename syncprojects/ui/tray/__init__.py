@@ -15,7 +15,7 @@ if is_mac():
     # noinspection PyUnresolvedReferences
     from pystray import _darwin
 else:
-    ICON_FILE = "res/benny.ico"
+    ICON_FILE = "benny.ico"
 logger = logging.getLogger('syncprojects.ui.tray')
 
 

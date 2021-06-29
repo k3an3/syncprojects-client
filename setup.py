@@ -1,4 +1,5 @@
 import platform
+
 from setuptools import find_packages
 
 from syncprojects.syncprojects_app import __version__ as version
@@ -42,18 +43,6 @@ if system == "Windows":
     requirements.extend(('pywin32==228', 'cx_Freeze==6.5.3'))
     base = "Win32GUI"  # Tells the build script to hide the console.
     packages.add('win32file')
-elif system == "Darwin":
-    SETUP_REQ = ['py2app']
-    ICON = 'res/benny.icns'
-    # Not automatically picked up...
-    # This feels like a giant hack
-    packages.update(('syncprojects',
-                     'tkinter',
-                     'jwt',
-                     'PIL',
-                     *[r.split('=')[0].lower() for r in requirements]))
-    packages.remove('pillow')
-    packages.remove('pyjwt[crypto]')
 
 
 def gen_executables():
@@ -85,18 +74,6 @@ setup(
             'packages': packages,
             'include_files': [ICON],
         },
-        'bdist_mac': {
-            'iconfile': ICON
-        },
-        'py2app': {
-            # Slim down build
-            'excludes': ['unittest', 'test', 'curses', 'asyncio', 'colorama', 'setuptools'],
-            'packages': packages,
-            'includes': [*packages, 'syncprojects.ui.*'],
-            'resources': [ICON],
-            'iconfile': ICON,
-            'optimize': 2,
-        }
     },
     install_requires=requirements,
     executables=gen_executables(),
