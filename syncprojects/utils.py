@@ -395,6 +395,11 @@ def report_error(e):
         sentry_sdk.capture_exception(e)
     except ImportError:
         pass
+    # noinspection PyBroadException
+    try:
+        request_local_api('logs')
+    except Exception:
+        pass
 
 
 def gen_task_id() -> str:
