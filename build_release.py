@@ -18,7 +18,7 @@ URL = 'https://syncprojects.example.com/api/v1/updates/'
 PLATFORM_BUILD_COMMAND = {
     'Windows': 'python setup.py build_exe',
     'Linux': 'python setup.py build',
-    'Darwin': 'pyinstaller -y syncprojects.spec',
+    'Darwin': 'pyinstaller -y --osx-bundle-identifier com.syncprojects.app syncprojects.spec',
 }
 
 system = platform.system()
@@ -81,16 +81,22 @@ try:
         if system in ("Windows", "Linux"):
             zip_source = '*'
             dir_offset = '../../'
+            try:
+                check_output(['7z', 'a', f'{dir_offset}{release}', zip_source],
+                             cwd=BUILD_DIR)
+            except (CalledProcessError, FileNotFoundError):
+                check_output(['zip', '-r', f'{dir_offset}{release}', zip_source],
+                             cwd=BUILD_DIR)
         elif system == 'Darwin':
             zip_source = 'syncprojects.app'
             dir_offset = '../'
-        try:
-            check_output(['7z', 'a', f'{dir_offset}{release}', zip_source],
-                         cwd=BUILD_DIR)
-        except (CalledProcessError, FileNotFoundError):
-            check_output(['zip', '-r', f'{dir_offset}{release}', zip_source],
-                         cwd=BUILD_DIR)
-        shutil.copy(release, join('build', 'release.zip'))
+            print("Codesign")
+            run(shlex.split('codesign --remove-signature dist/syncprojects.app/Contents/MacOS/Python3'))
+            run(shlex.split(
+                "codesign -s \"Developer ID Application: Keane O'Kelley\" -v --deep --timestamp --entitlements entitlements.plist -o runtime dist/syncprojects.app"))
+            # run(['codesign', '--deep', '-s', "test@example.com", 'dist/syncprojects.app'])
+            check_output(shlex.split(f'ditto -c -k –-sequesterRsrc --keepParent "dist/{zip_source}" "{release}"'))
+            shutil.copy(release, join('build', 'release.zip'))
         if system in ("Windows", "Linux"):
             check_output(['pyinstaller', '-F', '--specpath', 'update', '--add-data',
                           os.pathsep.join((f'../build/release.zip', '.')), '--icon', join('..', ICON),
@@ -104,6 +110,9 @@ try:
                 except shutil.Error:
                     pass
             shutil.rmtree('dist')
+        if system == "Darwin":
+            check_output(shlex.split(
+                'xcrun altool --notarize-app -t osx -f release/release.zip --primary-bundle-id syncprojects -u test@example.com --password "@keychain:AC_PASSWORD"'))
     if not args.no_upload and user and passwd:
         print("Uploading package...")
         try:
