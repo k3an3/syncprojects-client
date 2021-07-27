@@ -26,7 +26,7 @@ from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update,
     commit_settings, init_sentry
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-__version__ = '2.4.10'
+__version__ = '2.4.12'
 
 CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """
@@ -104,9 +104,14 @@ def main():
 
         context = {}
 
-        if not isdir(appdata['source']):
+        while not isdir(appdata['source']):
+            MessageBoxUI.warning(f"The selected sync folder \"{appdata['source']}\", could not be found. Either "
+                                 f"create this folder, or change it on the settings page.\nSync will not be possible "
+                                 f"until this is fixed!", "Sync folder not found")
             logger.critical(f"Error! Source path \"{appdata['source']}\" not found.")
-            prompt_to_exit()
+            settings = SettingsUI()
+            logger.info("Running settings UI")
+            settings.run()
 
         if test_mode():
             backend = RandomNoOpSyncBackend
