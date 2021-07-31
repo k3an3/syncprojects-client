@@ -28,6 +28,7 @@ class TrayIcon(Process):
     def __init__(self):
         super().__init__(daemon=True)
         self.logger = logging.getLogger('syncprojects.ui.tray.TrayIcon')
+        self.icon = None
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -50,6 +51,12 @@ class TrayIcon(Process):
         logger.debug("Requested settings")
         self.send_command('settings')
 
+    def notify(self, message: str, title: str = ""):
+        if self.icon.HAS_NOTIFICATION:
+            self.icon.notify(message, title)
+        else:
+            self.logger.debug("No notification support on this platform.")
+
     def run(self):
         self.logger.debug("Starting icon thread...")
         icon_file = find_data_file(ICON_FILE)
@@ -64,9 +71,9 @@ class TrayIcon(Process):
             MenuItem('Send Logs', self.logs_action),
             MenuItem('Exit', self.exit_action),
         )
-        icon = pystray.Icon("syncprojects", image, "syncprojects", menu)
+        self.icon = pystray.Icon("syncprojects", image, "syncprojects", menu)
         self.logger.debug("Starting icon loop...")
-        icon.run()
+        self.icon.run()
 
 
 if __name__ == "__main__":
