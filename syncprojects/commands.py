@@ -16,6 +16,7 @@ from syncprojects.sync.backends import Verdict
 from syncprojects.sync.operations import get_lock_status
 from syncprojects.system import open_default_app
 from syncprojects.ui.settings_menu import SettingsUI
+from syncprojects.ui.tray import tray_icon
 from syncprojects.utils import check_update, get_song_dir, commit_settings
 
 logger = logging.getLogger('syncprojects.commands')
@@ -99,6 +100,7 @@ class AuthHandler(CommandHandler):
     def handle(self, data: Dict):
         self.api_client.handle_auth_msg(data)
         self.send_queue({'result': 'success'})
+        tray_icon.notify("Authentication success!")
 
 
 class SyncMultipleHandler(CommandHandler):
@@ -205,8 +207,10 @@ class WorkDoneHandler(CommandHandler):
 
 class UpdateHandler(CommandHandler):
     def handle(self, data: Dict):
+        tray_icon.notify("Checking for updates...")
         self.logger.debug("Received request to check for updates...")
         check_update(self.api_client)
+        tray_icon.notify("No new updates.")
 
 
 class GetTasksHandler(CommandHandler):
@@ -218,6 +222,7 @@ class GetTasksHandler(CommandHandler):
 
 class ShutdownHandler(CommandHandler):
     def handle(self, data: Dict):
+        tray_icon.notify("Exiting...")
         self.logger.info("Got command to exit")
         sys.exit(0)
 
@@ -226,7 +231,9 @@ class LogReportHandler(CommandHandler):
     def handle(self, data: Dict):
         if not appdata['telemetry_file']:
             self.logger.warning("Can't upload logs, no logfile configured.")
+            tray_icon.notify("No logs, so there's nothing to send...")
             return
+        tray_icon.notify("Now sending your logs...")
         tf = tempfile.NamedTemporaryFile(mode='wb', delete=False)
         self.logger.debug("Compressing logs into zip...")
         with ZipFile(tf, 'w') as z:
@@ -236,6 +243,7 @@ class LogReportHandler(CommandHandler):
         with open(tf.name, 'rb') as f:
             self.api_client.report_logs(f.read())
         unlink(tf.name)
+        tray_icon.notify("Logs have been sent.")
 
 
 class SettingsHandler(CommandHandler):
@@ -245,3 +253,4 @@ class SettingsHandler(CommandHandler):
         settings.run()
         commit_settings(settings)
         self.sync_manager.context['watcher'].change_watch(appdata['audio_sync_dir'])
+        tray_icon.notify("Settings saved.")

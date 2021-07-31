@@ -11,6 +11,7 @@ from watchdog.observers import Observer
 from syncprojects.api import SyncAPI
 from syncprojects.storage import get_audiodata
 from syncprojects.sync.backends.aws.auth import AWSAuth
+from syncprojects.ui.tray import tray_icon
 from syncprojects.utils import create_project_dirs, hash_file, report_error
 
 logger = logging.getLogger('syncprojects.watcher')
@@ -126,6 +127,7 @@ class S3AudioSyncHandler(AudioSyncHandler):
         super().__init__()
 
     def push_file(self, path: str):
+        tray_icon.notify(f"Uploading {basename(path)}")
         target = get_remote_path(path)
         logger.debug("Uploading %s to %s", path, target)
         attempts = 0
@@ -161,6 +163,7 @@ class S3AudioSyncHandler(AudioSyncHandler):
     def move_file(self, src: str, dest: str):
         src = get_remote_path(src)
         dest = get_remote_path(dest)
+        tray_icon.notify(f"Moving {basename(src)} to {basename(dest)}")
         logger.debug("Moving %s to %s", src, dest)
         copy_source = {
             'Bucket': self.bucket,

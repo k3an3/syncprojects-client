@@ -69,6 +69,12 @@ def shutdown():
     return {'result': 'started', 'task_id': queue_put('shutdown')}
 
 
+@app.route('/api/logs', methods=['POST'])
+def logs():
+    # TODO: security
+    return {'result': 'started', 'task_id': queue_put('logs')}
+
+
 @app.route('/api/settings', methods=['POST'])
 def settings():
     # TODO: security
