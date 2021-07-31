@@ -144,7 +144,7 @@ def get_latest_change(directory_path):
 
 
 def fetch_update(url: str) -> str:
-    ntf = NamedTemporaryFile(delete=False)
+    ntf = NamedTemporaryFile(suffix='.zip', delete=False)
     resp = requests.get(url)
     resp.raise_for_status()
     ntf.write(resp.content)
@@ -281,6 +281,8 @@ def check_update(api_client) -> Union[Dict, None]:
         return None
     from syncprojects.syncprojects_app import __version__
     if parse(__version__) < parse(latest_version['version']):
+        from syncprojects.ui.tray import tray_icon
+        tray_icon.notify(f"New update {latest_version['version']} available! Now updating...")
         logger.info(f"New update found! {latest_version['version']}")
         update(latest_version)
         sys.exit(0)

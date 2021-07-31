@@ -21,12 +21,12 @@ from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
 from syncprojects.system import open_app_in_browser, test_mode
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.ui.settings_menu import SettingsUI
-from syncprojects.ui.tray import TrayIcon
+from syncprojects.ui.tray import tray_icon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, check_already_running, \
     commit_settings, init_sentry
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-__version__ = '2.4.12'
+__version__ = '2.4.13'
 
 CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """
@@ -71,8 +71,8 @@ def main():
         was_first_start = True
 
     # Add icon to tray
-    ti = TrayIcon()
-    ti.start()
+    # tray_icon = TrayIcon()
+    tray_icon.start()
 
     # Start local Flask server
     logger.debug("Starting web API server process...")
@@ -136,6 +136,7 @@ def main():
             watcher.start()
 
         sync = SyncManager(api_client, backend, context=context, args=args)
+        tray_icon.notify("Syncprojects has started")
 
         if parsed_args.tui:
             sync.run_tui()

@@ -1,5 +1,5 @@
 import logging
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from os.path import isfile
 from typing import Dict
 
@@ -9,6 +9,8 @@ from pystray import MenuItem, Menu
 
 from syncprojects.system import open_app_in_browser, is_mac
 from syncprojects.utils import find_data_file, request_local_api
+
+NOTIFY_APPNAME = "Syncprojects"
 
 if is_mac():
     ICON_FILE = "res/benny.icns"
@@ -29,6 +31,7 @@ class TrayIcon(Process):
         super().__init__(daemon=True)
         self.logger = logging.getLogger('syncprojects.ui.tray.TrayIcon')
         self.icon = None
+        self.queue = Queue()
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -51,11 +54,20 @@ class TrayIcon(Process):
         logger.debug("Requested settings")
         self.send_command('settings')
 
-    def notify(self, message: str, title: str = ""):
-        if self.icon.HAS_NOTIFICATION:
-            self.icon.notify(message, title)
+    def notify(self, message: str):
+        self.queue.put(message)
+
+    def _notify(self, message: str):
+        if self.icon and pystray.Icon.HAS_NOTIFICATION:
+            self.icon.notify(message, NOTIFY_APPNAME)
         else:
             self.logger.debug("No notification support on this platform.")
+
+    def setup(self, icon):
+        icon.visible = True
+        while True:
+            message = self.queue.get()
+            self._notify(message)
 
     def run(self):
         self.logger.debug("Starting icon thread...")
@@ -73,8 +85,10 @@ class TrayIcon(Process):
         )
         self.icon = pystray.Icon("syncprojects", image, "syncprojects", menu)
         self.logger.debug("Starting icon loop...")
-        self.icon.run()
+        self.icon.run(self.setup)
 
+
+tray_icon = TrayIcon()
 
 if __name__ == "__main__":
     # For standalone mode
