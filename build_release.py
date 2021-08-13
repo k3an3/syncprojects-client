@@ -95,9 +95,9 @@ try:
             run(shlex.split(
                 "codesign -s \"Developer ID Application: Keane O'Kelley\" -v --deep --timestamp --entitlements entitlements.plist -o runtime dist/syncprojects.app"))
             # run(['codesign', '--deep', '-s', "test@example.com", 'dist/syncprojects.app'])
-            check_output(shlex.split(f'ditto -c -k –-sequesterRsrc --keepParent "dist/{zip_source}" "{release}"'))
-        shutil.copy(release, join('build', 'release.zip'))
+            check_output(['./package.sh'])
         if system in ("Windows", "Linux"):
+            shutil.copy(release, join('build', 'release.zip'))
             print("Running packager")
             check_output(['pyinstaller', '-F', '--specpath', 'update', '--add-data',
                           os.pathsep.join((f'../build/release.zip', '.')), '--icon', join('..', ICON),
@@ -111,9 +111,6 @@ try:
                 except shutil.Error:
                     pass
             shutil.rmtree('dist')
-        if system == "Darwin":
-            check_output(shlex.split(
-                'xcrun altool --notarize-app -t osx -f release/release.zip --primary-bundle-id syncprojects -u test@example.com --password "@keychain:AC_PASSWORD"'))
     if not args.no_upload and user and passwd:
         print("Uploading package...")
         try:
