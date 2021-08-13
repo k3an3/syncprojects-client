@@ -2,7 +2,7 @@ import datetime
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
-from os.path import join, isdir, dirname
+from os.path import join, isdir
 from typing import Dict, List, Callable
 
 from syncprojects import config
@@ -109,11 +109,11 @@ class S3SyncBackend(SyncBackend):
             try:
                 self.client.download_file(self.bucket,
                                           remote_path + key,
-                                          join(appdata['source'], get_song_dir(song), key)
+                                          join(appdata['source'], get_song_dir(song), *key.split('\\'))
                                           )
                 break
             except FileNotFoundError:
-                os.makedirs(join(appdata['source'], get_song_dir(song), dirname(key)), exist_ok=True)
+                os.makedirs(join(appdata['source'], get_song_dir(song), *key.split('\\')[:-1]), exist_ok=True)
                 fail_count += 1
 
     def sync(self, project: Dict, songs: List[Dict], force_verdict: Verdict = None) -> Dict:

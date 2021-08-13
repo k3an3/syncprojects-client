@@ -96,8 +96,9 @@ try:
                 "codesign -s \"Developer ID Application: Keane O'Kelley\" -v --deep --timestamp --entitlements entitlements.plist -o runtime dist/syncprojects.app"))
             # run(['codesign', '--deep', '-s', "test@example.com", 'dist/syncprojects.app'])
             check_output(shlex.split(f'ditto -c -k –-sequesterRsrc --keepParent "dist/{zip_source}" "{release}"'))
-            shutil.copy(release, join('build', 'release.zip'))
+        shutil.copy(release, join('build', 'release.zip'))
         if system in ("Windows", "Linux"):
+            print("Running packager")
             check_output(['pyinstaller', '-F', '--specpath', 'update', '--add-data',
                           os.pathsep.join((f'../build/release.zip', '.')), '--icon', join('..', ICON),
                           join('update/update.py'), '--name', f'syncprojects-{formatted_version}-installer',
