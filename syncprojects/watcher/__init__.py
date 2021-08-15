@@ -36,6 +36,7 @@ class AudioSyncHandler(FileSystemEventHandler):
         self.sync_dir = None
         self.last_upload = {}
         self.store = get_audiodata()
+        self.api_client = None
 
     def get_known_hash(self, path: str) -> str:
         return self.store.get(path)
@@ -77,23 +78,25 @@ class AudioSyncHandler(FileSystemEventHandler):
             self.last_upload[event.dest_path] = datetime.now()
             self.last_upload.pop(event.src_path, None)
             self.update_known_hash(event.dest_path)
+            self.notify(event.dest_path)
 
     def on_deleted(self, event: FileSystemEvent):
         pass
 
+    def _handle_push(self, event: FileSystemEvent):
+        wait_for_write(event.src_path)
+        self.push_file(event.src_path)
+        self.last_upload[event.src_path] = datetime.now()
+        self.update_known_hash(event.src_path)
+        self.notify(event.src_path)
+
     def on_created(self, event: FileSystemEvent):
         if not event.is_directory and self.should_push(event.src_path):
-            wait_for_write(event.src_path)
-            self.push_file(event.src_path)
-            self.last_upload[event.src_path] = datetime.now()
-            self.update_known_hash(event.src_path)
+            self._handle_push(event)
 
     def on_modified(self, event: FileSystemEvent):
         if not event.is_directory and self.should_push(event.src_path):
-            wait_for_write(event.src_path)
-            self.push_file(event.src_path)
-            self.last_upload[event.src_path] = datetime.now()
-            self.update_known_hash(event.src_path)
+            self._handle_push(event)
 
     def on_closed(self, event):
         pass
@@ -113,6 +116,15 @@ class AudioSyncHandler(FileSystemEventHandler):
     @abstractmethod
     def move_file(self, src: str, dest: str):
         pass
+
+    def notify(self, path: str):
+        if self.api_client:
+            logger.debug("Notifying API of %s audio sync", path)
+            project = basename(dirname(path))
+            song = basename(path).split(".")[0]
+            self.api_client.audio_sync(project, song)
+        else:
+            logger.debug("No API available, not notifying.")
 
 
 def get_remote_path(path: str):
@@ -182,6 +194,8 @@ class Watcher(Thread):
         self.observer = Observer()
         self.sync_dir = sync_dir
         self.handler = handler
+        # TODO: makes more sense somewhere else?
+        self.handler.api_client = api_client
         self.start_watch()
 
     def start_watch(self):

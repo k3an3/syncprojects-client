@@ -73,7 +73,7 @@ class SyncAPI:
         return bool(self.refresh_token and self.access_token)
 
     def _request(self, path: str, method: str = 'GET', params: dict = {}, json: dict = {}, headers: dict = {},
-                 files: Dict = None, auth: bool = True, refresh: bool = True):
+                 files: Dict = None, auth: bool = True, refresh: bool = True, no_fail: bool = False):
         attempts = 0
         headers['User-Agent'] = "syncprojects-client"
         while attempts < 2:
@@ -102,9 +102,18 @@ class SyncAPI:
             attempts += 1
         self.logger.error(
             f"Multiple requests failed, most recent response code {r.status_code} and msg {r.text}.")
-        MessageBoxUI.error("Error communicating with Syncprojects API! A server error occured, or you could not be "
-                           "identified. Try again, or contact support if the error persists.\n\nExiting...")
-        sys.exit(1)
+        if not no_fail:
+            if r.status_code // 100 == 4:
+                MessageBoxUI.error(
+                    "Error communicating with Syncprojects API! You could not be authenticated, or are not authorized "
+                    "to perform this action. Try again, or contact support if the error persists.\n\nExiting...")
+            elif r.status_code // 100 == 5:
+                MessageBoxUI.error("Error communicating with Syncprojects API! A server error occurred. Try again, "
+                                   "or contact support if the error persists.\n\nExiting...")
+            self.logger.error("Exiting due to communication error.")
+            sys.exit(1)
+        self.logger.warning("Not exiting due to no_fail set.")
+        return {}
 
     def get_all_projects(self):
         return self._request("projects/")["results"]
@@ -192,3 +201,6 @@ class SyncAPI:
 
     def report_logs(self, log_data: bytes):
         return self._request("logs/", "POST", files={'log_compressed': log_data})
+
+    def audio_sync(self, project, song):
+        return self._request("sync/audio_sync/", "POST", json={'project': project, 'song': song}, no_fail=True)
