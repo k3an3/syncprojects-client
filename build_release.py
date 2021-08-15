@@ -104,13 +104,14 @@ try:
                           join('update/update.py'), '--name', f'syncprojects-{formatted_version}-installer',
                           '--noconsole'])
             os.unlink(join('build', 'release.zip'))
-            release = f'release/syncprojects-{formatted_version}-installer.exe'
             for f in glob.glob('dist/syncprojects-*-installer*'):
                 try:
                     shutil.move(f, 'release')
                 except shutil.Error:
                     pass
             shutil.rmtree('dist')
+    if system in "Windows":
+        release = f'release/syncprojects-{formatted_version}-installer.exe'
     if not args.no_upload and user and passwd:
         print("Uploading package...")
         try:
