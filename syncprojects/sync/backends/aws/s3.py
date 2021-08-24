@@ -1,5 +1,5 @@
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
-from os.path import join, isdir
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, Future
+from os.path import join
 
 import logging
 import os
@@ -14,7 +14,8 @@ from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import hash_file, get_song_dir, report_error
+from syncprojects.utils import get_song_dir, report_error
+from syncprojects_fast import walk_dir
 
 AWS_REGION = 'us-east-1'
 
@@ -229,25 +230,3 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
             if not_done:
                 logger.error(f"{len(not_done)} actions failed for some reason!")
             return done
-
-
-def walk_dir(root: str, base: str = "", executor: ThreadPoolExecutor = None) -> Dict[str, str]:
-    top = False
-    if not executor:
-        if not isdir(root):
-            return {}
-        executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS)
-        top = True
-    futures = {}
-    for entry in os.scandir(root):
-        path = join(root, entry)
-        if isdir(path):
-            futures.update(walk_dir(path, join(base, entry.name), executor))
-            continue
-        futures[executor.submit(hash_file, path)] = join(base, entry.name)
-    if top:
-        manifest = {}
-        for future in as_completed(futures):
-            manifest[futures[future]] = future.result()
-        return manifest
-    return futures
