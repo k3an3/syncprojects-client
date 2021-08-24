@@ -1,10 +1,10 @@
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, Future
-from os.path import join
-
 import logging
 import os
-import time
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, Future, as_completed
+from os.path import join, isdir
 from typing import Dict, List, Callable
+
+import time
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
@@ -14,12 +14,22 @@ from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import get_song_dir, report_error
-from syncprojects_fast import walk_dir
+from syncprojects.utils import get_song_dir, report_error, hash_file
 
 AWS_REGION = 'us-east-1'
 
 logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
+
+try:
+    from syncprojects_fast import walk_dir as fast_walk_dir
+    from syncprojects_fast import get_difference as fast_get_difference
+except ImportError:
+    logger.info("Using native modules.")
+    fast_walk_dir = None
+    fast_get_difference = None
+else:
+    logger.critical("%d", logger.level)
+    logger.info("Using Rust extensions.")
 
 
 def handle_conflict(song_name: str) -> Verdict:
@@ -99,7 +109,8 @@ class S3SyncBackend(SyncBackend):
         start = time.perf_counter()
         results = walk_dir(path)
         duration = time.perf_counter() - start
-        self.logger.debug(f"Got {len(results)} files from local manifest; {duration=}")
+        self.logger.debug(f"Got {len(results)} files from local manifest; {round(duration, 4)} seconds")
+
         return results
 
     def handle_upload(self, song: Dict, key: str, remote_path: str):
@@ -215,18 +226,50 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
     if os.getenv('THREADS_OFF') == '1':
         logger.debug("Not using threading!")
         results = []
-        for key, tag in src.items():
-            if key not in dst or tag != dst[key]:
+        if fast_get_difference:
+            for key in fast_get_difference(src, dst):
                 results.append(action(song, key, remote_path))
+        else:
+            for key, tag in src.items():
+                if key not in dst or tag != dst[key]:
+                    results.append(action(song, key, remote_path))
         return results
     else:
         logger.debug("Using %d threads", config.MAX_WORKERS)
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = []
-            for key, tag in src.items():
-                if key not in dst or tag != dst[key]:
+            if fast_get_difference:
+                for key in fast_get_difference(src, dst):
                     futures.append(executor.submit(action, song, key, remote_path))
+            else:
+                for key, tag in src.items():
+                    if key not in dst or tag != dst[key]:
+                        futures.append(executor.submit(action, song, key, remote_path))
             done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
             if not_done:
                 logger.error(f"{len(not_done)} actions failed for some reason!")
             return done
+
+
+def walk_dir(root: str, base: str = "", executor: ThreadPoolExecutor = None) -> Dict[str, str]:
+    if fast_walk_dir:
+        return fast_walk_dir(root)
+    top = False
+    if not executor:
+        if not isdir(root):
+            return {}
+        executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS)
+        top = True
+    futures = {}
+    for entry in os.scandir(root):
+        path = join(root, entry)
+        if isdir(path):
+            futures.update(walk_dir(path, join(base, entry.name), executor))
+            continue
+        futures[executor.submit(hash_file, path)] = join(base, entry.name)
+    if top:
+        manifest = {}
+        for future in as_completed(futures):
+            manifest[futures[future]] = future.result()
+        return manifest
+    return futures
