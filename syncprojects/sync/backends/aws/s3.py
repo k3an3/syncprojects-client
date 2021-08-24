@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
 from os.path import join, isdir
 
-import datetime
 import logging
 import os
 import time
@@ -176,10 +175,10 @@ class S3SyncBackend(SyncBackend):
                         continue
 
                     self.logger.info("Starting parallel file transfer...")
-                    start_time = datetime.datetime.now()
+                    start_time = time.perf_counter()
                     completed = do_action(action, song, src, dst, remote_path)
-                    duration = datetime.datetime.now() - start_time
-                    self.logger.info(f"Updated {len(completed)} files in {duration.total_seconds()} seconds.")
+                    duration = time.perf_counter() - start_time
+                    self.logger.info(f"Updated {len(completed)} files in {round(duration, 4)} seconds.")
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
                     self.logger.error(f"Error syncing {song}: {e}.")
@@ -212,14 +211,12 @@ class S3SyncBackend(SyncBackend):
 
 
 def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: str) -> List[Future]:
-    start = time.perf_counter()
     if os.getenv('THREADS_OFF') == '1':
         logger.debug("Not using threading!")
         results = []
         for key, tag in src.items():
             if key not in dst or tag != dst[key]:
                 results.append(action(song, key, remote_path))
-        logger.debug(f"Finished in {time.perf_counter() - start}")
         return results
     else:
         logger.debug("Using %d threads", config.MAX_WORKERS)
@@ -231,7 +228,6 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
             done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
             if not_done:
                 logger.error(f"{len(not_done)} actions failed for some reason!")
-            logger.debug(f"Finished in {time.perf_counter() - start}")
             return done
 
 
