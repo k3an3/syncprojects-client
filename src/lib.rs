@@ -1,11 +1,12 @@
-use md5::{Digest, Md5};
-use md5::digest::Output;
-use pyo3::prelude::*;
 use std::{fs, io};
 use std::cmp::max;
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::Path;
+
+use md5::{Digest, Md5};
+use md5::digest::Output;
+use pyo3::prelude::*;
 
 const BUFFER_SIZE: usize = 1024;
 
@@ -58,7 +59,7 @@ pub fn get_difference(src: FileMap, dst: FileMap) -> Vec<String> {
     let mut results = Vec::with_capacity(max(src.len(), dst.len()));
     for (name, hash) in src.iter() {
         let remote_hash = dst.get(name);
-        if remote_hash.is_some() && remote_hash.unwrap() != hash {
+        if (remote_hash.is_some() && remote_hash.unwrap() != hash) || remote_hash.is_none() {
             results.push(name.to_owned());
         }
     }
@@ -78,4 +79,17 @@ fn syncprojects_fast(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(walk_dir, m)?)?;
     m.add_function(wrap_pyfunction!(get_difference, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::get_difference;
+
+    #[test]
+    fn test_diff() {
+        let old = [("test1".to_string(), "asdf".to_string()), ("test2".to_string(), "asdfyz".to_string()), ("test3".to_string(), "alkwjelj".to_string())].iter().cloned().collect();
+        let new = [("test1".to_string(), "asdf".to_string()), ("test2".to_string(), "faslkjlk4".to_string()), ("test3".to_string(), "alkwjelj".to_string()), ("test4".to_string(), "asldfasdf".to_string())].iter().cloned().collect();
+        let res = get_difference(new, old);
+        assert_eq!(2, res.len());
+    }
 }
