@@ -1,8 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
+from os.path import join, isdir
+
 import datetime
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
-from os.path import join, isdir
+import time
 from typing import Dict, List, Callable
 
 from syncprojects import config
@@ -94,8 +96,10 @@ class S3SyncBackend(SyncBackend):
     def get_local_manifest(self, path: str) -> Dict:
         path = join(appdata['source'], path)
         self.logger.debug(f"Generating local manifest from {path}")
+        start = time.perf_counter()
         results = walk_dir(path)
-        self.logger.debug(f"Got {len(results)} files from local manifest")
+        duration = time.perf_counter() - start
+        self.logger.debug(f"Got {len(results)} files from local manifest; {duration=}")
         return results
 
     def handle_upload(self, song: Dict, key: str, remote_path: str):
@@ -208,14 +212,17 @@ class S3SyncBackend(SyncBackend):
 
 
 def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: str) -> List[Future]:
+    start = time.perf_counter()
     if os.getenv('THREADS_OFF') == '1':
         logger.debug("Not using threading!")
         results = []
         for key, tag in src.items():
             if key not in dst or tag != dst[key]:
                 results.append(action(song, key, remote_path))
+        logger.debug(f"Finished in {time.perf_counter() - start}")
         return results
     else:
+        logger.debug("Using %d threads", config.MAX_WORKERS)
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = []
             for key, tag in src.items():
@@ -224,6 +231,7 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
             done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
             if not_done:
                 logger.error(f"{len(not_done)} actions failed for some reason!")
+            logger.debug(f"Finished in {time.perf_counter() - start}")
             return done
 
 

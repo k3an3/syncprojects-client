@@ -1,12 +1,12 @@
-import logging
-import tempfile
 import traceback
-from logging.handlers import RotatingFileHandler
 from multiprocessing import Queue, Process
-from multiprocessing.spawn import freeze_support
 from os.path import isdir, join
 
+import logging
 import sys
+import tempfile
+from logging.handlers import RotatingFileHandler
+from multiprocessing.spawn import freeze_support
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
@@ -26,7 +26,7 @@ from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update,
     commit_settings, init_sentry
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-__version__ = '2.4.15'
+__version__ = '2.4.16'
 
 CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """
