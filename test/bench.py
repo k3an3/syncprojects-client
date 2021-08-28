@@ -1,16 +1,16 @@
 import time
 
-# noinspection PyUnresolvedReferences
-from syncprojects.system import is_windows, is_linux
-from syncprojects_fast import walk_dir as fast_walk_dir
 from syncprojects.sync.backends.aws.s3 import walk_dir
+from syncprojects.system import is_windows, is_linux
+# noinspection PyUnresolvedReferences
+from syncprojects_fast import walk_dir as fast_walk_dir
 
 COUNT = 10
 
 if is_windows():
     TARGET_DIR = "C:\\Users\\Admin\\Documents\\studio-dev\\S3 Test\\Debug"
 elif is_linux():
-    TARGET_DIR = "/etc"
+    TARGET_DIR = "/home/keane/Documents/Divided"
 
 
 def do_bench(func, *args, **kwargs):

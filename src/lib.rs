@@ -1,14 +1,17 @@
-use std::{fs, io};
+use std::{fs, io, thread};
 use std::cmp::max;
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::channel;
 
 use md5::{Digest, Md5};
 use md5::digest::Output;
 use pyo3::prelude::*;
 
 const BUFFER_SIZE: usize = 1024;
+const NUM_THREADS: usize = 32;
 
 pub type FileMap = HashMap<String, String>;
 
@@ -31,23 +34,16 @@ fn hash_file<D: Digest + Default, R: Read>(reader: &mut R) -> Output<D> {
     sh.finalize()
 }
 
-fn _walk_dir(dir: &Path, mut map: &mut FileMap) -> io::Result<()> {
+fn _walk_dir(dir: &Path, mut files: &mut Vec<String>) -> io::Result<()> {
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
             let path = entry.unwrap().path();
             if path.is_dir() {
-                if _walk_dir(&path, &mut map).is_err() {
+                if _walk_dir(&path, &mut files).is_err() {
                     println!("Error walking directory {}", dir.to_string_lossy());
                 }
             } else {
-                if let Ok(mut file) = fs::File::open(&path) {
-                    let hash = hash_file::<Md5, _>(&mut file);
-                    let mut hash_str = String::with_capacity(32);
-                    for b in hash {
-                        hash_str.push_str(&format!("{:02x}", b));
-                    }
-                    map.insert(path.to_string_lossy().to_string(), hash_str);
-                }
+                files.push(path.to_string_lossy().to_string());
             }
         }
     }
@@ -69,9 +65,31 @@ pub fn get_difference(src: FileMap, dst: FileMap) -> Vec<String> {
 #[pyfunction]
 pub fn walk_dir(path: String) -> FileMap {
     let dir = Path::new(&path);
-    let mut map = HashMap::new();
-    _walk_dir(&dir, &mut map).unwrap();
-    map
+    let mut files = Vec::new();
+    _walk_dir(&dir, &mut files).unwrap();
+    let data = Arc::new(Mutex::new(files));
+    let (tx, rx) = channel();
+    for _ in 0..NUM_THREADS {
+        let (data, tx) = (data.clone(), tx.clone());
+        thread::spawn(move || {
+            loop {
+                let path: Option<String> = {
+                    let mut data = data.lock().unwrap();
+                    data.pop()
+                };
+                let path = path.unwrap();
+                if let Ok(mut file) = fs::File::open(&path) {
+                    let hash = hash_file::<Md5, _>(&mut file);
+                    let mut hash_str = String::with_capacity(32);
+                    for b in hash {
+                        hash_str.push_str(&format!("{:02x}", b));
+                    }
+                    tx.send((path, hash_str)).unwrap();
+                }
+            }
+        });
+    }
+    rx.recv().into_iter().collect::<FileMap>()
 }
 
 #[pymodule]

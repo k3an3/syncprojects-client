@@ -107,7 +107,10 @@ class S3SyncBackend(SyncBackend):
         path = join(appdata['source'], path)
         self.logger.debug(f"Generating local manifest from {path}")
         start = time.perf_counter()
-        results = walk_dir(path)
+        if fast_walk_dir:
+            results = fast_walk_dir(path)
+        else:
+            results = walk_dir(path)
         duration = time.perf_counter() - start
         self.logger.debug(f"Got {len(results)} files from local manifest; {round(duration, 4)} seconds")
 
@@ -252,8 +255,6 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
 
 
 def walk_dir(root: str, base: str = "", executor: ThreadPoolExecutor = None) -> Dict[str, str]:
-    if fast_walk_dir:
-        return fast_walk_dir(root)
     top = False
     if not executor:
         if not isdir(root):
