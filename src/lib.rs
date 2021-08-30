@@ -5,6 +5,7 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
+use std::time;
 
 use md5::{Digest, Md5};
 use md5::digest::Output;
@@ -63,33 +64,56 @@ pub fn get_difference(src: FileMap, dst: FileMap) -> Vec<String> {
 }
 
 #[pyfunction]
-pub fn walk_dir(path: String) -> FileMap {
-    let dir = Path::new(&path);
+pub fn walk_dir(base_path: String) -> FileMap {
+    let dir = Path::new(&base_path);
     let mut files = Vec::new();
+    let files_len = files.len();
     _walk_dir(&dir, &mut files).unwrap();
     let data = Arc::new(Mutex::new(files));
     let (tx, rx) = channel();
     for _ in 0..NUM_THREADS {
-        let (data, tx) = (data.clone(), tx.clone());
+        let (data, tx, base_path) = (data.clone(), tx.clone(), base_path.clone());
         thread::spawn(move || {
             loop {
-                let path: Option<String> = {
+                let path = {
                     let mut data = data.lock().unwrap();
                     data.pop()
                 };
-                let path = path.unwrap();
-                if let Ok(mut file) = fs::File::open(&path) {
-                    let hash = hash_file::<Md5, _>(&mut file);
-                    let mut hash_str = String::with_capacity(32);
-                    for b in hash {
-                        hash_str.push_str(&format!("{:02x}", b));
+                match path {
+                    Some(path) => {
+                        if let Ok(mut file) = fs::File::open(&path) {
+                            let hash = hash_file::<Md5, _>(&mut file);
+                            let mut hash_str = String::with_capacity(32);
+                            for b in hash {
+                                hash_str.push_str(&format!("{:02x}", b));
+                            }
+                            let path_dst = path.strip_prefix(&base_path).unwrap();
+                            let path_dst = path_dst.strip_prefix("/").unwrap();
+                            tx.send(Some((path_dst.to_string(), hash_str))).unwrap();
+                        }
+                    },
+                    None => {
+                        tx.send(None).unwrap();
+                        break;
                     }
-                    tx.send((path, hash_str)).unwrap();
                 }
             }
         });
+        let ten_millis = time::Duration::from_millis(10);
+        thread::sleep(ten_millis); // hack to let stack populate
     }
-    rx.recv().into_iter().collect::<FileMap>()
+    let mut map = FileMap::with_capacity(files_len);
+    let mut done = 0;
+    while done < NUM_THREADS {
+        match rx.recv() {
+            Ok(Some((k, v))) => {
+                map.insert(k, v);
+                ()
+            },
+            _ => done += 1
+        }
+    }
+    map
 }
 
 #[pymodule]
@@ -101,7 +125,7 @@ fn syncprojects_fast(_py: Python, m: &PyModule) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::get_difference;
+    use crate::{get_difference, walk_dir};
 
     #[test]
     fn test_diff() {
@@ -109,5 +133,14 @@ mod tests {
         let new = [("test1".to_string(), "asdf".to_string()), ("test2".to_string(), "faslkjlk4".to_string()), ("test3".to_string(), "alkwjelj".to_string()), ("test4".to_string(), "asldfasdf".to_string())].iter().cloned().collect();
         let res = get_difference(new, old);
         assert_eq!(2, res.len());
+    }
+
+    #[test]
+    fn test_walk() {
+        let map = walk_dir("/home/keane/Documents/Divided".to_string());
+        for (k, v) in &map {
+            println!("{}: {}", k, v);
+        }
+        assert_eq!(1368, map.len());
     }
 }

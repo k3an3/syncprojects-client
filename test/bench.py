@@ -23,7 +23,11 @@ def do_bench(func, *args, **kwargs):
 print("Doing Python")
 t = do_bench(walk_dir, TARGET_DIR)
 print("Did Python in", t)
+py_result = walk_dir(TARGET_DIR)
 
 print("Doing Rust")
 t = do_bench(fast_walk_dir, TARGET_DIR)
 print("Did Rust in", t)
+rust_result = fast_walk_dir(TARGET_DIR)
+
+assert (py_result == rust_result)
