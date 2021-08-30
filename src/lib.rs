@@ -88,7 +88,10 @@ pub fn walk_dir(base_path: String) -> FileMap {
                                 hash_str.push_str(&format!("{:02x}", b));
                             }
                             let path_dst = path.strip_prefix(&base_path).unwrap();
-                            let path_dst = path_dst.strip_prefix("/").unwrap();
+                            let path_dst = path_dst.strip_prefix("/").unwrap_or_else(|| {
+                                // Windows compat
+                                path_dst.strip_prefix("\\").unwrap()
+                            });
                             tx.send(Some((path_dst.to_string(), hash_str))).unwrap();
                         }
                     },

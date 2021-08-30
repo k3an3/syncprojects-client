@@ -22,7 +22,6 @@ logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
 
 try:
     from syncprojects_fast import walk_dir as fast_walk_dir
-    from syncprojects_fast import get_difference as fast_get_difference
 except ImportError:
     logger.info("Using native modules.")
     fast_walk_dir = None
