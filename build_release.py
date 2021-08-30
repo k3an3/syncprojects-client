@@ -21,6 +21,8 @@ PLATFORM_BUILD_COMMAND = {
     'Darwin': 'pyinstaller -y --osx-bundle-identifier com.syncprojects.app syncprojects.spec',
 }
 
+RUST_PLATFORMS = {"Windows"}
+
 system = platform.system()
 ICON = 'res/benny.ico'
 
@@ -67,6 +69,10 @@ try:
             print("Building version", formatted_version)
             os.makedirs('release', exist_ok=True)
             build_cmd = {}
+            # Do rust extension build, if applicable
+            if system in RUST_PLATFORMS:
+                check_output('cargo build --release')
+                shutil.copy('target/release/syncprojects_fast.dll', join('syncprojects_fast', 'syncprojects_fast.pyd'))
             # Do application build
             check_output(shlex.split(PLATFORM_BUILD_COMMAND[system]))
         try:

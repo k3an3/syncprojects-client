@@ -1,6 +1,6 @@
 import platform
+
 from setuptools import find_packages
-from setuptools_rust import RustExtension
 
 from syncprojects.syncprojects_app import __version__ as version
 
@@ -76,10 +76,8 @@ setup(
         },
     },
     install_requires=requirements,
-    rust_extensions=[RustExtension("syncprojects_fast.syncprojects_fast")],
     executables=gen_executables(),
     app=APP,
     data_files=DATA_FILES,
     setup_requires=SETUP_REQ,
-    zip_safe=False,
 )
