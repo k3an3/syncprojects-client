@@ -1,9 +1,13 @@
+from typing import Dict, List
+
 import time
 
 from syncprojects.sync.backends.aws.s3 import walk_dir
 from syncprojects.system import is_windows, is_linux
 # noinspection PyUnresolvedReferences
 from syncprojects_fast import walk_dir as fast_walk_dir
+# noinspection PyUnresolvedReferences
+from syncprojects_fast import get_difference as fast_get_difference
 
 COUNT = 10
 
@@ -20,6 +24,14 @@ def do_bench(func, *args, **kwargs):
     return (time.perf_counter() - start) / COUNT
 
 
+def get_difference(src: Dict, dst: Dict) -> List:
+    results = []
+    for key, val in src.items():
+        if key not in dst or val != dst[key]:
+            results.append(key)
+    return results
+
+
 print("Doing Python")
 t = do_bench(walk_dir, TARGET_DIR)
 print("Did Python in", t)
@@ -31,3 +43,13 @@ print("Did Rust in", t)
 rust_result = fast_walk_dir(TARGET_DIR)
 
 assert (py_result == rust_result)
+
+print("Python diff")
+t = do_bench(get_difference, py_result, rust_result)
+print("Python diff in", t)
+
+print("Rust diff")
+t = do_bench(fast_get_difference, py_result, rust_result)
+print("Rust diff in", t)
+r = fast_get_difference(py_result, rust_result)
+assert (not r)
