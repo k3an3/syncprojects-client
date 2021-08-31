@@ -71,6 +71,7 @@ try:
             build_cmd = {}
             # Do rust extension build, if applicable
             if system in RUST_PLATFORMS:
+                # TODO: is windows only
                 check_output('cargo build --release')
                 shutil.copy('target/release/syncprojects_fast.dll', join('syncprojects_fast', 'syncprojects_fast.pyd'))
             # Do application build

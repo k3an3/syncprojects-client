@@ -22,6 +22,7 @@ logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
 
 try:
     from syncprojects_fast import walk_dir as fast_walk_dir
+    fast_get_difference = None
 except ImportError:
     logger.info("Using native modules.")
     fast_walk_dir = None
@@ -195,8 +196,8 @@ class S3SyncBackend(SyncBackend):
                     self.logger.info(f"Updated {len(completed)} files in {round(duration, 4)} seconds.")
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
-                    self.logger.error(f"Error syncing {song}: {e}.")
-                    MessageBoxUI.error(f'Error syncing {song}; please try again or contact support if the error '
+                    self.logger.error("Error syncing %s: %s.", song_name, e)
+                    MessageBoxUI.error(f'Error syncing {song_name}; please try again or contact support if the error '
                                        f'persists.')
                     if DEBUG:
                         raise e
