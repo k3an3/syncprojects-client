@@ -134,7 +134,8 @@ class SyncAPI:
         if 'project' in obj:
             # obj is song
             json['song'] = obj['id']
-            return self._request(f"projects/{obj['project']}/lock/", method='PUT' if lock else 'DELETE', json=json)
+            return self._request(f"projects/{obj['project']}/lock/", method='PUT' if lock else 'DELETE', json=json,
+                                 no_fail=True)
         elif 'songs' in obj:
             # obj is project
             return self._request(f"projects/{obj['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
