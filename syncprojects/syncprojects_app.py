@@ -137,7 +137,7 @@ def main():
             watcher.start()
 
         sync = SyncManager(api_client, backend, context=context, args=args)
-        tray_icon.notify("Syncprojects has started")
+        tray.tray_icon.notify("Syncprojects has started")
 
         if parsed_args.tui:
             sync.run_tui()
