@@ -98,6 +98,10 @@ def set_up_tray() -> None:
         tray_icon = TrayIcon()
 
 
+def notify(msg: str) -> None:
+    tray_icon.notify(msg)
+
+
 if __name__ == "__main__":
     # For standalone mode
     t = TrayIcon()
