@@ -50,6 +50,7 @@ parser = ArgumentParser()
 parser.add_argument('-u', '--upload-only', action='store_true')
 parser.add_argument('-n', '--no-upload', action='store_true')
 parser.add_argument('-t', '--tag', action='store_true')
+parser.add_argument('-o', '--no-notarize', action='store_true')
 parser.add_argument('-b', '--no-build', action='store_true')
 parser.add_argument('--url', default=URL)
 args = parser.parse_args()
@@ -95,7 +96,8 @@ try:
             run(shlex.split(
                 "codesign -s \"Developer ID Application: Keane O'Kelley\" -v --deep --timestamp --entitlements entitlements.plist -o runtime dist/syncprojects.app"))
             # run(['codesign', '--deep', '-s', "test@example.com", 'dist/syncprojects.app'])
-            check_output(['./package.sh'])
+            if not args.no_notarize:
+                check_output(['./package.sh'])
         if system in ("Windows", "Linux"):
             shutil.copy(release, join('build', 'release.zip'))
             print("Running packager")

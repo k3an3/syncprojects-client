@@ -3,7 +3,7 @@ import logging
 from flask import Flask, request, cli
 
 from syncprojects.config import DEBUG, SYNCPROJECTS_URL
-from syncprojects.server.utils import queue_put, queue_get, response_started, verify_data
+from syncprojects.server.utils import queue_put, queue_get, response_started, verify_frontend_data
 
 app = Flask(__name__)
 logger = logging.getLogger('syncprojects.server')
@@ -19,7 +19,7 @@ authed = False
 
 
 @app.route('/api/auth', methods=['GET', 'POST'])
-@verify_data
+@verify_frontend_data
 def auth(data):
     task = queue_put('auth', data)
     global authed
@@ -42,7 +42,7 @@ def update_client():
 
 
 @app.route('/api/sync', methods=['POST'])
-@verify_data
+@verify_frontend_data
 def sync(data):
     if 'projects' in data:
         task = queue_put('sync', {'projects': data['projects']})
@@ -82,7 +82,7 @@ def settings():
 
 
 @app.route('/api/workon', methods=['POST'])
-@verify_data
+@verify_frontend_data
 def work_on(data):
     if 'song' in data:
         return response_started(queue_put('workon', data))
@@ -90,7 +90,7 @@ def work_on(data):
 
 
 @app.route('/api/workdone', methods=['POST'])
-@verify_data
+@verify_frontend_data
 def work_done(data):
     if 'song' in data:
         return response_started(queue_put('workdone', data))
@@ -98,7 +98,7 @@ def work_done(data):
 
 
 @app.route('/api/tasks', methods=['POST'])
-@verify_data
+@verify_frontend_data
 def get_tasks(_):
     return response_started(queue_put('tasks'))
 

@@ -33,7 +33,7 @@ def response_started(task_id: str) -> Dict:
     return {'result': 'started', 'task_id': task_id}
 
 
-def verify_data(f):
+def verify_frontend_data(f):
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
         try:

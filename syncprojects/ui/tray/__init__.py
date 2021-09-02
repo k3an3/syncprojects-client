@@ -88,7 +88,15 @@ class TrayIcon(Process):
         self.icon.run(self.setup)
 
 
-tray_icon = TrayIcon()
+tray_icon = None
+
+
+def set_up_tray() -> None:
+    # Prevent multiprocessing from initializing this more than once
+    global tray_icon
+    if not tray_icon:
+        tray_icon = TrayIcon()
+
 
 if __name__ == "__main__":
     # For standalone mode

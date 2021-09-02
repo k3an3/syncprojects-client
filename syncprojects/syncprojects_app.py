@@ -1,13 +1,14 @@
+import logging
+import tempfile
 import traceback
+from logging.handlers import RotatingFileHandler
 from multiprocessing import Queue, Process
+from multiprocessing.spawn import freeze_support
 from os.path import isdir, join
 
-import logging
 import sys
-import tempfile
-from logging.handlers import RotatingFileHandler
-from multiprocessing.spawn import freeze_support
 
+import syncprojects.ui.tray as tray
 from syncprojects import config as config
 from syncprojects.api import SyncAPI, login_prompt
 from syncprojects.config import ACCESS_ID, SECRET_KEY, DEBUG, BUCKET_NAME, AUDIO_BUCKET_NAME, SENTRY_URL
@@ -21,12 +22,11 @@ from syncprojects.sync.backends.noop import RandomNoOpSyncBackend
 from syncprojects.system import open_app_in_browser, test_mode
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.ui.settings_menu import SettingsUI
-from syncprojects.ui.tray import tray_icon
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, check_already_running, \
     commit_settings, init_sentry
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-__version__ = '2.4.16'
+__version__ = '2.4.17'
 
 CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """
@@ -72,7 +72,8 @@ def main():
 
     # Add icon to tray
     # tray_icon = TrayIcon()
-    tray_icon.start()
+    tray.set_up_tray()
+    tray.tray_icon.start()
 
     # Start local Flask server
     logger.debug("Starting web API server process...")
