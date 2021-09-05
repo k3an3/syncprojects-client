@@ -73,6 +73,10 @@ try:
             if system in RUST_PLATFORMS:
                 # TODO: is windows only
                 check_output('cargo build --release')
+                try:
+                    os.unlink('syncprojects_fast/syncprojects_fast.pyd')
+                except FileNotFoundError:
+                    pass
                 shutil.copy('target/release/syncprojects_fast.dll', join('syncprojects_fast', 'syncprojects_fast.pyd'))
             # Do application build
             check_output(shlex.split(PLATFORM_BUILD_COMMAND[system]))
