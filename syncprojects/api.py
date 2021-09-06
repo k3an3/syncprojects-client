@@ -134,19 +134,18 @@ class SyncAPI:
         if 'project' in obj:
             # obj is song
             json['song'] = obj['id']
-            return self._request(f"projects/{obj['project']}/lock/", method='PUT' if lock else 'DELETE', json=json,
-                                 no_fail=True)
+            return self._request(f"projects/{obj['project']}/lock/", method='PUT' if lock else 'DELETE', json=json)
         elif 'songs' in obj:
             # obj is project
             return self._request(f"projects/{obj['id']}/lock/", method='PUT' if lock else 'DELETE', json=json)
         else:
             raise NotImplementedError()
 
-    def lock(self, project: dict, force: bool = False, reason: str = "sync", until: float = None):
-        return self._lock_request(project, True, force, reason, until)
+    def lock(self, obj: dict, force: bool = False, reason: str = "sync", until: float = None):
+        return self._lock_request(obj, True, force, reason, until)
 
-    def unlock(self, project: dict, force: bool = False):
-        return self._lock_request(project, False, force)
+    def unlock(self, obj: dict, force: bool = False):
+        return self._lock_request(obj, False, force)
 
     def login(self, username: str, password: str):
         self.logger.debug("Sending creds for login")
