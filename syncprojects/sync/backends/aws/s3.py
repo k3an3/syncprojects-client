@@ -1,10 +1,10 @@
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
-from os.path import join, isdir
-
 import logging
 import os
-import time
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
+from os.path import join, isdir
 from typing import Dict, List, Callable
+
+import time
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
@@ -22,7 +22,6 @@ logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
 
 
 def handle_conflict(song_name: str) -> Verdict:
-    # TODO: legacy prompt
     logger.debug("Prompting user for conflict resolution")
     result = MessageBoxUI.yesnocancel(
         f"{song_name} has changed both locally and remotely! Which one do you "
@@ -39,6 +38,19 @@ def handle_conflict(song_name: str) -> Verdict:
         return Verdict.LOCAL
 
 
+def handle_archive(song_name: str) -> Verdict:
+    logger.debug("Trying to update archived song %s, prompting user", song_name)
+    result = MessageBoxUI.yesnocancel(
+        f"\"{song_name}\" is marked as archived, which means changes cannot be sent to the server. Would you like to "
+        f"overwrite your local files with the server's files? All changes you have made may be irreversibly lost!",
+        "Sync Conflict")
+    logger.debug(f"User pressed {result}")
+    if result:
+        return Verdict.REMOTE
+    else:
+        return None
+
+
 def diff_paths(src: Dict, dst: Dict) -> List:
     return src.keys() - dst.keys()
 
@@ -51,6 +63,7 @@ class S3SyncBackend(SyncBackend):
         self.bucket = bucket
         self.logger.debug(f"Using bucket {bucket}")
 
+    # This seems pretty generic; maybe it could be promoted?
     def get_verdict(self, song_data: SongData, song: Dict) -> Verdict:
         """
         Determine whether sync should copy local to remote, remote to local, or no action.
@@ -150,6 +163,9 @@ class S3SyncBackend(SyncBackend):
                     if not local_manifest:
                         logger.warning("Remote manifest empty; assuming remote")
                         verdict = Verdict.REMOTE
+
+                    if verdict == Verdict.LOCAL and song['archived']:
+                        verdict = handle_archive(song_name)
 
                     if verdict == Verdict.CONFLICT:
                         verdict = handle_conflict(song_name)
