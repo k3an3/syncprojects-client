@@ -28,7 +28,6 @@ except ImportError:
     fast_walk_dir = None
     fast_get_difference = None
 else:
-    logger.critical("%d", logger.level)
     logger.info("Using Rust extensions.")
 
 
@@ -125,7 +124,8 @@ class S3SyncBackend(SyncBackend):
         else:
             results = walk_dir(path)
         duration = time.perf_counter() - start
-        self.logger.debug(f"Got {len(results)} files from local manifest; {round(duration, 4)} seconds")
+        self.logger.debug(
+            f"Got {len(results)} files from local manifest; {round(duration, 4)} seconds; {fast_walk_dir=}")
 
         return results
 
