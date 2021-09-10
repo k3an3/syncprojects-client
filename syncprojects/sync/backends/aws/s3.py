@@ -14,11 +14,22 @@ from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import hash_file, get_song_dir, report_error
+from syncprojects.utils import get_song_dir, report_error, hash_file
 
 AWS_REGION = 'us-east-1'
 
 logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
+
+try:
+    from syncprojects_fast import walk_dir as fast_walk_dir
+    fast_get_difference = None
+except ImportError:
+    logger.info("Using native modules.")
+    fast_walk_dir = None
+    fast_get_difference = None
+else:
+    logger.critical("%d", logger.level)
+    logger.info("Using Rust extensions.")
 
 
 def handle_conflict(song_name: str) -> Verdict:
@@ -109,9 +120,13 @@ class S3SyncBackend(SyncBackend):
         path = join(appdata['source'], path)
         self.logger.debug(f"Generating local manifest from {path}")
         start = time.perf_counter()
-        results = walk_dir(path)
+        if fast_walk_dir:
+            results = fast_walk_dir(path)
+        else:
+            results = walk_dir(path)
         duration = time.perf_counter() - start
-        self.logger.debug(f"Got {len(results)} files from local manifest; {duration=}")
+        self.logger.debug(f"Got {len(results)} files from local manifest; {round(duration, 4)} seconds")
+
         return results
 
     def handle_upload(self, song: Dict, key: str, remote_path: str):
@@ -197,8 +212,8 @@ class S3SyncBackend(SyncBackend):
                     self.logger.info(f"Updated {len(completed)} files in {round(duration, 4)} seconds.")
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
-                    self.logger.error(f"Error syncing {song}: {e}.")
-                    MessageBoxUI.error(f'Error syncing {song}; please try again or contact support if the error '
+                    self.logger.error("Error syncing %s: %s.", song_name, e)
+                    MessageBoxUI.error(f'Error syncing {song_name}; please try again or contact support if the error '
                                        f'persists.')
                     if DEBUG:
                         raise e
@@ -230,17 +245,25 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
     if os.getenv('THREADS_OFF') == '1':
         logger.debug("Not using threading!")
         results = []
-        for key, tag in src.items():
-            if key not in dst or tag != dst[key]:
+        if fast_get_difference:
+            for key in fast_get_difference(src, dst):
                 results.append(action(song, key, remote_path))
+        else:
+            for key, tag in src.items():
+                if key not in dst or tag != dst[key]:
+                    results.append(action(song, key, remote_path))
         return results
     else:
         logger.debug("Using %d threads", config.MAX_WORKERS)
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = []
-            for key, tag in src.items():
-                if key not in dst or tag != dst[key]:
+            if fast_get_difference:
+                for key in fast_get_difference(src, dst):
                     futures.append(executor.submit(action, song, key, remote_path))
+            else:
+                for key, tag in src.items():
+                    if key not in dst or tag != dst[key]:
+                        futures.append(executor.submit(action, song, key, remote_path))
             done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
             if not_done:
                 logger.error(f"{len(not_done)} actions failed for some reason!")
