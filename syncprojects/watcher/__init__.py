@@ -63,10 +63,15 @@ class AudioSyncHandler(FileSystemEventHandler):
         try:
             if getsize(path) > 0:
                 if (datetime.now() - self.last_upload.get(path, datetime.min)).total_seconds() > WAIT_SECONDS:
-                    if self.file_changed(path):
-                        result = True
-                    else:
-                        logger.debug("File hasn't changed since last upload")
+                    # noinspection PyBroadException
+                    try:
+                        if self.file_changed(path):
+                            result = True
+                        else:
+                            logger.debug("File hasn't changed since last upload")
+                    except Exception as e:
+                        logger.error("Failed to check file!")
+                        report_error(e)
                 else:
                     logger.debug("File %s last uploaded too recently", path)
             else:
