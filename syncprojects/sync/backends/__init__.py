@@ -8,6 +8,8 @@ from glob import glob
 from os.path import join, isdir, isfile
 from typing import Dict, List, Union
 
+import time
+
 from syncprojects import config
 from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
@@ -74,6 +76,7 @@ class SyncBackend(ABC):
 
     def get_local_changes(self, songs: List[Dict]):
         self.logger.info("Checking local files for changes...")
+        start = time.perf_counter()
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = {
                 executor.submit(self.hash_project_root_directory,
@@ -88,3 +91,4 @@ class SyncBackend(ABC):
                     self.logger.debug(f"Didn't get hash for {song['name']}")
                     src_hash = ""
                 self.local_hash_cache[f"{song['project']}:{song['id']}"] = src_hash
+        self.logger.debug("Completed in %ds", round(time.perf_counter() - start, 2))

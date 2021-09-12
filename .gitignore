@@ -69,3 +69,4 @@ release/
 sync.log*
 .dmypy.json
 .DS_Store
+Cargo.lock
