@@ -1,6 +1,7 @@
 import logging
 from abc import abstractmethod
 from datetime import datetime
+from os import walk
 from os.path import join, dirname, basename, getsize
 from threading import Thread
 
@@ -37,6 +38,16 @@ class AudioSyncHandler(FileSystemEventHandler):
         self.last_upload = {}
         self.store = get_audiodata()
         self.api_client = None
+        self.initial_sync()
+
+    def initial_sync(self):
+        for dirpath, dirs, _ in walk(self.sync_dir):
+            for d in dirs:
+                for file_dirpath, _, files in walk(join(dirpath, d)):
+                    for file in files:
+                        path = join(file_dirpath, file)
+                        if self.file_changed(path):
+                            self._handle_push(path)
 
     def get_known_hash(self, path: str) -> str:
         return self.store.get(path)
@@ -83,20 +94,20 @@ class AudioSyncHandler(FileSystemEventHandler):
     def on_deleted(self, event: FileSystemEvent):
         pass
 
-    def _handle_push(self, event: FileSystemEvent):
-        wait_for_write(event.src_path)
-        self.push_file(event.src_path)
-        self.last_upload[event.src_path] = datetime.now()
-        self.update_known_hash(event.src_path)
-        self.notify(event.src_path)
+    def _handle_push(self, path: str):
+        wait_for_write(path)
+        self.push_file(path)
+        self.last_upload[path] = datetime.now()
+        self.update_known_hash(path)
+        self.notify(path)
 
     def on_created(self, event: FileSystemEvent):
         if not event.is_directory and self.should_push(event.src_path):
-            self._handle_push(event)
+            self._handle_push(event.src_path)
 
     def on_modified(self, event: FileSystemEvent):
         if not event.is_directory and self.should_push(event.src_path):
-            self._handle_push(event)
+            self._handle_push(event.src_path)
 
     def on_closed(self, event):
         pass
