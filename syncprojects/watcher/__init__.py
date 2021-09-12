@@ -38,7 +38,6 @@ class AudioSyncHandler(FileSystemEventHandler):
         self.last_upload = {}
         self.store = get_audiodata()
         self.api_client = None
-        self.initial_sync()
 
     def initial_sync(self):
         for dirpath, dirs, _ in walk(self.sync_dir):
@@ -46,14 +45,17 @@ class AudioSyncHandler(FileSystemEventHandler):
                 for file_dirpath, _, files in walk(join(dirpath, d)):
                     for file in files:
                         path = join(file_dirpath, file)
-                        if self.file_changed(path):
+                        if self.should_push(path):
                             self._handle_push(path)
 
     def get_known_hash(self, path: str) -> str:
         return self.store.get(path)
 
     def file_changed(self, path: str) -> bool:
-        return hash_file(path) != self.get_known_hash(path)
+        known = self.get_known_hash(path)
+        if not known:
+            logger.debug("New file; %s not seen before")
+        return hash_file(path) != known
 
     def update_known_hash(self, path: str):
         self.store[path] = hash_file(path)
@@ -216,6 +218,7 @@ class Watcher(Thread):
 
     def start_watch(self):
         self.handler.sync_dir = self.sync_dir
+        self.handler.initial_sync()
         self.observer.schedule(self.handler, self.sync_dir, recursive=True)
 
     def stop_watch(self):
