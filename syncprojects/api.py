@@ -121,6 +121,9 @@ class SyncAPI:
     def get_project(self, project_id: int):
         return self._request(f"projects/{project_id}/")
 
+    def get_song(self, song_id: int):
+        return self._request(f"songs/{song_id}/")
+
     def _lock_request(self, obj: dict, lock: bool = False, force: bool = True, reason: str = "",
                       until: datetime.datetime = None):
         json = {}
@@ -204,3 +207,6 @@ class SyncAPI:
 
     def audio_sync(self, project, song):
         return self._request("sync/audio_sync/", "POST", json={'project': project, 'song': song}, no_fail=True)
+
+    def get_checkouts(self) -> List[Dict]:
+        return self._request("sync/checkouts/")['checkouts']

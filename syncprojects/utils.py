@@ -16,14 +16,17 @@ from uuid import uuid4
 
 import requests
 import sys
+import timeago
 from packaging.version import parse
 from time import sleep
 
 import syncprojects.config as config
 from syncprojects.system import open_app_in_browser, process_running, get_datadir, is_mac
 from syncprojects.ui.message import MessageBoxUI
+from syncprojects.ui.tray import notify
 
 logger = logging.getLogger('syncprojects.utils')
+CHECKOUT_REMINDER = 3600 * 8
 
 
 def get_config_path():
@@ -179,22 +182,6 @@ def hash_file(file_path, hash_inst=None, block_size=4096) -> str:
             else:
                 break
     return hash_inst.hexdigest()
-
-
-def api_unblock():
-    logger.info("Requesting firewall exception... ")
-    try:
-        from syncprojects.storage import appdata
-        r = requests.post(appdata['firewall_api_url'] + "firewall/unblock",
-                          headers={'X-Auth-Token': appdata['firewall_api_key']},
-                          data={'device': appdata['firewall_name']})
-    except Exception as e:
-        logger.error(fmt_error("api_unblock", e))
-        logger.warning("failed! Hopefully the sync still works...")
-    if r.status_code == 204:
-        logger.info("success!")
-    else:
-        logger.error(f"error code {r.status_code}")
 
 
 def validate_changelog(changelog_file):
@@ -420,3 +407,17 @@ def init_sentry(url: str, release: str) -> None:
         sentry_sdk.init(url, traces_sample_rate=1.0, release='@'.join(('syncprojects', release)))
     except ImportError:
         logger.warning("Sentry package not available.")
+
+
+def handle_checkouts(api_client):
+    content_types = {
+        1: api_client.get_project,
+        2: api_client.get_song
+    }
+    for checkout in api_client.get_checkouts():
+        obj = content_types[checkout['content_type']](checkout['object_id'])
+        if (duration := datetime.datetime.now() - datetime.datetime.fromtimestamp(
+                float(checkout['start_time'])).total_seconds()) > CHECKOUT_REMINDER:
+            logger.info("Reminding, %s checked out for %d", duration)
+            duration = timeago.format(duration)
+            notify(f"Reminder: \"{obj['name']}\" has been checked out since {duration}")

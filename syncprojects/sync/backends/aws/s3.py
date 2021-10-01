@@ -176,7 +176,7 @@ class S3SyncBackend(SyncBackend):
                     local_manifest = self.get_local_manifest(get_song_dir(song))
 
                     if not local_manifest:
-                        logger.warning("Remote manifest empty; assuming remote")
+                        logger.warning("Local manifest empty; assuming remote")
                         verdict = Verdict.REMOTE
 
                     if verdict == Verdict.LOCAL and song['archived']:
