@@ -23,7 +23,7 @@ from syncprojects.system import open_app_in_browser, test_mode
 from syncprojects.ui.message import MessageBoxUI
 from syncprojects.ui.settings_menu import SettingsUI
 from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update, UpdateThread, check_already_running, \
-    commit_settings, init_sentry
+    commit_settings, init_sentry, handle_checkouts
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
 __version__ = '2.4.21'
@@ -138,6 +138,8 @@ def main():
 
         sync = SyncManager(api_client, backend, context=context, args=args)
         tray.tray_icon.notify("Syncprojects has started")
+
+        handle_checkouts(api_client)
 
         if parsed_args.tui:
             sync.run_tui()

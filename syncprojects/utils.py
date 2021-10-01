@@ -23,7 +23,6 @@ from time import sleep
 import syncprojects.config as config
 from syncprojects.system import open_app_in_browser, process_running, get_datadir, is_mac
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.ui.tray import notify
 
 logger = logging.getLogger('syncprojects.utils')
 CHECKOUT_REMINDER = 3600 * 8
@@ -410,14 +409,16 @@ def init_sentry(url: str, release: str) -> None:
 
 
 def handle_checkouts(api_client):
+    from syncprojects.ui.tray import notify
+    logger.debug("Checking for existing checkouts")
     content_types = {
         1: api_client.get_project,
         2: api_client.get_song
     }
     for checkout in api_client.get_checkouts():
         obj = content_types[checkout['content_type']](checkout['object_id'])
-        if (duration := datetime.datetime.now() - datetime.datetime.fromtimestamp(
-                float(checkout['start_time'])).total_seconds()) > CHECKOUT_REMINDER:
-            logger.info("Reminding, %s checked out for %d", duration)
+        if ((duration := datetime.datetime.now() - datetime.datetime.fromtimestamp(
+                float(checkout['start_time']))).total_seconds()) > CHECKOUT_REMINDER:
+            logger.info("Reminding, %s checked out for %d", obj['name'], duration.total_seconds())
             duration = timeago.format(duration)
             notify(f"Reminder: \"{obj['name']}\" has been checked out since {duration}")
