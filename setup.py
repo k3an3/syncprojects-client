@@ -12,7 +12,7 @@ except ImportError:
     print("Not using cx_Freeze.")
     from setuptools import setup
 
-packages = {'jinja2', 'sentry_sdk', 'html', 'boto3', 'pystray'}
+packages = {'timeago', 'jinja2', 'sentry_sdk', 'html', 'boto3', 'pystray'}
 base = None
 
 APP = ['syncprojects/syncprojects_app.py']
