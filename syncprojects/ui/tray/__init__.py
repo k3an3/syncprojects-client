@@ -1,4 +1,5 @@
 import logging
+import subprocess
 from multiprocessing import Process, Queue
 from os.path import isfile
 from typing import Dict
@@ -98,8 +99,21 @@ def set_up_tray() -> None:
         tray_icon = TrayIcon()
 
 
+MAC_NOTIFY_COMMAND = '''on run argv
+  display notification (item 2 of argv) with title (item 1 of argv)
+end run
+'''
+
+
+def mac_notify(msg: str) -> None:
+    subprocess.run(['osascript', '-e', MAC_NOTIFY_COMMAND, 'Syncprojects', msg])
+
+
 def notify(msg: str) -> None:
-    tray_icon.notify(msg)
+    if is_mac():
+        mac_notify(msg)
+    else:
+        tray_icon.notify(msg)
 
 
 if __name__ == "__main__":
