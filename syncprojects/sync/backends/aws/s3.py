@@ -1,6 +1,6 @@
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION, as_completed, Future
+from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from os.path import join, isdir
 from typing import Dict, List, Callable
 
@@ -14,7 +14,7 @@ from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
 from syncprojects.ui.message import MessageBoxUI
-from syncprojects.utils import get_song_dir, report_error, hash_file
+from syncprojects.utils import get_song_dir, report_error, hash_file, request_local_api
 
 AWS_REGION = 'us-east-1'
 
@@ -209,7 +209,7 @@ class S3SyncBackend(SyncBackend):
                     start_time = time.perf_counter()
                     completed = do_action(action, song, src, dst, remote_path)
                     duration = time.perf_counter() - start_time
-                    self.logger.info(f"Updated {len(completed)} files in {round(duration, 4)} seconds.")
+                    self.logger.info(f"Updated {completed} files in {round(duration, 4)} seconds.")
                 except Exception as e:
                     results['songs'].append({'song': song_name, 'result': 'error', 'msg': str(e)})
                     self.logger.error("Error syncing %s: %s.", song_name, e)
@@ -264,9 +264,20 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
                 for key, tag in src.items():
                     if key not in dst or tag != dst[key]:
                         futures.append(executor.submit(action, song, key, remote_path))
-            done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
-            if not_done:
-                logger.error(f"{len(not_done)} actions failed for some reason!")
+            done = 0
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(f"{action=} failed with exception: {e}")
+                else:
+                    done += 1
+            if done != len(futures):
+                # noinspection PyBroadException
+                try:
+                    request_local_api('logs')
+                except Exception:
+                    pass
             return done
 
 
