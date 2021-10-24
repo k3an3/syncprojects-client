@@ -22,6 +22,7 @@ logger = logging.getLogger('syncprojects.sync.backends.aws.s3')
 
 try:
     from syncprojects_fast import walk_dir as fast_walk_dir
+    logger.info("Using Rust modules")
     fast_get_difference = None
 except ImportError:
     logger.info("Using native modules.")
@@ -115,9 +116,13 @@ class S3SyncBackend(SyncBackend):
                                                       ContinuationToken=continuation_token)
             else:
                 results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=path)
-            logger.debug("Got %d results", len(results['Contents']))
-            manifest.update({obj['Key'].split(path)[1]: obj['ETag'][1:-1] for obj in results['Contents']})
-            if not results['isTruncated']:
+            if 'Contents' in results:
+                logger.debug("Got %d results", len(results['Contents']))
+                manifest.update({obj['Key'].split(path)[1]: obj['ETag'][1:-1] for obj in results['Contents']})
+            else:
+                logger.warning("No results retrieved")
+                break
+            if not results['IsTruncated']:
                 break
             else:
                 continuation_token = results['NextContinuationToken']
@@ -185,8 +190,12 @@ class S3SyncBackend(SyncBackend):
                     local_manifest = self.get_local_manifest(get_song_dir(song))
 
                     if not local_manifest:
-                        logger.warning("Local manifest empty; assuming remote")
-                        verdict = Verdict.REMOTE
+                        if not remote_manifest:
+                            logger.info("Both manifests empty; doing nothing")
+                            verdict = None
+                        else:
+                            logger.warning("Local manifest empty; assuming remote")
+                            verdict = Verdict.REMOTE
 
                     if verdict == Verdict.LOCAL and song['archived']:
                         verdict = handle_archive(song_name)
@@ -303,8 +312,8 @@ def walk_dir(root: str, base: str = "", executor: ThreadPoolExecutor = None) -> 
         if isdir(path):
             futures.update(walk_dir(path, join(base, entry.name), executor))
             continue
-        if not entry.name.endswith('.peak'):
-            futures[executor.submit(hash_file, path)] = join(base, entry.name)
+        if not entry.name.endswith('.peak') and '\\' not in entry.name:
+            futures[executor.submit(hash_file, path)] = join(base, entry.name).replace("\\", "/")
     if top:
         manifest = {}
         for future in as_completed(futures):
