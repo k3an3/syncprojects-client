@@ -81,6 +81,9 @@ pub fn walk_dir(base_path: String) -> FileMap {
                 };
                 match path {
                     Some(path) => {
+                        if path.ends_with(".peak") {
+                            continue;
+                        }
                         if let Ok(mut file) = fs::File::open(&path) {
                             let hash = hash_file::<Md5, _>(&mut file);
                             let mut hash_str = String::with_capacity(32);
@@ -92,7 +95,7 @@ pub fn walk_dir(base_path: String) -> FileMap {
                                 // Windows compat
                                 path_dst.strip_prefix("\\").unwrap()
                             });
-                            tx.send(Some((path_dst.to_string(), hash_str))).unwrap();
+                            tx.send(Some((path_dst.to_string().replace("\\", "/"), hash_str))).unwrap();
                         }
                     },
                     None => {

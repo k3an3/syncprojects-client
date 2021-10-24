@@ -106,14 +106,23 @@ class S3SyncBackend(SyncBackend):
             return Verdict.LOCAL
 
     def get_remote_manifest(self, path: str) -> Dict:
+        manifest = {}
         self.logger.debug(f"Generating remote manifest from bucket {self.bucket} {path=}")
-        results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=path)
-        if 'Contents' in results:
-            return {obj['Key'].split(path)[1]: obj['ETag'][1:-1] for obj in results['Contents']}
-            self.logger.debug(f"Got {len(results)} files from remote manifest")
-        else:
-            self.logger.debug(f"No remote manifest")
-            return {}
+        continuation_token = ""
+        while True:
+            if continuation_token:
+                results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=path,
+                                                      ContinuationToken=continuation_token)
+            else:
+                results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=path)
+            logger.debug("Got %d results", len(results['Contents']))
+            manifest.update({obj['Key'].split(path)[1]: obj['ETag'][1:-1] for obj in results['Contents']})
+            if not results['isTruncated']:
+                break
+            else:
+                continuation_token = results['NextContinuationToken']
+                logger.debug("Results truncated, fetching more")
+        return manifest
 
     def get_local_manifest(self, path: str) -> Dict:
         path = join(appdata['source'], path)
@@ -294,7 +303,8 @@ def walk_dir(root: str, base: str = "", executor: ThreadPoolExecutor = None) -> 
         if isdir(path):
             futures.update(walk_dir(path, join(base, entry.name), executor))
             continue
-        futures[executor.submit(hash_file, path)] = join(base, entry.name)
+        if not entry.name.endswith('.peak'):
+            futures[executor.submit(hash_file, path)] = join(base, entry.name)
     if top:
         manifest = {}
         for future in as_completed(futures):
