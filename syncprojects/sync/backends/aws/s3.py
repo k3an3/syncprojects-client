@@ -14,6 +14,7 @@ from syncprojects.sync import SyncBackend
 from syncprojects.sync.backends import Verdict
 from syncprojects.sync.backends.aws.auth import AWSAuth
 from syncprojects.ui.message import MessageBoxUI
+from syncprojects.ui.tray import notify
 from syncprojects.utils import get_song_dir, report_error, hash_file, request_local_api
 
 AWS_REGION = 'us-east-1'
@@ -34,6 +35,7 @@ else:
 
 def handle_conflict(song_name: str) -> Verdict:
     logger.debug("Prompting user for conflict resolution")
+    notify("Sync conflict! See the pop-up to resolve.")
     result = MessageBoxUI.yesnocancel(
         f"{song_name} has changed both locally and remotely! Which one do you "
         f"want to " f"keep? Note that proceeding may cause loss of "
