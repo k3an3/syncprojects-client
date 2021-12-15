@@ -154,11 +154,11 @@ class S3SyncBackend(SyncBackend):
             try:
                 self.client.download_file(self.bucket,
                                           remote_path + key,
-                                          join(appdata['source'], get_song_dir(song), *key.split('\\'))
+                                          join(appdata['source'], get_song_dir(song), *key.split('/'))
                                           )
                 break
             except FileNotFoundError:
-                os.makedirs(join(appdata['source'], get_song_dir(song), *key.split('\\')[:-1]), exist_ok=True)
+                os.makedirs(join(appdata['source'], get_song_dir(song), *key.split('/')[:-1]), exist_ok=True)
                 fail_count += 1
 
     def sync(self, project: Dict, songs: List[Dict], force_verdict: Verdict = None) -> Dict:

@@ -62,7 +62,7 @@ class TrayIcon(Process):
         if self.icon and pystray.Icon.HAS_NOTIFICATION:
             self.icon.notify(message, NOTIFY_APPNAME)
         else:
-            self.logger.debug("No notification support on this platform.")
+            self.logger.debug("No tray notification support on this platform.")
 
     def setup(self, icon):
         icon.visible = True
