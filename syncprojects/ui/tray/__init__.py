@@ -8,7 +8,7 @@ import pystray
 from PIL import Image
 from pystray import MenuItem, Menu
 
-from syncprojects.system import open_app_in_browser, is_mac
+from syncprojects.system import open_app_in_browser, is_mac, is_linux
 from syncprojects.utils import find_data_file, request_local_api
 
 NOTIFY_APPNAME = "Syncprojects"
@@ -62,7 +62,7 @@ class TrayIcon(Process):
         if self.icon and pystray.Icon.HAS_NOTIFICATION:
             self.icon.notify(message, NOTIFY_APPNAME)
         else:
-            self.logger.debug("No notification support on this platform.")
+            self.logger.debug("No tray notification support on this platform.")
 
     def setup(self, icon):
         icon.visible = True
@@ -109,9 +109,23 @@ def mac_notify(msg: str) -> None:
     subprocess.run(['osascript', '-e', MAC_NOTIFY_COMMAND, 'Syncprojects', msg])
 
 
+def linux_notify(msg: str) -> None:
+    try:
+        import dbus
+    except ImportError:
+        return
+    bus_name = "org.freedesktop.Notifications"
+    object_path = "/org/freedesktop/Notifications"
+    notify = dbus.Interface(dbus.SessionBus().get_object(bus_name, object_path), bus_name)
+    icon_file = find_data_file(ICON_FILE)
+    notify.Notify(NOTIFY_APPNAME, 0, icon_file, NOTIFY_APPNAME, msg, [], [], 5)
+
+
 def notify(msg: str) -> None:
     if is_mac():
         mac_notify(msg)
+    elif is_linux():
+        linux_notify(msg)
     else:
         tray_icon.notify(msg)
 
