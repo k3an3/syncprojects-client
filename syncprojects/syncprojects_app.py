@@ -1,12 +1,12 @@
-from multiprocessing import Queue, Process
-from os.path import isdir, join
-
 import logging
-import sys
 import tempfile
 import traceback
 from logging.handlers import RotatingFileHandler
+from multiprocessing import Queue, Process
 from multiprocessing.spawn import freeze_support
+from os.path import isdir, join
+
+import sys
 
 import syncprojects.ui.tray as tray
 from syncprojects import config as config
@@ -98,6 +98,10 @@ def main():
 
     try:
         check_update(api_client)
+
+        if not was_first_start and appdata.get('last_version', '') != __version__:
+            appdata['last_version'] = __version__
+            open_app_in_browser('sync/download/?show_dl=0')
 
         # Start update thread
         update_thread = UpdateThread(api_client)

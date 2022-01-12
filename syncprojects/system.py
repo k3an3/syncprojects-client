@@ -1,12 +1,12 @@
-from os import readlink, symlink
-
 import logging
 import os
 import pathlib
 import platform
-import psutil
 import subprocess
 import webbrowser
+from os import readlink, symlink
+
+import psutil
 
 from syncprojects import config
 
@@ -40,8 +40,8 @@ def get_host_string() -> str:
     return "-".join((get_host_arch(), get_host_platform())).lower()
 
 
-def open_app_in_browser():
-    webbrowser.open(config.SYNCPROJECTS_URL)
+def open_app_in_browser(extra_path: str = ""):
+    webbrowser.open(config.SYNCPROJECTS_URL + extra_path)
 
 
 def test_mode() -> bool:

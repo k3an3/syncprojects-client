@@ -1,10 +1,10 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from os.path import join, isdir
-
 import logging
 import os
-import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from os.path import join, isdir
 from typing import Dict, List, Callable
+
+import time
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
@@ -280,8 +280,9 @@ def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: s
                         logger.error(f"{action=} failed with exception: {e}")
         return len(results)
     else:
-        logger.debug("Using %d threads", config.MAX_WORKERS)
-        with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+        workers = appdata.get('workers', config.MAX_WORKERS)
+        logger.debug("Using %d threads", workers)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = []
             if fast_get_difference:
                 for key in fast_get_difference(src, dst):

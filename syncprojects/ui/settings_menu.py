@@ -1,8 +1,7 @@
+import logging
 import tkinter as tk
 from tkinter.filedialog import askdirectory
 from tkinter.messagebox import showwarning
-
-import logging
 
 from syncprojects import config
 from syncprojects.storage import appdata
@@ -22,7 +21,7 @@ class SettingsUI:
         self.audio_sync_source_dir = appdata.get('audio_sync_dir')
         self.nested = False
         self.workers_field = None
-
+        self.workers = appdata.get('workers', config.MAX_WORKERS)
         self.logger = logging.getLogger('syncprojects.ui.first_start.SetupUI')
 
     def get_sync_dir(self):
@@ -72,10 +71,11 @@ class SettingsUI:
         frame_a.pack()
         frame_b.pack()
 
-        label_c = tk.Label(master=frame_c, text="How many parallel upload/downloads to allow.")
+        label_c = tk.Label(master=frame_c, text="How many parallel upload/downloads to allow:")
         self.workers_field = tk.Entry(master=frame_c, text=appdata.get('workers', config.MAX_WORKERS))
         label_c.pack()
         self.workers_field.pack()
+        frame_c.pack()
 
         save_button = tk.Button(master=frame_d, text="Save", command=self.quit)
         save_button.pack()
@@ -87,19 +87,28 @@ class SettingsUI:
 
     def quit(self):
         self.nested = self.nested_check.get()
+        self.logger.debug("Quit button pressed.")
         if not self.sync_source_dir or not self.audio_sync_source_dir:
             showwarning(master=self.window, title="Missing Information!",
                         message="Please set all fields correctly.")
-            self.logger.debug("Quit button pressed. Fields not completed.")
+            self.logger.debug("Fields not completed.")
         elif self.sync_source_dir == self.audio_sync_source_dir:
             showwarning(master=self.window, title="Duplicate Entries!",
                         message="Please ensure the same folder was not chosen for both fields.")
-            self.logger.debug("Quit button pressed. Fields are the same.")
+            self.logger.debug("Fields are the same.")
         else:
-            workers = self.workers_field
-            self.logger.debug("Quit button pressed. Exiting")
-            self.window.destroy()
-            # self.window.quit()
+            try:
+                self.workers = int(self.workers_field.get())
+                if self.workers <= 0:
+                    raise ValueError()
+            except ValueError:
+                self.logger.debug("Workers not a valid number.")
+                showwarning(master=self.window, title="Invalid number!",
+                            message="Please ensure a valid, positive number is used for the workers field.")
+            else:
+                self.logger.debug("Quit button pressed. Exiting")
+                self.window.destroy()
+                # self.window.quit()
 
 
 if __name__ == "__main__":
