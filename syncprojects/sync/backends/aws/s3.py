@@ -1,10 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from os.path import join, isdir
+
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed, Future
-from os.path import join, isdir
-from typing import Dict, List, Callable
-
 import time
+from typing import Dict, List, Callable
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
@@ -261,18 +261,24 @@ class S3SyncBackend(SyncBackend):
         pass
 
 
-def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: str) -> List[Future]:
+def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: str) -> int:
     if os.getenv('THREADS_OFF') == '1':
         logger.debug("Not using threading!")
         results = []
         if fast_get_difference:
             for key in fast_get_difference(src, dst):
-                results.append(action(song, key, remote_path))
+                try:
+                    results.append(action(song, key, remote_path))
+                except Exception as e:
+                    logger.error(f"{action=} failed with exception: {e}")
         else:
             for key, tag in src.items():
                 if key not in dst or tag != dst[key]:
-                    results.append(action(song, key, remote_path))
-        return results
+                    try:
+                        results.append(action(song, key, remote_path))
+                    except Exception as e:
+                        logger.error(f"{action=} failed with exception: {e}")
+        return len(results)
     else:
         logger.debug("Using %d threads", config.MAX_WORKERS)
         with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:

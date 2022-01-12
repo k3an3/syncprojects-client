@@ -1,24 +1,24 @@
+from json import JSONDecodeError
+from multiprocessing import Queue
+from os.path import join, isfile
+
 import datetime
 import getpass
 import logging
 import os
 import re
-import subprocess
-import traceback
-from argparse import ArgumentParser
-from json import JSONDecodeError
-from multiprocessing import Queue
-from os.path import join, isfile
-from tempfile import NamedTemporaryFile
-from threading import Thread
-from typing import Dict, Union
-from uuid import uuid4
-
 import requests
+import subprocess
 import sys
 import timeago
+import traceback
+from argparse import ArgumentParser
 from packaging.version import parse
+from tempfile import NamedTemporaryFile
+from threading import Thread
 from time import sleep
+from typing import Dict, Union
+from uuid import uuid4
 
 import syncprojects.config as config
 from syncprojects.system import open_app_in_browser, process_running, get_datadir, is_mac
@@ -363,6 +363,7 @@ def commit_settings(settings):
         appdata['source'] = settings.sync_source_dir
     if settings.audio_sync_source_dir:
         appdata['audio_sync_dir'] = settings.audio_sync_source_dir
+    appdata['']
     appdata['nested_folders'] = settings.nested
 
 

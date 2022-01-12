@@ -1,8 +1,10 @@
-import logging
 import tkinter as tk
 from tkinter.filedialog import askdirectory
 from tkinter.messagebox import showwarning
 
+import logging
+
+from syncprojects import config
 from syncprojects.storage import appdata
 
 
@@ -19,6 +21,7 @@ class SettingsUI:
         self.sync_source_dir = appdata.get('source')
         self.audio_sync_source_dir = appdata.get('audio_sync_dir')
         self.nested = False
+        self.workers_field = None
 
         self.logger = logging.getLogger('syncprojects.ui.first_start.SetupUI')
 
@@ -40,6 +43,7 @@ class SettingsUI:
         frame_a = tk.Frame()
         frame_b = tk.Frame()
         frame_c = tk.Frame()
+        frame_d = tk.Frame()
 
         label_a = tk.Label(master=frame_a, text="Select the top level folder where you want DAW project folders to be "
                                                 "synced to/from:")
@@ -68,10 +72,15 @@ class SettingsUI:
         frame_a.pack()
         frame_b.pack()
 
-        save_button = tk.Button(master=frame_c, text="Save", command=self.quit)
+        label_c = tk.Label(master=frame_c, text="How many parallel upload/downloads to allow.")
+        self.workers_field = tk.Entry(master=frame_c, text=appdata.get('workers', config.MAX_WORKERS))
+        label_c.pack()
+        self.workers_field.pack()
+
+        save_button = tk.Button(master=frame_d, text="Save", command=self.quit)
         save_button.pack()
 
-        frame_c.pack()
+        frame_d.pack()
 
         self.logger.debug("Entering main loop...")
         self.window.mainloop()
@@ -87,6 +96,7 @@ class SettingsUI:
                         message="Please ensure the same folder was not chosen for both fields.")
             self.logger.debug("Quit button pressed. Fields are the same.")
         else:
+            workers = self.workers_field
             self.logger.debug("Quit button pressed. Exiting")
             self.window.destroy()
             # self.window.quit()
