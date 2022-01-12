@@ -1,7 +1,9 @@
-import logging
 import tkinter as tk
+from tkinter import END
 from tkinter.filedialog import askdirectory
 from tkinter.messagebox import showwarning
+
+import logging
 
 from syncprojects import config
 from syncprojects.storage import appdata
@@ -72,7 +74,8 @@ class SettingsUI:
         frame_b.pack()
 
         label_c = tk.Label(master=frame_c, text="How many parallel upload/downloads to allow:")
-        self.workers_field = tk.Entry(master=frame_c, text=appdata.get('workers', config.MAX_WORKERS))
+        self.workers_field = tk.Entry(master=frame_c)
+        self.workers_field.insert(END, appdata.get('workers', config.MAX_WORKERS))
         label_c.pack()
         self.workers_field.pack()
         frame_c.pack()
