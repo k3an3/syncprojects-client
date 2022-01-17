@@ -1,10 +1,10 @@
-import logging
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from os.path import join, isdir
-from typing import Dict, List, Callable
 
+import logging
+import os
 import time
+from typing import Dict, List, Callable
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
@@ -255,10 +255,50 @@ class S3SyncBackend(SyncBackend):
         return results
 
     def push_amp_settings(self, amp: str, project: str):
-        pass
+        try:
+            bases = [join(appdata['neural_dsp_path'], amp, "User")]
+            remote_path = f"{project['id']}/Amp Settings/{amp}/"
+            while bases:
+                base = bases.pop()
+                for root, dirs, files in os.walk(base):
+                    for file in files:
+                        self.client.upload_file(join(root, file),
+                                                self.bucket,
+                                                '/'.join(remote_path + file))
+                    for d in dirs:
+                        bases.extend(join(base, d))
+        except Exception as e:
+            report_error(e)
 
     def pull_amp_settings(self, amp: str, project: str):
-        pass
+        continuation_token = ""
+        remote_path = f"{project['id']}/Amp Settings/{amp}/"
+        try:
+            while True:
+                if continuation_token:
+                    results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=remote_path,
+                                                          ContinuationToken=continuation_token)
+                else:
+                    results = self.client.list_objects_v2(Bucket=self.bucket, Prefix=remote_path)
+                if 'Contents' in results:
+                    logger.debug("Got %d results", len(results['Contents']))
+                    results.extend([obj['Key'] for obj in results['Contents']])
+                else:
+                    logger.warning("No results retrieved")
+                    break
+                if not results['IsTruncated']:
+                    break
+                else:
+                    continuation_token = results['NextContinuationToken']
+                    logger.debug("Results truncated, fetching more")
+            base = join(appdata['neural_dsp_path'], amp, "User")
+            for result in results:
+                self.client.download_file(self.bucket,
+                                          remote_path + result,
+                                          join(base, *result.split('/'))
+                                          )
+        except Exception as e:
+            report_error(e)
 
 
 def do_action(action: Callable, song: Dict, src: Dict, dst: Dict, remote_path: str) -> int:
