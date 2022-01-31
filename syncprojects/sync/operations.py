@@ -1,17 +1,18 @@
+from os import listdir
+from os.path import join, isfile, islink, isdir
+
 import datetime
 import logging
 import subprocess
-from concurrent.futures.thread import ThreadPoolExecutor
-from os import listdir
-from os.path import join, isfile, islink, isdir
-from typing import Dict
-
 import timeago
+from concurrent.futures.thread import ThreadPoolExecutor
 from progress.bar import IncrementalBar
+from typing import Dict
 
 from syncprojects import config as config
 from syncprojects.api import SyncAPI
 from syncprojects.system import handle_link
+from syncprojects.ui.message import MessageBoxUI
 from syncprojects.utils import print_hr, current_user, format_time, validate_changelog, prompt_to_exit, \
     get_patched_progress, get_input_choice
 
@@ -121,11 +122,16 @@ def get_lock_status(locked: Dict):
     if locked['status'] == 'locked':
         # A null until means this is a sync/song checkout, not a project checkout
         # at least for now
-        if not locked.get('until'):
-            if not locked['locked_by'] == "self":
-                logger.debug(
-                    f"Locked by {locked['locked_by']} since {locked['since']}")
-        elif not locked['locked_by'] == "self":
+        if locked['locked_by'] == "self":
+            if MessageBoxUI.yesno("A sync is still in progress or has stopped unexpectedly.\nIf you would like to "
+                                  "proceed anyway, press \"Yes\".", "Sync Locked"):
+                logger.debug("User pressed yes")
+                return 'self'
+            logger.debug("User pressed no")
+        elif not locked.get('until'):
+            logger.debug(
+                f"Locked by {locked['locked_by']} since {locked['since']}")
+        else:
             checked_out_until = datetime.datetime.fromisoformat(locked['until'])
             if ((checked_out_until - datetime.datetime.now()).total_seconds() / 3600) > 0:
                 logger.debug(
@@ -134,8 +140,6 @@ def get_lock_status(locked: Dict):
                     f"or until it's checked in.")
             else:
                 logger.warning("Expiring lock, as expire time has passed. Server should have cleaned this up.")
-        else:
-            logger.debug("Hit lock() fallthrough case!")
 
 
 def lock(project, api_client, reason: str = "sync", duration: datetime.datetime = None):
