@@ -1,14 +1,14 @@
+from os.path import join, isdir, isfile
+
 import concurrent
 import logging
 import os
+import time
 from abc import ABC, abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 from glob import glob
-from os.path import join, isdir, isfile
 from typing import Dict, List, Union
-
-import time
 
 from syncprojects import config
 from syncprojects.api import SyncAPI
@@ -37,7 +37,7 @@ class SyncBackend(ABC):
     def sync(self, project: Dict, songs: List[Dict], force_verdict: Verdict = None):
         pass
 
-    def sync_amps(self, project: str):
+    def sync_amps(self, project: Dict):
         try:
             for amp in self.get_local_neural_dsp_amps():
                 self.push_amp_settings(amp, project)

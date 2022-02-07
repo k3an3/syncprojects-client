@@ -1,14 +1,14 @@
-import glob
-import logging
-import tempfile
-from abc import ABC, abstractmethod
 from os import unlink
 from os.path import join, getctime
+
+import glob
+import logging
+import sys
+import tempfile
+from abc import ABC, abstractmethod
+from requests import HTTPError
 from typing import Dict
 from zipfile import ZipFile
-
-import sys
-from requests import HTTPError
 
 from syncprojects.api import SyncAPI
 from syncprojects.storage import appdata
@@ -135,7 +135,7 @@ class SyncMultipleHandler(CommandHandler):
                 if get_lock_status(lock):
                     self.logger.debug(f"Unlocked project {project['name']}; starting sync.")
                     sync = self.sync_manager.sync(project)
-                    self.sync_manager.sync_amps(project["name"])
+                    self.sync_manager.sync_amps(project)
                     self.api_client.unlock(project)
                     self.send_queue({'status': 'progress', 'completed': {'project': project['name'], **sync}})
                 else:

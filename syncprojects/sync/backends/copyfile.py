@@ -1,10 +1,10 @@
 # type: ignore
-import os
-import traceback
 from os.path import isdir, join
-from typing import Dict, List
 
+import os
 import sys
+import traceback
+from typing import Dict, List
 
 from syncprojects.storage import HashStore, appdata
 from syncprojects.sync import SyncBackend, Verdict
@@ -143,10 +143,10 @@ class ShareDriveSyncBackend(SyncBackend):
                 self.logger.info(f"Successfully synced {song_name}")
         return results
 
-    def push_amp_settings(self, amp, project):
+    def push_amp_settings(self, amp, project: Dict):
         try:
             copy_tree(join(appdata['neural_dsp_path'], amp, "User"),
-                      join(appdata['smb_drive'], project, 'Amp Settings', amp, current_user()),
+                      join(appdata['smb_drive'], project['name'], 'Amp Settings', amp, current_user()),
                       single_depth=True,
                       update=True,
                       progress=False)
@@ -154,8 +154,8 @@ class ShareDriveSyncBackend(SyncBackend):
             self.logger.debug(traceback.format_exc())
             pass
 
-    def pull_amp_settings(self, amp, project):
-        with os.scandir(join(appdata['smb_drive'], project, 'Amp Settings', amp)) as entries:
+    def pull_amp_settings(self, amp, project: Dict):
+        with os.scandir(join(appdata['smb_drive'], project['name'], 'Amp Settings', amp)) as entries:
             for entry in entries:
                 if entry.name != current_user():
                     copy_tree(entry.path,

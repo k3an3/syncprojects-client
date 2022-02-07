@@ -254,7 +254,7 @@ class S3SyncBackend(SyncBackend):
                     self.logger.info(f"Successfully synced {song_name}")
         return results
 
-    def push_amp_settings(self, amp: str, project: str):
+    def push_amp_settings(self, amp: str, project: Dict):
         try:
             bases = [join(appdata['neural_dsp_path'], amp, "User")]
             remote_path = f"{project['id']}/Amp Settings/{amp}/"
@@ -270,7 +270,7 @@ class S3SyncBackend(SyncBackend):
         except Exception as e:
             report_error(e)
 
-    def pull_amp_settings(self, amp: str, project: str):
+    def pull_amp_settings(self, amp: str, project: Dict):
         continuation_token = ""
         remote_path = f"{project['id']}/Amp Settings/{amp}/"
         try:
