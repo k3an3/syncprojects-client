@@ -1,5 +1,5 @@
 from os import unlink
-from os.path import join, getctime
+from os.path import join, getctime, getmtime
 
 import glob
 import logging
@@ -169,11 +169,18 @@ class WorkOnHandler(CommandHandler):
         project = self.api_client.get_project(song['project'])
         song['project_name'] = project['name']
         project_files = glob.glob(join(appdata['source'], get_song_dir(song), "*.cpr"))
+        latest_project_file = None
         try:
-            latest_project_file = max(project_files, key=getctime)
-        except ValueError:
-            self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
-            return
+            latest_project_file = song['project_file']
+            self.logger.debug("Project file overridden to %s", latest_project_file)
+        except KeyError:
+            pass
+        if not latest_project_file:
+            try:
+                latest_project_file = max(project_files, key=getmtime)
+            except ValueError:
+                self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
+                return
         self.logger.debug(f"Resolved project file to {latest_project_file}, opening in DAW")
         open_default_app(latest_project_file)
         self.send_queue({'status': 'complete'})
