@@ -26,7 +26,7 @@ from syncprojects.utils import prompt_to_exit, parse_args, logger, check_update,
     commit_settings, init_sentry, handle_checkouts
 from syncprojects.watcher import S3AudioSyncHandler, Watcher
 
-__version__ = '2.4.29'
+__version__ = '2.4.30'
 
 CODENAME = "IT RUNS ON ALL THE THINGS"
 BANNER = """

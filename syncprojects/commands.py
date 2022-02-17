@@ -1,5 +1,5 @@
 from os import unlink
-from os.path import join, getctime, getmtime
+from os.path import join, getmtime
 
 import glob
 import logging
@@ -181,8 +181,14 @@ class WorkOnHandler(CommandHandler):
             except ValueError:
                 self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
                 return
+        else:
+            latest_project_file = join(appdata['source'], get_song_dir(song), latest_project_file)
         self.logger.debug(f"Resolved project file to {latest_project_file}, opening in DAW")
-        open_default_app(latest_project_file)
+        try:
+            open_default_app(latest_project_file)
+        except FileNotFoundError:
+            self.send_queue({'status': 'error', 'msg': 'no DAW project file'})
+            return
         self.send_queue({'status': 'complete'})
 
 
