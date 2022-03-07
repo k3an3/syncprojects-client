@@ -1,6 +1,6 @@
 import functools
 from queue import Empty
-from typing import Dict
+from typing import Dict, List
 
 import jwt
 from flask import request, abort
@@ -10,15 +10,17 @@ from syncprojects import config as config
 from syncprojects.utils import gen_task_id, add_to_command_queue
 
 
-def queue_put(name, data: Dict = {}, dry_run: bool = False) -> str:
+def queue_put(name, data: Dict = None, dry_run: bool = False) -> str:
     from syncprojects.server.apiserver import app
+    if not data:
+        data = {}
     if not dry_run:
         return add_to_command_queue(app.config['main_queue'], name, data)
     else:
         return gen_task_id()
 
 
-def queue_get() -> Dict:
+def queue_get() -> List:
     from syncprojects.server.apiserver import app
     queue_results = []
     while True:
