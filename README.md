@@ -16,4 +16,14 @@ It is very important to note that `syncprojects` is DAW-agnostic. There are some
 ## History
 `syncprojects-client` began as a <100 line Python script some time in 2020, designed to synchronize Cubase projects between myself and a friend that I play music with. It originally used a SMB drive as the central storage location and ran in a Windows command prompt. By the 2.0 release, a web interface became the primary means to control things, and eventually S3 replaced SMB.
 
+## Building
+```
+# Local install from Python package
+$ pip install .
+$ syncprojects
+# Dev install
+$ pip install -e .
+# Build release executable (PE on windows or app for MacOS)
+$ ./build_release.py -n
+```
 ## Dev/user docs coming soon...
